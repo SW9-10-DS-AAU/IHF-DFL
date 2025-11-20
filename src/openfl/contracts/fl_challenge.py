@@ -1,3 +1,5 @@
+import asyncio
+import datetime
 import os
 import time
 import torch
@@ -12,6 +14,8 @@ from openfl.ml.pytorch_model import gb, rb, b, green, red
 from openfl.utils import printer, config
 from openfl.api.connection_helper import ConnectionHelper
 from decimal import Decimal
+import openfl.utils.config
+ONEDAYINSECONDS = 86400
 
 class FLChallenge(FLManager):
     def __init__(self, manager, configs, pyTorchModel):
@@ -311,18 +315,10 @@ class FLChallenge(FLManager):
                 raise
         return tx_hash
 
-
-    def close_round(self):
-        if "inactive" in [acc.attitude for acc in self.pytorch_model.participants]:
-                input("Inactive users found - such users do not provide feedback.. " \
-                          + "\nGoing to forward time for 1 day\n")
-                self.w3.provider.make_request("evm_increaseTime", [self.config.WAIT_DELAY])
-        
-        print(b(f"\nSettle round: {self.pytorch_model.round}"))
-                
+    def call_close_feedback_round(self, force):
         if self.fork:
             tx = super().build_tx(self.w3.eth.default_account, self.modelAddress, 0)
-            txHash = self.model.functions.closeRound().transact(tx)
+            txHash = self.model.functions.closeFeedBackRound(force).transact(tx)
             
         else:          
             nonce = self.w3.eth.get_transaction_count(self.pytorch_model.participants[0].address) 
@@ -330,25 +326,74 @@ class FLChallenge(FLManager):
                                         nonce, 
                                         self.modelAddress, 
                                         0)   
-            cl =  self.model.functions.closeRound().buildTransaction(cl)
+            cl =  self.model.functions.closeFeedBackRound(force).buildTransaction(cl)
             pk = self.pytorch_model.participants[0].privateKey
             signed = self.w3.eth.account.signTransaction(cl, private_key=pk)
             txHash = self.w3.eth.sendRawTransaction(signed.rawTransaction)
+                
+        return self.w3.eth.wait_for_transaction_receipt(txHash,
+                                                        timeout=600, 
+                                                        poll_latency=1)
+
+    def close_round(self):
+        if "inactive" in [acc.attitude for acc in self.pytorch_model.participants]:
+                input("Inactive users found - such users do not provide feedback.. " \
+                          + "\nGoing to forward time for 1 day\n")
+                self.w3.provider.make_request("evm_increaseTime", [self.config.WAIT_DELAY])
+        
+        print(b(f"\Feedback round: {self.pytorch_model.round}"))
+        settleStart = datetime.datetime.now(datetime.timezone.utc).timestamp()
+        while (datetime.datetime.now(datetime.timezone.utc).timestamp() < settleStart + ONEDAYINSECONDS):
+            if (self.model.functions.isFeedBackRoundDone().call()):
+                print("Feedback round completed")
+                break
             
+            print("Feedback round not done, sleeping for 10 seconds...")
+            time.sleep(10)
+        else:
+            print("Feedback round failed, forcing Contribution...")
+
+        print(b(f"\Contribution round: {self.pytorch_model.round}"))
+        contributionStart = datetime.datetime.now(datetime.timezone.utc).timestamp()
+        while (datetime.datetime.now(datetime.timezone.utc).timestamp() < contributionStart + config.get_contracts_config().CONTRIBUTION_ROUND_TIMEOUT):
+            if (self.model.functions.isContributionRoundDone().call()):
+                print("Contribution round completed")
+                break
+            print("Contribution round not done, sleeping for 10 seconds...")
+            time.sleep(10)
+        else:
+            print("Contribution round failed, forcing settlement...")
+            
+        
+        print(b(f"\Settling round: {self.pytorch_model.round}"))
+        if self.fork:
+            tx = super().build_tx(self.w3.eth.default_account, self.modelAddress, 0)
+            txHash = self.model.functions.settle().transact(tx)
+            
+        else:          
+            nonce = self.w3.eth.get_transaction_count(self.pytorch_model.participants[0].address) 
+            cl = super().build_non_fork_tx(self.pytorch_model.participants[0].address, 
+                                        nonce, 
+                                        self.modelAddress, 
+                                        0)   
+            cl =  self.model.functions.settle().buildTransaction(cl)
+            pk = self.pytorch_model.participants[0].privateKey
+            signed = self.w3.eth.account.signTransaction(cl, private_key=pk)
+            txHash = self.w3.eth.sendRawTransaction(signed.rawTransaction)
+
         receipt = self.w3.eth.wait_for_transaction_receipt(txHash,
-                                                            timeout=600, 
-                                                            poll_latency=1)          
+                                                        timeout=600, 
+                                                        poll_latency=1)
+
 
         self.txHashes.append(("close", receipt["transactionHash"].hex()))
         self.gas_close.append(receipt["gasUsed"])
         if len(receipt.logs) == 0:
-            print("⚠️ Warning: closeRound() emitted no logs")
+            print("Warning: closeFeedBackRound() emitted no logs")
         self.pytorch_model.round += 1
         self._reward_balance.append(self.get_reward_left())
         printer._print("\n-----------------------------------------------------------------------------------\n")
         return receipt
-    
-    
     
     def user_register_slot(self):
         txs = []
@@ -528,6 +573,7 @@ class FLChallenge(FLManager):
         print("START CONTRIBUTION SCORE\n")
         merged_model = _users[0].model
         num_mergers = len(_users)
+        print(f"Amount of users {len(_users)}")
         txs = []
         for u in _users:
             u.roundRep = 0
@@ -561,6 +607,7 @@ class FLChallenge(FLManager):
 
     def simulate(self, rounds):
         hashedWeights = []
+        print(self.modelAddress)
         self.register_all_users()
         
         for i in range(rounds):
@@ -588,9 +635,11 @@ class FLChallenge(FLManager):
             
             print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
 
+            #contributionScoreTask = asyncio.create_task(self.contribution_score([user for user in self.pytorch_model.participants if user.roundRep > 0]))
             self.contribution_score([user for user in self.pytorch_model.participants if user.roundRep > 0])
-
             receipt = self.close_round()
+            #contributionScoreTask
+            
             print(b(f"Round {self.pytorch_model.round - 1} actually completed:"))
             for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
                 user._globalrep.append(self.get_global_reputation_of_user(user.address))
