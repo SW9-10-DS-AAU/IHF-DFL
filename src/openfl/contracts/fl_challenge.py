@@ -15,6 +15,14 @@ from openfl.ml.pytorch_model import gb, rb, b, green, red
 from openfl.utils import printer, config
 from openfl.api.connection_helper import ConnectionHelper
 
+# Smart-contract–backed federated learning simulation.
+# Handles:
+#   - User registration / exit on-chain
+#   - Hashed model submission & slot reservation
+#   - Feedback exchange (reputation updates)
+#   - Contribution score calculation (dot-product & MAD-based)
+#   - Round settlement and visualization
+
 class FLChallenge(FLManager):
     def __init__(self, manager, configs, pyTorchModel):
         self.manager = manager
@@ -25,6 +33,7 @@ class FLChallenge(FLManager):
         configs = list(configs)
         extra_config = {}
         if configs and isinstance(configs[-1], (Mapping, SimpleNamespace)):
+            # Last element is an optional dict-like config extension
             candidate = configs.pop()
             if isinstance(candidate, Mapping):
                 extra_config = dict(candidate)
@@ -46,7 +55,7 @@ class FLChallenge(FLManager):
         self.gas_deploy   = [] 
         self.gas_exit     = []
         self.txHashes     = []
-        
+
         self._reward_balance = [self.REWARD]
         self._punishments = []
         self.config = config.get_contracts_config()
@@ -59,11 +68,9 @@ class FLChallenge(FLManager):
         }
 
     def _determine_contribution_score_strategy(self):
+        # Resolve contribution-score strategy from config, default to mad
         default_strategy = "mad"
         strategy = self._extra_contract_config.get("contribution_score_strategy")
-
-        if strategy is None:
-            strategy = getattr(self.config, "CONTRIBUTION_SCORE_STRATEGY", None)
 
         if strategy is None:
             strategy = default_strategy
@@ -71,6 +78,11 @@ class FLChallenge(FLManager):
         return str(strategy).strip().lower()
 
     def _get_contribution_score_calculator(self):
+        """
+        Return the function used for contribution-score calculation,
+        based on the configured strategy.
+        """
+
         strategy = self._contribution_score_strategy
         if strategy not in self._contribution_score_calculators:
             available = ", ".join(sorted(self._contribution_score_calculators))
@@ -81,14 +93,20 @@ class FLChallenge(FLManager):
         return self._contribution_score_calculators[strategy]
         
     def register_all_users(self):
+        """
+        Register all participants in the federated learning model
+        via the smart contract.
+        """
         txs = []
         for acc in self.pytorch_model.participants:
             if acc.isRegistered:
                 continue
             if self.fork:
+                # Simple tx builder for forked (dev) chain
                 tx = super().build_tx(acc.address, self.modelAddress, acc.collateral)
                 txHash = self.model.functions.register().transact(tx)
-            else:          
+            else:
+                # Non-fork: build and sign a raw transaction manually
                 nonce = self.w3.eth.get_transaction_count(acc.address) 
                 reg = super().build_non_fork_tx(acc.address, nonce, self.modelAddress, acc.collateral)   
                 reg = self.model.functions.register().buildTransaction(reg)
@@ -132,6 +150,7 @@ class FLChallenge(FLManager):
 
     
     def users_provide_hashed_weights(self):
+
         txs = []
         for acc in self.pytorch_model.participants:
             if acc.attitude == "inactive":
@@ -171,6 +190,14 @@ class FLChallenge(FLManager):
 
              
     def give_feedback(self, feedbackGiver, target, score):
+        """
+        Send a feedback transaction from feedbackGiver to target with given score:
+          1  -> positive
+          0  -> neutral
+         -1  -> negative
+
+        If target is in feedbackGiver.cheater list, force score to -1.
+        """
         time.sleep(0.1)
         tx = super().build_tx(feedbackGiver.address, self.modelAddress, 0)
         #data = "0x" + encode_abi(['address', 'uint'], [target, score]).hex()
@@ -603,26 +630,18 @@ class FLChallenge(FLManager):
 
     # New contribution score
     def contribution_score(self, _users):
+        """
+        Compute contribution scores for all merging users, submit them to the
+        contract, and log them. Strategy is chosen by _get_contribution_score_calculator:
+          - legacy: simple dot-product
+          - mad: MAD-based outlier filtering of weights
+        """
+
         print("START CONTRIBUTION SCORE\n")
 
         merged_model = _users[0].model
-        # num_mergers = len(_users)
-        #
-        # # Flatten global (merged) model
-        # global_update = torch.cat([p.data.view(-1) for p in merged_model.parameters()])
-        #
-        # # Flatten all local previous models into a single tensor
-        # local_updates = []
-        # for u in _users:
-        #     u.roundRep = 0
-        #     local_update = torch.cat([p.data.view(-1) for p in u.previousModel.parameters()])
-        #     local_updates.append(local_update)
-        #
-        # local_updates = torch.stack(local_updates)  # shape: (num_mergers, D)
-        #
-        # # --- MAD-based contribution scores for all users in one go ---
-        # scores = calc_contribution_scores_mad(local_updates, global_update)
 
+        # Choose scoring algorithm based on configured strategy
         calculator = self._get_contribution_score_calculator()
         scores = calculator(_users, merged_model)
 
@@ -664,6 +683,9 @@ class FLChallenge(FLManager):
 
 
     def _calculate_scores_legacy(self, users, merged_model):
+        """
+        Legacy scoring: for each user, use dot-product–based contribution score.
+        """
         num_mergers = len(users)
         return [
             calc_contribution_score(u.previousModel, merged_model, num_mergers)
@@ -671,6 +693,9 @@ class FLChallenge(FLManager):
         ]
 
     def _calculate_scores_mad(self, users, merged_model):
+        """
+        MAD-based scoring: robust per-weight outlier filtering before scoring.
+        """
         global_update = torch.cat([p.data.view(-1) for p in merged_model.parameters()])
         local_updates = [
             torch.cat([p.data.view(-1) for p in u.previousModel.parameters()])
@@ -680,6 +705,20 @@ class FLChallenge(FLManager):
         return calc_contribution_scores_mad(local_updates, global_update)
 
     def simulate(self, rounds):
+        """
+        Run a full FL simulation for a given number of rounds.
+        High-level flow per round:
+          1) Update user attitudes
+          2) Local training
+          3) Let malicious/freerider users modify/copy models
+          4) Register slots & provide hashed weights
+          5) Exchange and verify models
+          6) Evaluation & feedback
+          7) Merge models
+          8) Compute contribution scores
+          9) Close round, print summary
+        At the end, all users exit the system.
+        """
         hashedWeights = []
         self.register_all_users()
         
