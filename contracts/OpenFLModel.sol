@@ -34,6 +34,7 @@ contract OpenFLModel {
     uint public roundStart;
     uint public freeriderPenalty;
     uint public ONE_DAY = 864e2;
+    bool public testing;
 
     address[] public participants;
     address[] punishedAddresses;
@@ -160,6 +161,10 @@ contract OpenFLModel {
                                            freeriderPenalty);
     }
 
+    function setTesting(bool _testing) external {
+    testing = _testing;
+    }
+
     // Register participants
     function register() public payable onlyNotYetRegisteredUsers {
         require(msg.value >= min_collateral && msg.value <= max_collateral, "NWR");
@@ -196,7 +201,7 @@ contract OpenFLModel {
     }
 
 
-    function feedback(address target, int score) public onlyRegisteredUsers onlyValidTargets(target) feedbackRoundOpened {
+    function feedback(address target, int score) public virtual onlyRegisteredUsers onlyValidTargets(target) feedbackRoundOpened {
         //(address target, int score) = abi.decode(data, (address, int));
         hasVoted[msg.sender][target]=true;
         nrOfVotesOfUser[msg.sender] += 1;
@@ -402,6 +407,7 @@ contract OpenFLModel {
         }
         isRegistered[msg.sender] = false;
         payable(address(msg.sender)).transfer(val);
+
     }
 
     // Fallback function parses dynamic size feedback arrays
@@ -459,8 +465,10 @@ contract OpenFLModel {
             }
         }
 
-        for (uint i=0; i<ads.length; i++) { 
-            feedback(ads[i], ints[i]);
+        for (uint i=0; i<ads.length; i++) {
+            if (!testing) {
+                feedback(ads[i], ints[i]);
+            }
         }
     }
 }
