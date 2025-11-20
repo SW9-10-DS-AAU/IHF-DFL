@@ -53,6 +53,8 @@ contract OpenFLModel {
     mapping(uint8 => mapping(address => uint256)) public contributionScore; // round => user => score
     mapping(uint8 => mapping(address => bool)) public isContribScoreNegative;
     mapping(uint8 => uint256) public nrOfContributionScores; // round => number of submissions
+    mapping(uint8 => mapping(address => mapping(address => int8))) public feedbackOf; // round → voter → target → score
+    mapping(address => mapping(address => uint8)) public accuracyOfFrom; // participant => target participant => accuracy
 
     modifier onlyRegisteredUsers {
         require(isRegistered[msg.sender], "SNR");
@@ -458,7 +460,58 @@ contract OpenFLModel {
         }
     }
 
+    function submitFeedbackBytesAndAccuracies(bytes calldata raw, uint[] calldata accuracies) external {
+        address[] memory ads;
+        int256[] memory ints;
 
+        assembly {
+            let tmp := 0
+            let tmp2 := 0
+
+            // offset inside `raw` starts at raw.offset
+            let offset := raw.offset
+
+            // adsCount = calldatasize / 0x34
+            let adsCount := div(raw.length, 0x34)
+
+            // allocate memory for addresses array
+            ads := mload(0x40)
+            mstore(0x40, add(ads, add(0x20, mul(adsCount, 0x20))))
+            mstore(ads, adsCount)
+
+            // load addresses (20 bytes each)
+            for { let i := 0 } lt(i, adsCount) { i := add(i, 1) } {
+                tmp := calldataload(offset)
+                tmp := shr(96, tmp)
+                mstore(add(add(ads, 0x20), mul(i, 0x20)), tmp)
+                offset := add(offset, 0x14)
+            }
+
+            // allocate memory for ints array
+            ints := mload(0x40)
+            mstore(0x40, add(ints, add(0x20, mul(adsCount, 0x20))))
+            mstore(ints, adsCount)
+
+            // load int256 values (32 bytes each)
+            for { let i := 0 } lt(i, adsCount) { i := add(i, 1) } {
+                tmp2 := calldataload(offset)
+                mstore(add(add(ints, 0x20), mul(i, 0x20)), tmp2)
+                offset := add(offset, 0x20)
+            }
+        }
+
+        require(accuracies.length == ads.length, "INVALID_LENGTH");
+        for (uint i = 0; i < ads.length; i++) {
+            accuracyOfFrom[ads[i]][msg.sender] = accuracies[i];
+        }
+
+        // EXACT same for-loop as fallback
+        for (uint i = 0; i < ads.length; i++) {
+            if (!testing) {
+                feedback(ads[i], ints[i]);
+            }
+        }
+    }
 
 
     // Fallback function parses dynamic size feedback arrays

@@ -1,5 +1,7 @@
 import os
 import time
+import warnings
+
 import torch
 import numpy as np
 from eth_abi import encode
@@ -240,7 +242,7 @@ class FLChallenge(FLManager):
 
                 
     
-    def quick_feedback_round(self, fbm):
+    def quick_feedback_round(self, fbm, feedback_type, am = None):
         print("Users exchanging feedback...")
         txs = []
         for user in self.pytorch_model.participants:
@@ -258,23 +260,54 @@ class FLChallenge(FLManager):
                 addrs.append(votee.address)
                 votes.append(int(vote))
                 votee.roundRep = votee.roundRep + self.get_global_reputation_of_user(user.address) * int(vote)
-            
+
             fbb = self.build_feedback_bytes(addrs, votes)
-            txs.append(self.send_fallback_transaction_onchain(_to=self.modelAddress, _from=user.address, data=fbb,
+            if feedback_type == "fallback":
+                txs.append(self.send_fallback_transaction_onchain(_to=self.modelAddress, _from=user.address, data=fbb,
                                                               private_key=user.privateKey))
+            elif feedback_type == "feedbackBytes":
+                if self.fork:
+                    tx = super().build_tx(user.address, self.modelAddress)
+                    tx_hash = self.model.functions.submitFeedbackBytes(fbb).transact(tx)
+                else:  # TODO: Dobbeltjek at logic er rigtig her.
+                    nonce = self.w3.eth.get_transaction_count(user.address)
+                    cl = super().build_non_fork_tx(user.address, nonce)
+                    cl = self.model.functions.submitFeedbackBytes(
+                        fbb
+                    ).build_transaction(cl)
+                    pk = user.privateKey
+                    signed = self.w3.eth.account.sign_transaction(cl, private_key=pk)
+                    tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
+                txs.append(tx_hash)
+            elif feedback_type == "feedbackBytesAndAccuracy":
+                if self.fork:
+                    tx = super().build_tx(user.address, self.modelAddress)
+                    tx_hash = self.model.functions.submitFeedbackBytesAndAccuracies(fbb, am).transact(tx)
+                else:  # TODO: Dobbeltjek at logic er rigtig her.
+                    nonce = self.w3.eth.get_transaction_count(user.address)
+                    cl = super().build_non_fork_tx(user.address, nonce)
+                    cl = self.model.functions.submitFeedbackBytesAndAccuracies(
+                        fbb, am
+                    ).build_transaction(cl)
+                    pk = user.privateKey
+                    signed = self.w3.eth.account.sign_transaction(cl, private_key=pk)
+                    tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
+                txs.append(tx_hash)
+            else:
+                warnings.warn("INVALID FEEDBACK TYPE")
 
         for i, txHash in enumerate(txs):
             self.log_receipt(i, txHash, len(txs), "feedback")
 
         for user in self.pytorch_model.participants:
             user._roundrep.append(self.get_round_reputation_of_user(user.address))
-            
+
         for user in self.pytorch_model.disqualified:
             user._roundrep.append(self.get_round_reputation_of_user(user.address))
-            
+
         printer._print("                                                   ")
         print("\n-----------------------------------------------------------------------------------")
-        
+
     def log_receipt(self, i, tx_hash, len_txs, receipt_type: str):
         printer.print_bar(i, len_txs)
         receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash,
@@ -285,7 +318,7 @@ class FLChallenge(FLManager):
         self.txHashes.append((receipt_type, receipt["transactionHash"].hex()))
 
 
-    def send_fallback_transaction_onchain(self, _to, _from, data, private_key):
+    def send_fallback_transaction_onchain(self, _to, _from, data, private_key=None):
         try:
             if self.fork:
                 tx_hash = self.w3.eth.send_transaction({'to': _to, 'from': _from, 'data': data})
@@ -580,9 +613,11 @@ class FLChallenge(FLManager):
             
             self.pytorch_model.verify_models({u.id: self.get_hashed_weights_of(u) for u in self.pytorch_model.participants})
 
-            feedback = self.pytorch_model.evaluation()
+            feedback_matrix, accuracy_matrix = self.pytorch_model.evaluation()
             
-            self.quick_feedback_round(feedback)
+            self.quick_feedback_round(fbm = feedback_matrix, feedback_type="fallback", am=accuracy_matrix)
+            # self.quick_feedback_round(feedback_matrix, accuracy_matrix, fallback_type="feedbackBytes")
+            # self.quick_feedback_round(feedback_matrix, accuracy_matrix, fallback_type="feedbackBytesAndAccuracy")
 
             self.pytorch_model.the_merge([user for user in self.pytorch_model.participants if user.roundRep > 0])
             
