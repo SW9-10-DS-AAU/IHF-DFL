@@ -18,7 +18,7 @@ def get_print_config():
     return get_config().printing
 
 def get_contracts_config():
-    return get_config().printing
+    return get_config().contracts
 
 def _to_namespace(d):
     if isinstance(d, dict):
