@@ -2,21 +2,35 @@ import os
 import time
 import torch
 import numpy as np
+from types import SimpleNamespace
+from decimal import Decimal
+from collections.abc import Mapping
 from eth_abi import encode
 from web3 import Web3
 from termcolor import colored
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
 from web3.exceptions import ContractLogicError
 from openfl.contracts import FLManager
 from openfl.ml.pytorch_model import gb, rb, b, green, red
 from openfl.utils import printer, config
 from openfl.api.connection_helper import ConnectionHelper
-from decimal import Decimal
 
 class FLChallenge(FLManager):
     def __init__(self, manager, configs, pyTorchModel):
         self.manager = manager
         self.w3 = manager.w3
+
+        # Allow configs to optionally include an extra mapping/namespace with
+        # strategy overrides without breaking the legacy tuple signature.
+        configs = list(configs)
+        extra_config = {}
+        if configs and isinstance(configs[-1], (Mapping, SimpleNamespace)):
+            candidate = configs.pop()
+            if isinstance(candidate, Mapping):
+                extra_config = dict(candidate)
+            else:
+                extra_config = dict(vars(candidate))
+
         self.model, self.modelAddress = configs[:2]
         self.pytorch_model = pyTorchModel
         self.MIN_BUY_IN, self.MAX_BUY_IN , self.REWARD, self.MIN_ROUNDS, = configs[2:-2]
@@ -37,7 +51,34 @@ class FLChallenge(FLManager):
         self._punishments = []
         self.config = config.get_contracts_config()
 
-              
+        self._extra_contract_config = extra_config
+        self._contribution_score_strategy = self._determine_contribution_score_strategy()
+        self._contribution_score_calculators = {
+            "legacy": self._calculate_scores_legacy,
+            "mad": self._calculate_scores_mad,
+        }
+
+    def _determine_contribution_score_strategy(self):
+        default_strategy = "mad"
+        strategy = self._extra_contract_config.get("contribution_score_strategy")
+
+        if strategy is None:
+            strategy = getattr(self.config, "CONTRIBUTION_SCORE_STRATEGY", None)
+
+        if strategy is None:
+            strategy = default_strategy
+
+        return str(strategy).strip().lower()
+
+    def _get_contribution_score_calculator(self):
+        strategy = self._contribution_score_strategy
+        if strategy not in self._contribution_score_calculators:
+            available = ", ".join(sorted(self._contribution_score_calculators))
+            raise ValueError(
+                f"Unknown contribution score strategy '{strategy}'. Available strategies: {available}"
+            )
+        print("strategy: ", strategy)
+        return self._contribution_score_calculators[strategy]
         
     def register_all_users(self):
         txs = []
@@ -524,39 +565,39 @@ class FLChallenge(FLManager):
 
         print()
 
-    def contribution_score_old(self, _users):
-        print("START CONTRIBUTION SCORE\n")
-        merged_model = _users[0].model
-        num_mergers = len(_users)
-        txs = []
-        for u in _users:
-            u.roundRep = 0
-            score = calc_contribution_score(u.previousModel, merged_model, num_mergers)
-            u.is_contrib_score_negative = True if score < 0 else False
-            u.contribution_score = score
-
-            if self.fork:
-                tx = super().build_tx(u.address, self.modelAddress)
-                tx_hash = self.model.functions.submitContributionScore(abs(score),
-                                                                       u.is_contrib_score_negative).transact(tx)
-            else:
-                nonce = self.w3.eth.get_transaction_count(u.address)
-                cl = super().buildNonForkTx(u.address,
-                                            nonce,
-                                            self.modelAddress)
-                cl = self.model.functions.settleContributionScore(abs(score),
-                                                                  u.is_contrib_score_negative).buildTransaction(cl)
-                pk = u.private_key
-                signed = self.w3.eth.account.signTransaction(cl, private_key=pk)
-                tx_hash = self.w3.eth.sendRawTransaction(signed.rawTransaction)
-            txs.append(tx_hash)
-
-            print(green(f"\nUSER @ {u.id}"))
-            print(green(f"{'CONTRIBUTION SCORE:':25} {u.contribution_score:}"))
-
-        for i, txHash in enumerate(txs):
-            self.log_receipt(i, txHash, len(txs), "con_score")
-        print("-----------------------------------------------------------------------------------\n")
+    # def contribution_score_old(self, _users):
+    #     print("START CONTRIBUTION SCORE\n")
+    #     merged_model = _users[0].model
+    #     num_mergers = len(_users)
+    #     txs = []
+    #     for u in _users:
+    #         u.roundRep = 0
+    #         score = calc_contribution_score(u.previousModel, merged_model, num_mergers)
+    #         u.is_contrib_score_negative = True if score < 0 else False
+    #         u.contribution_score = score
+    #
+    #         if self.fork:
+    #             tx = super().build_tx(u.address, self.modelAddress)
+    #             tx_hash = self.model.functions.submitContributionScore(abs(score),
+    #                                                                    u.is_contrib_score_negative).transact(tx)
+    #         else:
+    #             nonce = self.w3.eth.get_transaction_count(u.address)
+    #             cl = super().buildNonForkTx(u.address,
+    #                                         nonce,
+    #                                         self.modelAddress)
+    #             cl = self.model.functions.settleContributionScore(abs(score),
+    #                                                               u.is_contrib_score_negative).buildTransaction(cl)
+    #             pk = u.private_key
+    #             signed = self.w3.eth.account.signTransaction(cl, private_key=pk)
+    #             tx_hash = self.w3.eth.sendRawTransaction(signed.rawTransaction)
+    #         txs.append(tx_hash)
+    #
+    #         print(green(f"\nUSER @ {u.id}"))
+    #         print(green(f"{'CONTRIBUTION SCORE:':25} {u.contribution_score:}"))
+    #
+    #     for i, txHash in enumerate(txs):
+    #         self.log_receipt(i, txHash, len(txs), "con_score")
+    #     print("-----------------------------------------------------------------------------------\n")
 
 
 
@@ -565,22 +606,25 @@ class FLChallenge(FLManager):
         print("START CONTRIBUTION SCORE\n")
 
         merged_model = _users[0].model
-        num_mergers = len(_users)
+        # num_mergers = len(_users)
+        #
+        # # Flatten global (merged) model
+        # global_update = torch.cat([p.data.view(-1) for p in merged_model.parameters()])
+        #
+        # # Flatten all local previous models into a single tensor
+        # local_updates = []
+        # for u in _users:
+        #     u.roundRep = 0
+        #     local_update = torch.cat([p.data.view(-1) for p in u.previousModel.parameters()])
+        #     local_updates.append(local_update)
+        #
+        # local_updates = torch.stack(local_updates)  # shape: (num_mergers, D)
+        #
+        # # --- MAD-based contribution scores for all users in one go ---
+        # scores = calc_contribution_scores_mad(local_updates, global_update)
 
-        # Flatten global (merged) model
-        global_update = torch.cat([p.data.view(-1) for p in merged_model.parameters()])
-
-        # Flatten all local previous models into a single tensor
-        local_updates = []
-        for u in _users:
-            u.roundRep = 0
-            local_update = torch.cat([p.data.view(-1) for p in u.previousModel.parameters()])
-            local_updates.append(local_update)
-
-        local_updates = torch.stack(local_updates)  # shape: (num_mergers, D)
-
-        # --- MAD-based contribution scores for all users in one go ---
-        scores = calc_contribution_scores_mad(local_updates, global_update)
+        calculator = self._get_contribution_score_calculator()
+        scores = calculator(_users, merged_model)
 
         txs = []
         for u, score in zip(_users, scores):
@@ -618,6 +662,22 @@ class FLChallenge(FLManager):
 
         print("-----------------------------------------------------------------------------------\n")
 
+
+    def _calculate_scores_legacy(self, users, merged_model):
+        num_mergers = len(users)
+        return [
+            calc_contribution_score(u.previousModel, merged_model, num_mergers)
+            for u in users
+        ]
+
+    def _calculate_scores_mad(self, users, merged_model):
+        global_update = torch.cat([p.data.view(-1) for p in merged_model.parameters()])
+        local_updates = [
+            torch.cat([p.data.view(-1) for p in u.previousModel.parameters()])
+            for u in users
+        ]
+        local_updates = torch.stack(local_updates)
+        return calc_contribution_scores_mad(local_updates, global_update)
 
     def simulate(self, rounds):
         hashedWeights = []
@@ -776,6 +836,9 @@ class FLChallenge(FLManager):
         #plt.show()
         return plt
 
+
+
+
 def calc_contribution_score(local_model, global_model, num_mergers, eps=1e-12) -> int:
     """
     FedAvg-normalized dot product score so that sum = 1.
@@ -803,6 +866,7 @@ def calc_contribution_score(local_model, global_model, num_mergers, eps=1e-12) -
     score = torch.dot(local_update, global_update) / (num_mergers * norm_U_sq)
 
     return int(Decimal(score.item()) * Decimal('1e18'))
+
 
 
 # New function
@@ -855,8 +919,10 @@ def calc_contribution_scores_mad(local_updates: torch.Tensor,
     norm_U_sq = torch.dot(global_update, global_update)
 
     if norm_U_sq.abs() < eps:
-        # Global update is basically zero => everyone gets 0
-        return [0 for _ in range(num_mergers)]
+        # Global update basically zero → give everyone equal share 1 / num_mergers
+        score = Decimal(1) / Decimal(num_mergers)
+        equal_int_score = int(score * Decimal('1e18'))
+        return [equal_int_score for _ in range(num_mergers)]
 
     # For each user i: score_i = (u_i_filtered · U) / (num_mergers * ||U||^2)
     dots = torch.mv(filtered_local_updates, global_update)  # (num_mergers,)
@@ -868,3 +934,24 @@ def calc_contribution_scores_mad(local_updates: torch.Tensor,
         for score in scores
     ]
     return int_scores
+
+    # norm_U_sq = torch.dot(global_update, global_update)
+    #
+    # if norm_U_sq.abs() < eps:
+    #     # Global update is basically zero => everyone gets 0
+    #     return [0 for _ in range(num_mergers)]
+    #
+    # # For each user i: score_i = (u_i_filtered · U) / (num_mergers * ||U||^2)
+    # dots = torch.mv(filtered_local_updates, global_update)  # (num_mergers,)
+    # scores = dots / (num_mergers * norm_U_sq)
+    #
+    # # Convert to your integer fixed-point format (×1e18)
+    # int_scores = [
+    #     int(Decimal(score.item()) * Decimal('1e18'))
+    #     for score in scores
+    # ]
+    # return int_scores
+
+# def flatten_model_params(model: torch.nn.Module) -> torch.Tensor:
+#     return torch.cat([p.data.view(-1) for p in model.parameters()])
+
