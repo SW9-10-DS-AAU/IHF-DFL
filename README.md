@@ -43,7 +43,7 @@ The file experiments.py runs one such experiment and can be run with:
 ``ENV=ganache python ./experiment/experiment_runner.py``
 
 ## 5. Solidity testing
-- Download Foundry in AWS or Linux: 
+- Download Foundry in WSL or Linux: 
 - `curl -L https://foundry.paradigm.xyz | bash`
 - `source ~/.bashrc`
 - `foundryup`
