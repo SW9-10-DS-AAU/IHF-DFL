@@ -62,6 +62,13 @@ contract FallbackGasTest is Test {
         require(ok, "fallback call failed");
     }
 
+    function testSubmitFeedbackBytesGas() public {
+    bytes memory data = buildPacked(users, scores);
+
+    // call the new function directly
+    model.submitFeedbackBytes(data);
+}
+
     // -------------------------------------------------------------
     // Helper: Encode calldata exactly as your fallback expects
     // -------------------------------------------------------------
