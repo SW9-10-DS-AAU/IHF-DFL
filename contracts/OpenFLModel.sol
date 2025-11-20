@@ -125,7 +125,7 @@ contract OpenFLModel {
     event EndRound(
         uint8 round,
         uint8 validVotes,
-        uint rewardPerVote,
+        uint sumOfWeights,
         uint totalPunishment
     );
 
@@ -302,15 +302,17 @@ contract OpenFLModel {
     }
 
     function isContributionRoundDone() public returns (bool roundClosed) {
-        if (nrOfContributionScores[round] < nrOfParticipants - 1) {
+        uint mergedUsers = 0;
+        for (uint i = 0; i < participants.length; i++) {
+            if (RoundReputationOf[participants[i]] < 0) {
+                mergedUsers++;
+            }
+        }
+        if (nrOfContributionScores[round] < mergedUsers) {
             return false;
         }
 
         return true;
-    }
-
-    function getContributionRoundDone() public returns (uint8 amount) {
-        return nrOfContributionScores[round];
     }
 
     function settle() public {

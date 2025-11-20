@@ -14,6 +14,7 @@ from openfl.ml.pytorch_model import gb, rb, b, green, red
 from openfl.utils import printer, config
 from openfl.api.connection_helper import ConnectionHelper
 from decimal import Decimal
+import openfl.utils.config
 ONEDAYINSECONDS = 86400
 
 class FLChallenge(FLManager):
@@ -354,7 +355,7 @@ class FLChallenge(FLManager):
 
         print(b(f"\Contribution round: {self.pytorch_model.round}"))
         contributionStart = datetime.datetime.now(datetime.timezone.utc).timestamp()
-        while (datetime.datetime.now(datetime.timezone.utc).timestamp() < contributionStart + ONEDAYINSECONDS):
+        while (datetime.datetime.now(datetime.timezone.utc).timestamp() < contributionStart + config.get_contracts_config().CONTRIBUTION_ROUND_TIMEOUT):
             if (self.model.functions.isContributionRoundDone().call()):
                 print("Contribution round completed")
                 break
@@ -572,6 +573,7 @@ class FLChallenge(FLManager):
         print("START CONTRIBUTION SCORE\n")
         merged_model = _users[0].model
         num_mergers = len(_users)
+        print(f"Amount of users {len(_users)}")
         txs = []
         for u in _users:
             u.roundRep = 0
