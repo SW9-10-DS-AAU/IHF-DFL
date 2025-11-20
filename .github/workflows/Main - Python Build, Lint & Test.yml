@@ -25,34 +25,48 @@ jobs:
     steps:
       # 1. Checkout the repo
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # 2. Set up Python
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v4
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.10"
+          cache: "pip"
+          cache-dependency-path: |
+            **/pyproject.toml
+            **/poetry.lock
+            **/pdm.lock
+            **/uv.lock
 
       # 3. Cache pip
-      - name: Cache pip
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
+      # - name: Cache pip
+      #   uses: actions/cache@v3
+      #   with:
+      #     path: ~/.cache/pip
+      #     key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+      #     restore-keys: |
+      #       ${{ runner.os }}-pip-
 
       # 4. Install dependencies
+      # - name: Install dependencies
+      #   run: |
+      #     python -m pip install --upgrade pip
+      #     if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # Tools needed to build distributions
+          python -m pip install --upgrade build setuptools wheel
+          pip install -e ".[ci]"
+          pip install 'black[jupyter]'
 
       # 5. fix formatting with black
-      - name: Check code formatting with black
-        run: |
-          pip install black
-          black --line-length 120 .
+      # - name: Check code formatting with black
+      #   run: |
+      #     pip install black
+      #     black --line-length 120 .
 
       ## 6. Lint code with flake8
       #- name: Lint with flake8
@@ -61,10 +75,13 @@ jobs:
       #    flake8 --max-line-length=120 .
 
       # 7. Build package if applicable
+      # - name: Build package
+      #   run: |
+      #     if [ -f setup.py ]; then python setup.py build; fi
+      #     if [ -f pyproject.toml ]; then python -m build; fi
+
       - name: Build package
-        run: |
-          if [ -f setup.py ]; then python setup.py build; fi
-          if [ -f pyproject.toml ]; then python -m build; fi
+        run: python -m build
 
       # 8. Import check
       - name: Import check

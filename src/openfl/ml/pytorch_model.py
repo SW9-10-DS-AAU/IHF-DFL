@@ -2,22 +2,48 @@ import copy
 import torch
 import random
 import numpy as np
-from web3 import Web3
 import torch.nn as nn
 import torch.optim as optim
-DEVICE = torch.device("cpu")
-from termcolor import colored
-from typing import Tuple, Dict
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
+import torch.multiprocessing as mp
+import os
+import time
+from web3 import Web3
+from termcolor import colored
+from typing import Tuple, Dict
 from collections import OrderedDict
-import torchvision.transforms as transforms
-from torchvision import datasets, transforms
+from torchvision import transforms
 from torchvision.datasets import CIFAR10, MNIST
 from torch.utils.data import DataLoader, random_split
 
-# Added
+
 RNG = np.random.default_rng()
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+USE_CUDA = (DEVICE.type == "cuda")
+PIN_MEMORY = USE_CUDA
+NON_BLOCKING = USE_CUDA
+NUM_WORKERS = min(4, os.cpu_count() // 2) if torch.cuda.is_available() else 0
+PERSISTENT_WORKERS = USE_CUDA and NUM_WORKERS > 0
+AMP = USE_CUDA # Optional: mixed precision on CUDA
+
+# cuDNN autotune for fixed-size inputs (both MNIST 28x28 and CIFAR-10 32x32)
+torch.backends.cudnn.benchmark = USE_CUDA
+
+def model_to_device(net: nn.Module) -> nn.Module:
+    # Move model once; keep it on the chosen device
+    return net.to(DEVICE, non_blocking=NON_BLOCKING)
+
+def cuda_safe_dataloader(ds, batch_size, shuffle=False):
+    return DataLoader(
+        ds,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        pin_memory=PIN_MEMORY,
+        num_workers=NUM_WORKERS,
+        persistent_workers=PERSISTENT_WORKERS,
+    )
+
 
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 bad_c  = "#d62728"
@@ -112,7 +138,8 @@ class Net_MNIST(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.dropout(x, training=self.training)
         x = self.fc2(x)
-        return F.log_softmax(x, dim=-1)
+        # return F.log_softmax(x)
+        return x
 
 
         
@@ -129,9 +156,6 @@ class PytorchModel:
         self.NUMBER_OF_FREERIDER_CONTRIBUTORS = 0
         self.NUMBER_OF_INACTIVE_CONTRIBUTORS = 0
         self.DATA = None
-        
-        
-                
         self.participants = []
         self.disqualified = []
         self.EPOCHS = epochs
@@ -211,15 +235,11 @@ class PytorchModel:
         print("Participant added: {:<9} {}".format(rb(_attitude.upper()[0]+_attitude[1:]), rb("User")))
         
         
-        
     def load_data(self, NUM_CLIENTS, _print=False):
         if self.DATA:
             return self.DATA
         
         if self.DATASET == "cifar-10":
-            transform = transforms.Compose(
-                          [transforms.ToTensor(), transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
-                        )
             transform = transforms.Compose([
                 transforms.RandomCrop(32, padding=4),
                 transforms.RandomHorizontalFlip(),
@@ -260,68 +280,85 @@ class PytorchModel:
             len_train = len(ds) - len_val
             lengths = [len_train, len_val]
             ds_train, ds_val = random_split(ds, lengths, torch.Generator().manual_seed(42))
-            trainloaders.append(DataLoader(ds_train, batch_size=self.BATCHSIZE, shuffle=True))
-            valloaders.append(DataLoader(ds_val, batch_size=self.BATCHSIZE))
-        testloader = DataLoader(testset, batch_size=self.BATCHSIZE)
+            trainloaders.append(DataLoader(
+                ds_train,
+                batch_size=self.BATCHSIZE,
+                shuffle=True,
+                pin_memory=PIN_MEMORY,
+                num_workers=NUM_WORKERS,
+                persistent_workers=PERSISTENT_WORKERS,
+            ))
+            valloaders.append(DataLoader(
+                ds_val,
+                batch_size=self.BATCHSIZE,
+                shuffle=False,
+                pin_memory=PIN_MEMORY,
+                num_workers=NUM_WORKERS,
+                persistent_workers=PERSISTENT_WORKERS,
+            ))
+        testloader = DataLoader(
+            testset,
+            batch_size=self.BATCHSIZE,
+            shuffle=False,
+            pin_memory=PIN_MEMORY,
+            num_workers=NUM_WORKERS,
+            persistent_workers=PERSISTENT_WORKERS,
+        )
         self.DATA = (trainloaders, valloaders, testloader)
         return trainloaders, valloaders, testloader
-    
-    
-    
+
+
     def federated_training(self):
-        print(b("\n=========================== FEDERATED LEARNING START =============================="))
-        for user in self.participants:
-            
-            # Special users do not need to train
-            if user.attitude == "inactive":
-                loss, accuracy = test(user.model, user.val, DEVICE)
-                print("{:<17} {} | Epoch -- | Accuracy {:>3.0f} % | Loss {:>6,.2f}".format("Account inactive:  ",
-                                                                                 user.address[0:16]+"...",
-                                                                                 accuracy*100, loss,))
-                continue
-            if user.attitude == "freerider":
-                loss, accuracy = test(user.model, user.val, DEVICE)
-                print("{:<17} {} | Epoch -- | Accuracy {:>3.0f} % | Loss {:>6,.2f}".format("Account freeriding:",
-                                                                                 user.address[0:16]+"...",
-                                                                                 accuracy*100, loss,))
-                continue
-            if user.attitude == "bad":
-                loss, accuracy = test(user.model, user.val, DEVICE)
-                print("{:<17} {} | Epoch -- | Accuracy {:>3.0f} % | Loss {:>6,.2f}".format("Account malicious: ",
-                                                                                 user.address[0:16]+"...",
-                                                                                 accuracy*100, loss,))
-                continue
-  
-            trainloader = user.train
-            valloader   = user.val
-            testloader  = self.test
-
-            for epoch in range(1):
-                train(user.model, trainloader, self.EPOCHS, DEVICE)
-                loss, accuracy = test(user.model, valloader, DEVICE)
-                user.currentAcc = accuracy
-                _dataload = (epoch+1,accuracy*100,loss)
-                print("{:<17} {} | Epoch {:>2} | Accuracy {:>3.0f} % | Loss {:>6,.2f}".format("Account training:  ",
-                                                                                user.address[0:16]+"...",
-                                                                                *_dataload))
-            
-            
-            loss, accuracy = test(user.model, testloader, DEVICE)
-            user._accuracy.append(accuracy)
-            user._loss.append(loss)
-            
-            _dataload = (epoch+1,accuracy*100,loss)
-            
-            print(green("{:<17} {} | Epoch {:>2} | Accuracy {:>3.0f} % | Loss {:>6,.2f}".format("Account testing:   ",
-                                                                                user.address[0:16]+"...",
-                                                                                *_dataload)))
-
-            user.hashedModel = self.get_hash(user.model.state_dict()) # OH NO
-            print("-----------------------------------------------------------------------------------")
-
-        print(b("=========================== FEDERATED LEARNING END ================================\n"))
-        
+        print(b("\n================ PARALLEL FEDERATED TRAINING START ================"))
     
+        num_gpus = torch.cuda.device_count()
+        ctx = mp.get_context("spawn")
+        num_processes = min(len(self.participants), num_gpus if num_gpus > 0 else os.cpu_count())
+
+        print_training_mode(num_gpus, num_processes)
+
+        start_total = time.perf_counter()
+
+        with ctx.Pool(processes=num_processes) as pool:
+            start_pool = time.perf_counter()
+
+            async_results = []
+            for idx, user in enumerate(self.participants):
+                device_id = idx % max(1, num_gpus)
+                sd_cpu = {k: v.cpu() for k, v in user.model.state_dict().items()} # safe copy
+                async_results.append(pool.apply_async(
+                    _train_user_proc,
+                    (user.id,
+                    sd_cpu,
+                    user.train.dataset,
+                    user.val.dataset,
+                    self.EPOCHS,
+                    device_id,
+                    self.DATASET,
+                    self.BATCHSIZE,
+                    PIN_MEMORY,
+                    False)
+                ))
+            results = [r.get() for r in async_results]
+        end_pool = time.perf_counter()
+
+        # Apply results back to participants
+        user_map = {u.id: u for u in self.participants}
+        for user_id, state_dict, loss, acc in results:
+            u = user_map[user_id]
+            u.model.load_state_dict(state_dict)
+            u.currentAcc = acc
+            u._accuracy.append(acc)
+            u._loss.append(loss)
+            u.hashedModel = self.get_hash(u.model.state_dict())
+
+        total_time = time.perf_counter() - start_total
+        parallel_time = end_pool - start_pool
+
+        print(b("=================== PARALLEL TRAINING END ===================\n"))
+        print(green(f"Parallel execution time: {parallel_time:.2f} seconds"))
+        print(green(f"Total federated training time: {total_time:.2f} seconds\n"))
+
     
     def let_malicious_users_do_their_work(self):
         for i in range(len(self.participants)):
@@ -336,7 +373,6 @@ class PytorchModel:
                                                                                 accuracy*100))
     
     
-    
     def update_users_attitude(self):
         for user in self.participants:
             if user.attitudeSwitch == self.round \
@@ -345,7 +381,6 @@ class PytorchModel:
                                                                             user.futureAttitude)))
                 user.attitude = user.futureAttitude
                 user.color = get_color(None, user.attitude)
-    
     
     
     def let_freerider_users_do_their_work(self):
@@ -375,10 +410,8 @@ class PytorchModel:
                 print("{:<17} {} |  Testing  | Accuracy {:>3.0f} % | Loss ∞\n".format("Account testing:   ",
                                                                                 user.address[0:16]+"...",
                                                                                 accuracy*100))
-                
-            
     
-    
+
     def the_merge(self, _users):
         ids, client_models = [], []
         for u in _users:
@@ -386,12 +419,19 @@ class PytorchModel:
             client_models.append(u.model)
             print("Account {} participating in merge".format(u.address[0:16]+"..."))
             #print(test(c[1],self.test,DEVICE))
-            
-        
-        global_dict = self.global_model.state_dict()
-        for k in global_dict.keys():
-            global_dict[k] = torch.stack([client_models[i].state_dict()[k].float() for i in range(len(client_models))], 0).mean(0) #FedAvg
-        self.global_model.load_state_dict(global_dict)
+
+        with torch.no_grad():
+            global_dict = self.global_model.state_dict()
+            for k in global_dict.keys():
+                stacked = torch.stack([
+                    client_models[i].state_dict()[k].to(
+                        device=global_dict[k].device,
+                        dtype=global_dict[k].dtype
+                    )
+                    for i in range(len(client_models))
+                ], dim=0)
+                global_dict[k] = stacked.mean(0)
+            self.global_model.load_state_dict(global_dict)
         
         loss, accuracy = test(self.global_model,self.test,DEVICE)
         self.accuracy.append(accuracy)
@@ -404,7 +444,6 @@ class PytorchModel:
             u.model.load_state_dict(self.global_model.state_dict()) #the global model
            
         print("-----------------------------------------------------------------------------------\n")
-
     
     
     def exchange_models(self):
@@ -420,7 +459,6 @@ class PytorchModel:
         print("-----------------------------------------------------------------------------------")
     
     
-    
     def verify_models(self, on_chain_hashes):
         print("Users verifying models...")
         for _user in self.participants:
@@ -430,20 +468,29 @@ class PytorchModel:
                     print(red(f"Account {_user.id}: Account {user.address[0:16]}... could not provide the registered model"))
                     _user.cheater.append(user)
                     
-        print("-----------------------------------------------------------------------------------")
-                 
-    
-    
-    
+        print("-----------------------------------------------------------------------------------")        
+
+
     def get_hash(self, _state_dict):
-        if type(_state_dict) != dict:
+        if not isinstance(_state_dict, dict):
             _state_dict = dict(_state_dict)
-        _hash_dict = dict()
-        for k,v in _state_dict.items():
-            _hash_dict[k] = v.numpy().tobytes()
-        return Web3.keccak(text=str(hex(hash(frozenset(sorted(_hash_dict.items(), key=lambda x: x[0]))))))
-            
-            
+
+        parts = []
+        for k, v in sorted(_state_dict.items(), key=lambda x: x[0]):
+            t = v.detach()
+            if t.is_cuda:
+                t = t.cpu()
+            t = t.contiguous()
+            parts.append(k.encode("utf-8"))
+            parts.append(b"|")
+            # include shape to avoid accidental collisions
+            parts.append(np.asarray(t.shape, dtype=np.int64).tobytes())
+            parts.append(b"|")
+            parts.append(t.numpy().tobytes())
+            parts.append(b"\n")
+        blob = b"".join(parts)
+        return Web3.keccak(blob)  #remove hex to match old, with improved algo.
+
     
     def evaluation(self):
         print("Users evaluating models...")
@@ -477,9 +524,7 @@ class PytorchModel:
                     
                 else : # Even Worse
                     feedback_matrix[feedbackGiver.id][user.id] = -1
-                    
-            
-                
+
             # RESET
             feedbackGiver.userToEvaluate = []
         
@@ -500,25 +545,27 @@ def train(
     # Define loss and optimizer
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
-    #print("User {}  |  Epoch {}  |  Batches {}".format(user, epochs, len(trainloader)))
-
+    #print("User {}  |  Epoche {}  |  Batches {}".format(user, epochs, len(trainloader)))
     #print(f"Training {epochs} epoch(s) w/ {len(trainloader)} batches each")
+
+    scaler = torch.amp.GradScaler('cuda', enabled=AMP)
+    net.train()
 
     # Train the network
     for epoch in range(epochs):  # loop over the dataset multiple times
         running_loss = 0.0
-        for i, data in enumerate(trainloader, 0):
-            images, labels = data[0].to(device), data[1].to(device)
+        for images, labels in trainloader:
+            images = images.to(device, non_blocking=NON_BLOCKING)
+            labels = labels.to(device, non_blocking=NON_BLOCKING)
 
             # zero the parameter gradients
-            optimizer.zero_grad()
-
-            # forward + backward + optimize
-            outputs = net(images)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-
+            optimizer.zero_grad(set_to_none=True)
+            with torch.amp.autocast('cuda', enabled=AMP):
+                outputs = net(images)
+                loss = criterion(outputs, labels)
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
 
 
 def test(
@@ -528,20 +575,22 @@ def test(
 ) -> Tuple[float, float]:
     """Validate the network on the entire test set."""
     criterion = nn.CrossEntropyLoss()
+    net.eval()
     correct = 0
     total = 0
     loss = 0.0
     with torch.no_grad():
-        for data in testloader:
-            images, labels = data[0].to(device), data[1].to(device)
-            outputs = net(images)
-            loss += criterion(outputs, labels).item()
-            _, predicted = torch.max(outputs.data, 1)
+        for images, labels in testloader:
+            images = images.to(device, non_blocking=NON_BLOCKING)
+            labels = labels.to(device, non_blocking=NON_BLOCKING)
+            with torch.amp.autocast('cuda', enabled=AMP):
+                outputs = net(images)
+                loss += criterion(outputs, labels).item()
+                _, predicted = torch.max(outputs, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
     accuracy = correct / total
     return loss, accuracy
-
 
     
 def green(text):
@@ -559,25 +608,42 @@ def b(string):
 def red(text):
     return colored(text, "red")
 
-def manipulate(model):
-    sd=[]
-    for i in [val.cpu().numpy() for _, val in model.state_dict().items()]:
-        sd.append(i+random.randint(-100,100)/100)
-    
-    params_dict = zip(model.state_dict().keys(), sd)
-    return OrderedDict({k: torch.tensor(v) for k, v in params_dict})
+def yellow(text):
+    return colored(text, "yellow", attrs=["bold"])
 
-def add_noise(model):
-    sd=[]
-    l = len([val.cpu().numpy() for _, val in model.state_dict().items()])
-    for ii, i in enumerate([val.cpu().numpy() for _, val in model.state_dict().items()]):
-        if ii == l - 5 :
-            sd.append(i+random.randint(9,10)/1000000)
-        else:
-            sd.append(i)
-        
-    params_dict = zip(model.state_dict().keys(), sd)
-    return OrderedDict({k: torch.tensor(v) for k, v in params_dict})
+
+def manipulate(model, scale: float = 1.0) -> OrderedDict:
+    sd = OrderedDict()
+    with torch.no_grad():
+        for k, v in model.state_dict().items():
+            t = v.clone()
+            if t.is_floating_point():
+                # uniform noise in [-scale, scale]
+                noise = torch.empty_like(t).uniform_(-scale, scale)
+                t.add_(noise)
+            sd[k] = t
+    return sd
+
+
+def add_noise(model, offset_from_end: int = 5) -> OrderedDict:
+    """
+    GPU-friendly: keep tensors on their original device/dtype and add a tiny scalar
+    to the tensor at index len(state_dict)-offset_from_end.
+    """
+    items = list(model.state_dict().items())
+    target_idx = max(0, len(items) - offset_from_end)
+
+    new_sd = OrderedDict()
+    with torch.no_grad():
+        for idx, (k, v) in enumerate(items):
+            t = v.clone()
+            if t.is_floating_point() and idx == target_idx:
+                # Match original magnitude: 9e-6 or 1e-5
+                eps = 1e-5 if random.randint(9, 10) == 10 else 9e-6
+                t.add_(eps)  # in-place scalar add on the same device (CPU/GPU)
+            new_sd[k] = t
+    return new_sd
+
 
 def get_color(i, a):
     if a == "bad":
@@ -588,3 +654,62 @@ def get_color(i, a):
         return colors[i]
     except:
         return None
+
+
+def _train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, dataset, batchsize, pin_memory, shuffle):
+        # Multi-GPU Support
+        # Select device
+        use_cuda = torch.cuda.is_available()
+        device = torch.device(f"cuda:{device_id}" if use_cuda else "cpu")
+
+        # Recreate model based on dataset
+        if dataset == "mnist":
+            model = Net_MNIST()
+        else:
+            model = Net_CIFAR()
+
+        model.load_state_dict(model_state)
+        model.to(device)
+
+        # Rebuild dataloaders inside the process
+        train_loader = DataLoader(train_ds, batch_size=batchsize, shuffle=shuffle, pin_memory=pin_memory)
+        val_loader = DataLoader(val_ds, batch_size=batchsize, shuffle=False, pin_memory=pin_memory)
+
+        train(model, train_loader, epochs, device)
+        loss, acc = test(model, val_loader, device)
+
+        print(f"[{device_label(device, device_id)}] User {user_id} done | Acc: {acc:.3f}")
+        
+        # Ensure all GPU work is complete before worker exits
+        if device.type == "cuda":
+            torch.cuda.synchronize(device)
+        return user_id, model.state_dict(), loss, acc
+
+
+def print_training_mode(num_gpus: int, num_processes: int):
+    """Prints a clean status message describing how training will run."""
+    if num_gpus >= 2:
+        print(green(f"Detected {num_gpus} GPU(s) → Parallel multi-GPU training"))
+
+    elif num_gpus == 1:
+        if num_processes > 1:
+            print(yellow(
+                f"Detected 1 GPU → Parallel training on one GPU (shared across {num_processes} workers)"
+            ))
+        else:
+            print(green("Detected 1 GPU → Sequential GPU training"))
+
+    else:  # CPU-only
+        if num_processes > 1:
+            print(yellow(
+                f"Detected 0 GPU(s) → Parallel CPU training ({num_processes} workers)"
+            ))
+        else:
+            print(red("Detected 0 GPU(s) → Sequential CPU mode"))
+
+
+def device_label(device: torch.device, device_id: int = 0) -> str:
+    if device.type == "cuda":
+        return f"GPU {device_id}"
+    else:
+        return "CPU"

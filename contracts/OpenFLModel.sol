@@ -116,7 +116,6 @@ contract OpenFLModel {
         int newRoundReputation
     );
 
-    // TODO: Optimer! behøver vi overhovedet at sende et event tilbage? Og hvis ja, så behøver det jo nok ikke nogen values.
     event ContributionScoreSubmitted(
         address indexed user,
         uint256 contributionScore,
@@ -416,7 +415,7 @@ contract OpenFLModel {
         // Devide reward between every user who provided (non-malicious) feedback
         // Pay back freeriderLock funds to good users
         // First round users pay their anti-freerider fee
-        uint rewardPerVote = 0;
+        uint sumOfWeights = 0;
         if (votesPerRound > 0 && rewardLeft >= rewardPerRound) {
             rewardLeft -= rewardPerRound;
 
@@ -424,8 +423,6 @@ contract OpenFLModel {
             if (totalPunishment > 0) {
                 reward += totalPunishment;
             }
-
-            uint sumOfWeights = 0;
 
             // Compute weights
             for (uint i = 0; i < participants.length; i++) {
@@ -469,7 +466,7 @@ contract OpenFLModel {
                 }
             }
         }
-        emit EndRound(round, votesPerRound, rewardPerVote, totalPunishment); // TODO: emit noget mere relevant end rewardspervote
+        emit EndRound(round, votesPerRound, sumOfWeights, totalPunishment);
 
         // Reset variables
         for (uint i = 0; i < participants.length; i++) {
