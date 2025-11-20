@@ -60,6 +60,15 @@ def run_experiment(dataset_name, experiment_config):
                                           experiment_config.punish_factor,
                                           experiment_config.first_round_fee)
 
+  extra_configs = {}
+  if experiment_config.contribution_score_strategy is not None:
+      extra_configs["contribution_score_strategy"] = (
+          experiment_config.contribution_score_strategy
+      )
+
+  if extra_configs:
+      configs = tuple(configs) + (extra_configs,)
+
   model = Challenge.FLChallenge(manager, 
                       configs,
                       pytorch_model)
