@@ -615,12 +615,12 @@ class FLChallenge(FLManager):
 
             feedback_matrix, accuracy_matrix = self.pytorch_model.evaluation()
             # accuracy matrix
-            # XX 60 64 69 69 70 75
-            # 59 XX 66 67 78 75 40
-            # 70 68 69 69 69 72 85
-            # 85 70 42 56 65 70 71
-            # 75 75 75 75 75 XX 75 # free-rider giver alle samme accuracy som han fik med global model fra sidste runde på eget data
-            # 00 00 00 00 00 00 XX # malicious giver alle andre 0 accuracy
+            # XX 60 64 69 70 75
+            # 59 XX 66 67 75 40
+            # 70 68 XX 69 72 85
+            # 85 70 42 XX 70 71
+            # 75 75 75 75 XX 75 # free-rider giver alle samme accuracy som han fik med global model fra sidste runde på eget data
+            # 00 00 00 00 00 XX # malicious giver alle andre 0 accuracy
             
             self.quick_feedback_round(fbm = feedback_matrix, feedback_type="fallback", am=accuracy_matrix)
             # self.quick_feedback_round(feedback_matrix, accuracy_matrix, fallback_type="feedbackBytes")
