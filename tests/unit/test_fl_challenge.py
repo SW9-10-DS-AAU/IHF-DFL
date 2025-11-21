@@ -2,7 +2,7 @@ import pytest
 import torch
 import torch.nn as nn
 from decimal import Decimal
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from openfl.contracts.fl_challenge import calc_contribution_score, calc_contribution_scores_mad
 
@@ -290,3 +290,46 @@ class TestFLChallengeFeatures:
 
         assert isinstance(res, str)
         assert len(res) > 0
+
+    # Test the MAD score calculation wrapper
+    def test_calculate_scores_mad_wrapper(self, fl_challenge, mock_participants):
+        """
+        Test that _calculate_scores_mad correctly flattens parameters from
+        user models and the global model, stacks them, and passes them
+        to the underlying math function.
+        """
+        # 1. Setup: Create a global model with known weights (all 10.0)
+        merged_model = DummyModel(10.0)
+
+        # 2. Setup: Assign 'previousModel' to each mock participant with distinct weights
+        for i, user in enumerate(mock_participants):
+            user.previousModel = DummyModel(float(i + 1))
+
+        # 3. Patch the actual math function.
+        with patch('openfl.contracts.fl_challenge.calc_contribution_scores_mad') as mock_math:
+            # Set a dummy return value
+            mock_math.return_value = [1000, 2000, 3000]
+
+            # 4. Action
+            scores = fl_challenge._calculate_scores_mad(mock_participants, merged_model)
+
+            # 5. Assertions
+            assert scores == [1000, 2000, 3000]
+
+            # Inspect the arguments passed to calc_contribution_scores_mad
+            args, _ = mock_math.call_args
+            local_updates_arg = args[0]
+            global_update_arg = args[1]
+
+            # Check Global Update Vector
+            assert global_update_arg.shape == (4,)
+            expected_global = torch.tensor([10.0, 10.0, 10.0, 10.0])
+            assert torch.equal(global_update_arg, expected_global)
+
+            # Check Local Updates Matrix
+            assert local_updates_arg.shape == (3, 4)
+
+            # User 0 (Row 0) should be all 1.0
+            assert torch.equal(local_updates_arg[0], torch.tensor([1.0, 1.0, 1.0, 1.0]))
+            # User 2 (Row 2) should be all 3.0
+            assert torch.equal(local_updates_arg[2], torch.tensor([3.0, 3.0, 3.0, 3.0]))
