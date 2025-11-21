@@ -462,7 +462,8 @@ class PytorchModel:
             for ix, user in enumerate(feedbackGiver.userToEvaluate):
                 if not bad_att and not free_att:
                     _, accuracy = test(user.model, valloader, DEVICE)
-                  
+                    accuracy *= 100
+
                 if bad_att:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
                     accuracy_matrix[feedbackGiver.id][user.id] = 0
@@ -471,6 +472,7 @@ class PytorchModel:
                     feedback_matrix[feedbackGiver.id][user.id] = 0
                     if accuracy_last_round == -1:
                         _, accuracy_last_round = test(self.global_model, valloader, DEVICE)  # TODO: Unitest her
+                        accuracy_last_round *= 100
                     accuracy_matrix[feedbackGiver.id][user.id] = accuracy_last_round
 
                 elif user in feedbackGiver.cheater:
@@ -496,6 +498,9 @@ class PytorchModel:
         
         print("FEEDBACK MATRIX:")
         print(feedback_matrix)
+        print("-----------------------------------------------------------------------------------\n")
+        print("ACCURACY MATRIX:")
+        print(accuracy_matrix)
         print("-----------------------------------------------------------------------------------\n")
         return feedback_matrix, accuracy_matrix
 
