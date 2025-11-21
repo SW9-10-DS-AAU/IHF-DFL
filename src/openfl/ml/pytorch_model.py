@@ -462,7 +462,6 @@ class PytorchModel:
             for ix, user in enumerate(feedbackGiver.userToEvaluate):
                 if not bad_att and not free_att:
                     _, accuracy = test(user.model, valloader, DEVICE)
-                    accuracy *= 100
 
                 if bad_att:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
@@ -477,20 +476,20 @@ class PytorchModel:
 
                 elif user in feedbackGiver.cheater:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
-                    accuracy_matrix[feedbackGiver.id][user.id] = accuracy
+                    accuracy_matrix[feedbackGiver.id][user.id] = accuracy * 100
 
                 
                 elif accuracy > feedbackGiver.currentAcc - 0.07: # 7% Worse TODO: Evt tweak
                     feedback_matrix[feedbackGiver.id][user.id] = 1
-                    accuracy_matrix[feedbackGiver.id][user.id] = accuracy
+                    accuracy_matrix[feedbackGiver.id][user.id] = accuracy * 100
                 
                 elif accuracy > feedbackGiver.currentAcc - 0.14: # 14% Worse TODO: Evt tweak
                     feedback_matrix[feedbackGiver.id][user.id] = 0
-                    accuracy_matrix[feedbackGiver.id][user.id] = accuracy
+                    accuracy_matrix[feedbackGiver.id][user.id] = accuracy * 100
                     
                 else : # Even Worse
                     feedback_matrix[feedbackGiver.id][user.id] = -1
-                    accuracy_matrix[feedbackGiver.id][user.id] = accuracy
+                    accuracy_matrix[feedbackGiver.id][user.id] = accuracy * 100
 
 
             # RESET
