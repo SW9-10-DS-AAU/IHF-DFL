@@ -460,7 +460,7 @@ contract OpenFLModel {
         }
     }
 
-    function submitFeedbackBytesAndAccuracies(bytes calldata raw, uint[] calldata accuracies) external {
+    function submitFeedbackBytesAndAccuracies(bytes calldata raw, uint8[] calldata accuracies) external {
         address[] memory ads;
         int256[] memory ints;
 
