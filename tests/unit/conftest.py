@@ -1,4 +1,3 @@
-# conftest.py
 import pytest
 import sys
 import os
@@ -15,14 +14,18 @@ from openfl.contracts.fl_challenge import FLChallenge
 def mock_w3():
     """Mocks a web3 connection to Ethereum."""
     w3 = MagicMock()
-    # Standard mocks for eth kald
+
+    mock_receipt = MagicMock()
+    mock_receipt.gasUsed = 21000
+    mock_receipt.transactionHash = b'\x00' * 32
+    mock_receipt.logs = []
+
+    mock_receipt.__getitem__.side_effect = lambda x: getattr(mock_receipt, x)
+
     w3.eth.get_transaction_count.return_value = 10
     w3.eth.get_balance.return_value = 1000000000000000000
-    w3.eth.wait_for_transaction_receipt.return_value = {
-        "gasUsed": 21000,
-        "transactionHash": b'\x00' * 32,
-        "logs": []
-    }
+    w3.eth.wait_for_transaction_receipt.return_value = mock_receipt
+
     w3.to_checksum_address.side_effect = lambda x: x
     return w3
 
@@ -59,7 +62,10 @@ def mock_participants():
         user.cheater = []  # List of who this user thinks are cheaters
         user.id = i
         user.hashedModel = b'hash'
-        user.secret = 123
+
+        # Give unique secrets to ensure filtering tests work correctly
+        user.secret = 100 + i
+
         users.append(user)
     return users
 
