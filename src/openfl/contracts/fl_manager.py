@@ -113,9 +113,10 @@ class FLManager(ConnectionHelper):
 
         self.gas_deploy.append(receipt["gasUsed"])
         self.txHashes.append(("buildChallenge", receipt["transactionHash"].hex()))
-        self.challenge_contract = super().initialize_model()
         c = self.get_model_count_of(self.pytorch_model.participants[0])
-        self.challenge_contract.address = self.get_model_of(self.pytorch_model.participants[0], c)
+        address = self.get_model_of(self.pytorch_model.participants[0], c)
+        
+        self.challenge_contract = super().initialize_model(address)
         print("\n{:<17} {} | {}\n".format("Model deployed", 
                                           "@ Address " + self.challenge_contract.address, 
                                           txHash.hex()[0:6]+"..."))
@@ -127,4 +128,5 @@ class FLManager(ConnectionHelper):
                                                            ))
 
         self.pytorch_model.participants[0].isRegistered = True
+        self.model_address = self.challenge_contract.address
         return (self.challenge_contract, self.challenge_contract.address) + args
