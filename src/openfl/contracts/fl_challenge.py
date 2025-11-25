@@ -521,14 +521,17 @@ class FLChallenge(FLManager):
 
         print()
 
-    def contribution_score(self, _users):
+    def contribution_score(self, _users, experiment_setting="OLD"):
         print("START CONTRIBUTION SCORE\n")
         merged_model = _users[0].model
         num_mergers = len(_users)
         txs = []
         for u in _users:
             u.roundRep = 0
-            score = calc_contribution_score(u.previousModel, merged_model, num_mergers)
+            if experiment_setting == "OLD":
+                score = calc_contribution_score_naive(num_mergers)
+            else:
+               score = calc_contribution_score(u.previousModel, merged_model, num_mergers)
             u.is_contrib_score_negative = True if score < 0 else False
             u.contribution_score = score
 
@@ -585,7 +588,7 @@ class FLChallenge(FLManager):
             
             print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
 
-            self.contribution_score([user for user in self.pytorch_model.participants if user.roundRep > 0])
+            self.contribution_score([user for user in self.pytorch_model.participants if user.roundRep > 0], experiment_setting="OLD")
 
             receipt = self.close_round()
             print(b(f"Round {self.pytorch_model.round - 1} actually completed:"))
@@ -738,3 +741,8 @@ def calc_contribution_score(local_model, global_model, num_mergers, eps=1e-12) -
     score = torch.dot(local_update, global_update) / (num_mergers * norm_U_sq)
 
     return int(Decimal(score.item()) * Decimal('1e18'))
+
+
+def calc_contribution_score_naive(num_mergers) -> int:
+    score = Decimal(1) / Decimal(num_mergers)
+    return int(score * Decimal('1e18'))
