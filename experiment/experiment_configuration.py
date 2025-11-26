@@ -13,7 +13,8 @@ class ExperimentConfiguration:
                  batch_size=32,
                  punish_factor=3,
                  first_round_fee=50,
-                 fork=False):
+                 fork=True,
+                 contribution_score_strategy="mad"): # Options: mad, legacy, None (defaults to MAD)
 
         # Store the fork mode
         self.fork = fork
@@ -41,6 +42,7 @@ class ExperimentConfiguration:
         self.batch_size = batch_size
         self.punish_factor = punish_factor
         self.first_round_fee = first_round_fee
+        self.contribution_score_strategy = contribution_score_strategy
 
     @property
     def number_of_contributors(self):
