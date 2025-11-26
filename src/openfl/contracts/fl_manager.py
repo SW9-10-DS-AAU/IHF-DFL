@@ -147,9 +147,6 @@ class FLManager(ConnectionHelper):
         self.gas_deploy.append(receipt["gasUsed"])
         self.txHashes.append(("buildChallenge", receipt["transactionHash"].hex()))
 
-        challenge_contract_template = super().initialize_model()
-        challenge_abi = challenge_contract_template.abi
-
         deployed_challenge_address = None
         for log in receipt["logs"]:
             log_address = self.w3.to_checksum_address(log["address"])
@@ -161,6 +158,9 @@ class FLManager(ConnectionHelper):
             print("[WARN] Challenge address not found in logs, falling back to manager mapping.")
             c = self.get_model_count_of(self.pytorch_model.participants[0])
             deployed_challenge_address = self.get_model_of(self.pytorch_model.participants[0], c)
+
+        challenge_contract_template = super().initialize_model(deployed_challenge_address)
+        challenge_abi = challenge_contract_template.abi
 
         self.challenge_contract = self.w3.eth.contract(
             address=deployed_challenge_address,
