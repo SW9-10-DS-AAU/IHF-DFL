@@ -44,5 +44,17 @@ build.mkdir(parents=True, exist_ok=True)
 
 (Path(build / "abi_model.txt")).write_text(json.dumps(mdl["abi"], separators=(",",":")), encoding="utf-8")
 (Path(build / "bytecode_model.txt")).write_text(mdl["evm"]["bytecode"]["object"], encoding="utf-8")
+# Write ABI as a Python variable file
+abi_py_file = build / "abi_model.py"
+
+with open(abi_py_file, "w", encoding="utf-8") as f:
+    f.write("# Auto-generated OpenFLModel ABI\n")
+    # Dump ABI as a JSON string (triple quotes)
+    f.write("import json\n\n")
+    f.write("OPEN_FL_MODEL_ABI = json.loads('''\n")
+    f.write(json.dumps(mdl["abi"], indent=2))  # JSON string inside triple quotes
+    f.write("\n''')\n")
+
+
 
 print("Artifacts written to build/: abi.txt, bytecode.txt, abi_model.txt, bytecode_model.txt")
