@@ -442,7 +442,7 @@ class FLChallenge(FLManager):
         else:          
             nonce = self.w3.eth.get_transaction_count(self.pytorch_model.participants[0].address, 'pending') 
             cl = super().build_non_fork_tx(self.pytorch_model.participants[0].address, nonce)   
-            cl =  self.model.functions.closeRound().build_transaction(cl)
+            cl =  self.model.functions.settle().build_transaction(cl)
             pk = self.pytorch_model.participants[0].privateKey
             signed = self.w3.eth.account.sign_transaction(cl, private_key=pk)
             txHash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
