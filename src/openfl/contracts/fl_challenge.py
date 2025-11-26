@@ -69,6 +69,7 @@ class FLChallenge(FLManager):
         self._contribution_score_calculators = {
             "legacy": self._calculate_scores_legacy,
             "mad": self._calculate_scores_mad,
+            "naive": self._calculate_scores_naive,
         }
 
     def _determine_contribution_score_strategy(self):
@@ -634,7 +635,15 @@ class FLChallenge(FLManager):
 
         print()
 
-    def contribution_score(self, _users, experiment_setting="OLD"):
+    def contribution_score(self, _users):
+        """
+        Compute contribution scores for all merging users, submit them to the
+        contract, and log them. Strategy is chosen by _get_contribution_score_calculator:
+          - legacy: simple dot-product
+          - mad: MAD-based outlier filtering of weights
+          - naive: equal-share (1 / num_mergers)
+        """
+
         print("START CONTRIBUTION SCORE\n")
 
         merged_model = _users[0].model
@@ -644,12 +653,7 @@ class FLChallenge(FLManager):
         scores = calculator(_users, merged_model)
 
         txs = []
-        for u in _users:
-            u.roundRep = 0
-            if experiment_setting == "OLD":
-                score = calc_contribution_score_naive(num_mergers)
-            else:
-               score = calc_contribution_score(u.previousModel, merged_model, num_mergers)
+        for u, score in zip(_users, scores):
             u.is_contrib_score_negative = True if score < 0 else False
             u.contribution_score = score
 
@@ -661,7 +665,10 @@ class FLChallenge(FLManager):
                 ).transact(tx)
             else:  # TODO: Dobbeltjek at logic er rigtig her.
                 nonce = self.w3.eth.get_transaction_count(u.address)
-                cl = super().build_non_fork_tx(u.address, nonce)
+                cl = super().build_non_fork_tx(
+                    u.address,
+                    nonce,
+                )
                 cl = self.model.functions.submitContributionScore(
                     abs(score),
                     u.is_contrib_score_negative
@@ -701,6 +708,14 @@ class FLChallenge(FLManager):
         ]
         local_updates = torch.stack(local_updates)
         return calc_contribution_scores_mad(local_updates, global_update)
+
+    def _calculate_scores_naive(self, users, merged_model):
+        """
+        Equal-share scoring: everyone contributing gets 1 / num_mergers.
+        """
+        _ = merged_model  # unused; included for signature consistency
+        num_mergers = len(users)
+        return [calc_contribution_score_naive(num_mergers) for _ in users]
 
     def simulate(self, rounds):
         """
@@ -746,7 +761,7 @@ class FLChallenge(FLManager):
             
             print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
 
-            self.contribution_score([user for user in self.pytorch_model.participants if user.roundRep > 0], experiment_setting="OLD")
+            self.contribution_score([user for user in self.pytorch_model.participants if user.roundRep > 0])
 
             receipt = self.close_round()
             #contributionScoreTask
