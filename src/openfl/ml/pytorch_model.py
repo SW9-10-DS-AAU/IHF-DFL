@@ -498,9 +498,10 @@ class PytorchModel:
         count_dq = len(self.disqualified)
         
         feedback_matrix = np.zeros((1,len(self.participants)+count_dq,len(self.participants)+count_dq))[0]
-        accuracy_matrix = np.zeros((1, len(self.participants) + count_dq, len(self.participants) + count_dq))[0]
+        n = len(self.participants) + count_dq
+        accuracy_matrix = [[0 for _ in range(n)] for _ in range(n)]
 
-        for feedbackGiver in self.participants:                
+        for feedbackGiver in self.participants:
             valloader = feedbackGiver.val
             bad_att = feedbackGiver.attitude == "bad"
             free_att = feedbackGiver.attitude == "freerider"
@@ -519,24 +520,24 @@ class PytorchModel:
                     if accuracy_last_round == -1:
                         _, accuracy_last_round = test(self.global_model, valloader, DEVICE)  # TODO: Unitest her
                         accuracy_last_round *= 100
-                    accuracy_matrix[feedbackGiver.id][user.id] = accuracy_last_round
+                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy_last_round)
 
                 elif user in feedbackGiver.cheater:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
-                    accuracy_matrix[feedbackGiver.id][user.id] = accuracy * 100
+                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
 
 
                 elif accuracy > feedbackGiver.currentAcc - 0.07: # 7% Worse TODO: Evt tweak
                     feedback_matrix[feedbackGiver.id][user.id] = 1
-                    accuracy_matrix[feedbackGiver.id][user.id] = accuracy * 100
+                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
 
                 elif accuracy > feedbackGiver.currentAcc - 0.14: # 14% Worse TODO: Evt tweak
                     feedback_matrix[feedbackGiver.id][user.id] = 0
-                    accuracy_matrix[feedbackGiver.id][user.id] = accuracy * 100
+                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
 
                 else : # Even Worse
                     feedback_matrix[feedbackGiver.id][user.id] = -1
-                    accuracy_matrix[feedbackGiver.id][user.id] = accuracy * 100
+                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
 
 
             # RESET

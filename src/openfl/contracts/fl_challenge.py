@@ -317,7 +317,7 @@ class FLChallenge(FLManager):
     def quick_feedback_round(self, fbm, feedback_type, am = None):
         print("Users exchanging feedback...")
         txs = []
-        for user in self.pytorch_model.participants:
+        for idx, user in enumerate(self.pytorch_model.participants):
             addrs = []
             votes = []
             user_votes = fbm[user.id]
@@ -340,7 +340,7 @@ class FLChallenge(FLManager):
             elif feedback_type == "feedbackBytes":
                 if self.fork:
                     tx = super().build_tx(user.address, self.modelAddress)
-                    tx_hash = self.model.functions.submitFeedbackBytes(fbb).transact(tx)
+                    tx_hash = self.model.functions.submitFeedbackBytes(Web3.to_bytes(hexstr="0x" + fbb)).transact(tx)
                 else:  # TODO: Dobbeltjek at logic er rigtig her.
                     nonce = self.w3.eth.get_transaction_count(user.address)
                     cl = super().build_non_fork_tx(user.address, nonce)
@@ -354,12 +354,15 @@ class FLChallenge(FLManager):
             elif feedback_type == "feedbackBytesAndAccuracy":
                 if self.fork:
                     tx = super().build_tx(user.address, self.modelAddress)
-                    tx_hash = self.model.functions.submitFeedbackBytesAndAccuracies(fbb, am).transact(tx)
+                    row = am[idx]
+                    filtered_row = row[:idx] + row[idx + 1:]
+
+                    tx_hash = self.model.functions.submitFeedbackBytesAndAccuracies(Web3.to_bytes(hexstr="0x" + fbb), filtered_row).transact(tx)
                 else:  # TODO: Dobbeltjek at logic er rigtig her.
                     nonce = self.w3.eth.get_transaction_count(user.address)
                     cl = super().build_non_fork_tx(user.address, nonce)
                     cl = self.model.functions.submitFeedbackBytesAndAccuracies(
-                        fbb, am
+                        Web3.to_bytes(hexstr="0x" + fbb), am[idx]
                     ).build_transaction(cl)
                     pk = user.privateKey
                     signed = self.w3.eth.account.sign_transaction(cl, private_key=pk)
@@ -717,11 +720,18 @@ class FLChallenge(FLManager):
 
         print("START CONTRIBUTION SCORE\n")
 
+
         merged_model = _users[0].model
 
         # Choose scoring algorithm based on configured strategy
         calculator = self._get_contribution_score_calculator()
         scores = calculator(_users, merged_model)
+
+
+        # HENT ACC HER!
+        # voters, accs = self.model.functions.getAllAccuraciesAbout(_users[0].address).call()
+        # for v, a in zip(voters, accs):
+        #     print(f"{v} gave accuracy {a} for target {_users[0].address}")
 
         txs = []
         for u, score in zip(_users, scores):
@@ -827,7 +837,7 @@ class FLChallenge(FLManager):
             # 75 75 75 75 XX 75 # free-rider giver alle samme accuracy som han fik med global model fra sidste runde på eget data
             # 00 00 00 00 00 XX # malicious giver alle andre 0 accuracy
             
-            self.quick_feedback_round(fbm = feedback_matrix, feedback_type="fallback", am=accuracy_matrix)
+            self.quick_feedback_round(fbm = feedback_matrix, feedback_type="feedbackBytesAndAccuracy", am=accuracy_matrix)
             # self.quick_feedback_round(feedback_matrix, accuracy_matrix, fallback_type="feedbackBytes")
             # self.quick_feedback_round(feedback_matrix, accuracy_matrix, fallback_type="feedbackBytesAndAccuracy")
 

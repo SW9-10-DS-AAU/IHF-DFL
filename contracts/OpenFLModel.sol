@@ -55,6 +55,14 @@ contract OpenFLModel {
     mapping(uint8 => uint256) public nrOfContributionScores; // round => number of submissions
     mapping(uint8 => mapping(address => mapping(address => int8))) public feedbackOf; // round → voter → target → score
     mapping(address => mapping(address => uint8)) public accuracyOfFrom; // participant => target participant => accuracy
+    struct AccuracySubmission {
+        address[] adrs;
+        uint8[] acc;
+    }
+
+    // Mapping from sender to all their submissions
+    mapping(address => AccuracySubmission[]) private accuracySubmissions;
+
 
     modifier onlyRegisteredUsers() {
         require(isRegistered[msg.sender], "SNR");
@@ -597,9 +605,12 @@ contract OpenFLModel {
         }
 
         require(accuracies.length == ads.length, "INVALID_LENGTH");
-        for (uint i = 0; i < ads.length; i++) {
-            accuracyOfFrom[ads[i]][msg.sender] = accuracies[i];
-        }
+        accuracySubmissions[msg.sender].push(
+            AccuracySubmission({
+                adrs: ads,
+                acc: accuracies
+            })
+        );
 
         // EXACT same for-loop as fallback
         for (uint i = 0; i < ads.length; i++) {
@@ -608,6 +619,96 @@ contract OpenFLModel {
             }
         }
     }
+
+
+
+    function getAllAccuraciesAbout(address target)
+    external
+    view
+    returns (address[] memory voters, uint8[] memory accuracies)
+    {
+        uint totalCount = 0;
+
+        // 1️⃣ First, count total matching entries to size arrays
+        for (uint i = 0; i < participants.length; i++) {
+            address sender = participants[i];
+            uint subCount = accuracySubmissions[sender].length;
+
+            for (uint j = 0; j < subCount; j++) {
+                AccuracySubmission storage sub = accuracySubmissions[sender][j];
+
+                for (uint k = 0; k < sub.adrs.length; k++) {
+                    if (sub.adrs[k] == target) {
+                        totalCount++;
+                    }
+                }
+            }
+        }
+
+        // 2️⃣ Allocate arrays
+        voters = new address[](totalCount);
+        accuracies = new uint8[](totalCount);
+
+        uint idx = 0;
+
+        // 3️⃣ Fill arrays
+        for (uint i = 0; i < participants.length; i++) {
+            address sender = participants[i];
+            uint subCount = accuracySubmissions[sender].length;
+
+            for (uint j = 0; j < subCount; j++) {
+                AccuracySubmission storage sub = accuracySubmissions[sender][j];
+
+                for (uint k = 0; k < sub.adrs.length; k++) {
+                    if (sub.adrs[k] == target) {
+                        voters[idx] = sender;
+                        accuracies[idx] = sub.acc[k];
+                        idx++;
+                    }
+                }
+            }
+        }
+    }
+
+    function getAllAccuracies()
+    external
+    view
+    returns (address[] memory voters, uint8[] memory accuracies)
+    {
+        uint totalCount = 0;
+
+        // count elements
+        for (uint i = 0; i < participants.length; i++) {
+            address sender = participants[i];
+            uint subCount = accuracySubmissions[sender].length;
+
+            for (uint j = 0; j < subCount; j++) {
+                totalCount += accuracySubmissions[sender][j].acc.length;
+            }
+        }
+
+        voters = new address[](totalCount);
+        accuracies = new uint8[](totalCount);
+
+        uint idx = 0;
+
+        for (uint i = 0; i < participants.length; i++) {
+            address sender = participants[i];
+            uint subCount = accuracySubmissions[sender].length;
+
+            for (uint j = 0; j < subCount; j++) {
+                AccuracySubmission storage sub =
+                    accuracySubmissions[sender][j];
+
+                for (uint k = 0; k < sub.acc.length; k++) {
+                    voters[idx] = sender;
+                    accuracies[idx] = sub.acc[k];
+                    idx++;
+                }
+            }
+        }
+    }
+
 
 
     // Fallback function parses dynamic size feedback arrays
