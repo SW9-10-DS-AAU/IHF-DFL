@@ -57,4 +57,4 @@ with open(abi_py_file, "w", encoding="utf-8") as f:
 
 
 
-print("Artifacts written to build/: abi.txt, bytecode.txt, abi_model.txt, bytecode_model.txt")
+print("Artifacts written to build/: abi.txt, OPEN_FL_MODEL_ABI.py, bytecode.txt, abi_model.txt, bytecode_model.txt")
