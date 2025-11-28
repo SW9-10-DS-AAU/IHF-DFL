@@ -168,7 +168,7 @@ class PytorchModel:
         # INTERFACE VARIABLES
         self.accuracy = [accuracy]
         self.loss = [loss]
-        
+
         self.round = 1
         print("===================================================================================")
         print("Pytorch Model created:\n")
@@ -325,33 +325,30 @@ class PytorchModel:
             async_results = []
             for idx, user in enumerate(self.participants):
                 device_id = idx % max(1, num_gpus)
-                sd_cpu = {k: v.cpu() for k, v in user.model.state_dict().items()} # safe copy
-                async_results.append(pool.apply_async(
-                    _train_user_proc,
-                    (user.id,
-                    sd_cpu,
-                    user.train.dataset,
-                    user.val.dataset,
-                    self.EPOCHS,
-                    device_id,
-                    self.DATASET,
-                    self.BATCHSIZE,
-                    PIN_MEMORY,
-                    False)
-                ))
+                sd_cpu = {k: v.cpu() for k, v in user.model.state_dict().items()}  # safe copy
+
+                if user.attitude=="good": # train
+                    async_results.append(pool.apply_async(
+                        train_user_proc,
+                        (user.id,
+                        sd_cpu,
+                        user.train.dataset,
+                        user.val.dataset,
+                        self.EPOCHS,
+                        device_id,
+                        self.DATASET,
+                        self.BATCHSIZE,
+                        PIN_MEMORY,
+                        False)
+                    ))
+                else: # test
+                    val_loss, val_acc = test(user.model, user.val, DEVICE)
+                    self.finalize_user_evaluation(user, val_loss, val_acc)
+
             results = [r.get() for r in async_results]
         end_pool = time.perf_counter()
 
-        # Apply results back to participants
-        user_map = {u.id: u for u in self.participants}
-        for user_id, state_dict, loss, acc in results:
-            u = user_map[user_id]
-            u.model.load_state_dict(state_dict)
-            u.currentAcc = acc
-            u._accuracy.append(acc)
-            u._loss.append(loss)
-            u.hashedModel = self.get_hash(u.model.state_dict())
-
+        self.apply_training_results(results)
         total_time = time.perf_counter() - start_total
         parallel_time = end_pool - start_pool
 
@@ -359,7 +356,24 @@ class PytorchModel:
         print(green(f"Parallel execution time: {parallel_time:.2f} seconds"))
         print(green(f"Total federated training time: {total_time:.2f} seconds\n"))
 
-    
+    def finalize_user_evaluation(self, user, loss, acc):
+        test_loss, test_acc = test(user.model, self.test, DEVICE)
+        user._accuracy.append(test_acc)
+        user._loss.append(test_loss)
+        user.hashedModel = self.get_hash(user.model.state_dict())
+
+
+    def apply_training_results(self, results):
+        # Apply results back to participants
+        user_map = {u.id: u for u in self.participants}
+        for user_id, state_dict, val_loss, val_acc in results:
+            user = user_map[user_id]
+            user.model.load_state_dict(state_dict)
+            user.currentAcc = val_acc
+
+            self.finalize_user_evaluation(user, val_loss, val_acc)
+
+
     def let_malicious_users_do_their_work(self):
         for i in range(len(self.participants)):
             if self.participants[i].attitude == "bad":                
@@ -656,7 +670,7 @@ def get_color(i, a):
         return None
 
 
-def _train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, dataset, batchsize, pin_memory, shuffle):
+def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, dataset, batchsize, pin_memory, shuffle):
         # Multi-GPU Support
         # Select device
         use_cuda = torch.cuda.is_available()
@@ -678,7 +692,7 @@ def _train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, 
         train(model, train_loader, epochs, device)
         loss, acc = test(model, val_loader, device)
 
-        print(f"[{device_label(device, device_id)}] User {user_id} done | Acc: {acc:.3f}")
+        print(f"[{device_label(device, device_id)}] User {user_id} done | Acc: {acc:.3f}, Loss: {loss:.3f}")
         
         # Ensure all GPU work is complete before worker exits
         if device.type == "cuda":
