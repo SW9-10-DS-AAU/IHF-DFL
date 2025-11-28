@@ -329,7 +329,7 @@ class PytorchModel:
 
                 if user.attitude=="good": # train
                     async_results.append(pool.apply_async(
-                        _train_user_proc,
+                        train_user_proc,
                         (user.id,
                         sd_cpu,
                         user.train.dataset,
@@ -670,7 +670,7 @@ def get_color(i, a):
         return None
 
 
-def _train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, dataset, batchsize, pin_memory, shuffle):
+def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, dataset, batchsize, pin_memory, shuffle):
         # Multi-GPU Support
         # Select device
         use_cuda = torch.cuda.is_available()
