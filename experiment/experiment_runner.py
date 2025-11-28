@@ -4,6 +4,8 @@ from pathlib import Path
 from openfl.ml import pytorch_model as PM
 from openfl.contracts import fl_manager as Manager, fl_challenge as Challenge
 from openfl.utils import require_env_var
+from types import SimpleNamespace
+from web3 import Web3, Account
 
 
 def run_experiment(dataset_name, experiment_config):
@@ -15,14 +17,21 @@ def run_experiment(dataset_name, experiment_config):
 # In order to use a non-locally forked blockchain, 
 # private keys are required to unlock accounts
   if experiment_config.fork == False:
-      from web3 import Web3
-      w3 = Web3(Web3.HTTPProvider(RPC_ENDPOINT))
-      PRIVKEYS = []
-      privKeys = require_env_var("PRIVATE_KEYS").split(':')
-      for f in privKeys:
-          PRIVKEYS.append(f)
+    w3 = Web3(Web3.HTTPProvider(RPC_ENDPOINT))
 
-      PRIVKEYS = [w3.eth.account.privateKeyToAccount(i) for i in PRIVKEYS]
+    raw_keys = require_env_var("PRIVATE_KEYS")
+    privKeys = [k.strip() for k in raw_keys.splitlines() if k.strip()]
+
+    # Convert to Web3 Account objects
+    loaded_accounts = [Account.from_key(k) for k in privKeys]
+
+    # Wrap for compatibility with older code expecting `.privateKey`
+    PRIVKEYS = [
+        SimpleNamespace(privateKey=acc._private_key, address=acc.address)
+        for acc in loaded_accounts
+    ]
+
+    print(f"Loaded {len(PRIVKEYS)} private keys.")
   else:
       PRIVKEYS = None
 
@@ -59,6 +68,15 @@ def run_experiment(dataset_name, experiment_config):
                                           experiment_config.minimum_rounds,
                                           experiment_config.punish_factor,
                                           experiment_config.first_round_fee)
+
+  extra_configs = {}
+  if experiment_config.contribution_score_strategy is not None:
+      extra_configs["contribution_score_strategy"] = (
+          experiment_config.contribution_score_strategy
+      )
+
+  if extra_configs:
+      configs = tuple(configs) + (extra_configs,)
 
   model = Challenge.FLChallenge(manager, 
                       configs,

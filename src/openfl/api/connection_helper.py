@@ -138,7 +138,6 @@ class ConnectionHelper:
     
     def initialize(self):
         bytecode_path = Path(__file__).resolve().parents[3] / "artifacts" / "bytecode"
-        print(bytecode_path)
         with open(bytecode_path / "abi.txt") as abiFile:
             abi = re.sub("\n|\t|\ ", "", abiFile.read())
         with open(bytecode_path /  "bytecode.txt") as abiFile:
@@ -147,13 +146,13 @@ class ConnectionHelper:
     
     
     
-    def initialize_model(self):
+    def initialize_model(self, address):
         bytecode_path = Path(__file__).resolve().parents[3] / "artifacts" / "bytecode"
         with open(bytecode_path / "abi_model.txt") as abiFile:
             abi = re.sub("\n|\t|\ ", "", abiFile.read())
         with open(bytecode_path / "bytecode_model.txt") as abiFile:
             bytecode = abiFile.read().strip()
-        return self.w3.eth.contract(bytecode=bytecode, abi=abi)
+        return self.w3.eth.contract(address=address, bytecode=bytecode, abi=abi)
     
     
     
@@ -172,34 +171,61 @@ class ConnectionHelper:
     
     
     
-    def build_non_fork_tx(self, addr, nonce, to=None, value=0, data=None):
+    def build_non_fork_tx(self, addr, nonce, to=None, value=0, data=None, gas_limit=None):
+        # Dynamically detect correct chain ID
+        chain_id = w3.eth.chain_id
+
+        # Give on-chain deployments breathing room unless caller overrides
+        if gas_limit is None:
+            gas_limit = 5_000_000
+
+        # Adaptive low gas fee settings
+        max_fee_per_gas = w3.to_wei(10, 'gwei')
+        max_priority_fee_per_gas = w3.to_wei(1, 'gwei')
+
+        # Check balance before building TX
+        balance = w3.eth.get_balance(addr)
+        est_cost = gas_limit * max_fee_per_gas
+        if balance < est_cost:
+            print(f"\n Warning: Account {addr} has only {w3.from_wei(balance, 'ether'):.4f} ETH, "
+                f"but may need {w3.from_wei(est_cost, 'ether'):.4f} ETH for gas.\n")
+
+        # Build TX (same structure as before)
         if data:
-            return {'chainId': 3,
-                    'from': addr,
-                    'to': to,
-                    'gas': 10000000,
-                    'maxFeePerGas': w3.toWei('12', 'gwei'),
-                    'maxPriorityFeePerGas': w3.toWei('2', 'gwei'),
-                    'nonce': nonce,
-                    'value': value,
-                    'data': data}
+            return {
+                'chainId': chain_id,
+                'from': addr,
+                'to': to,
+                'gas': gas_limit,
+                'maxFeePerGas': max_fee_per_gas,
+                'maxPriorityFeePerGas': max_priority_fee_per_gas,
+                'nonce': nonce,
+                'value': value,
+                'data': data
+            }
+
         if to:
-            return {'chainId': 3,
-                    'from': addr,
-                    'to': to,
-                    'gas': 10000000,
-                    'maxFeePerGas': w3.toWei('12', 'gwei'),
-                    'maxPriorityFeePerGas': w3.toWei('2', 'gwei'),
-                    'nonce':nonce,
-                    'value': value}
-        else:
-            return {'chainId': 3,
-                    'from': addr,
-                    'gas': 10000000,
-                    'maxFeePerGas': w3.toWei('12', 'gwei'),
-                    'maxPriorityFeePerGas': w3.toWei('2', 'gwei'),
-                    'nonce':nonce,
-                    'value': value}
+            return {
+                'chainId': chain_id,
+                'from': addr,
+                'to': to,
+                'gas': gas_limit,
+                'maxFeePerGas': max_fee_per_gas,
+                'maxPriorityFeePerGas': max_priority_fee_per_gas,
+                'nonce': nonce,
+                'value': value
+            }
+
+        # Default case (no 'to' address)
+        return {
+            'chainId': chain_id,
+            'from': addr,
+            'gas': gas_limit,
+            'maxFeePerGas': max_fee_per_gas,
+            'maxPriorityFeePerGas': max_priority_fee_per_gas,
+            'nonce': nonce,
+            'value': value
+        }
         
 class NotEnoughUnlockedAccounts(Exception):
     pass
