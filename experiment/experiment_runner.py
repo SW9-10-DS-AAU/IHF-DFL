@@ -1,13 +1,13 @@
 import os
+import time
 from pathlib import Path
-
-
 from openfl.ml import pytorch_model as PM
 from openfl.contracts import fl_manager as Manager, fl_challenge as Challenge
 from openfl.utils import require_env_var
 
 
 def run_experiment(dataset_name, experiment_config):
+  experiment_start = time.perf_counter()
   RPC_ENDPOINT = require_env_var("RPC_URL")
     
 
@@ -60,12 +60,27 @@ def run_experiment(dataset_name, experiment_config):
                                           experiment_config.punish_factor,
                                           experiment_config.first_round_fee)
 
+  extra_configs = {}
+  if experiment_config.contribution_score_strategy is not None:
+      extra_configs["contribution_score_strategy"] = (
+          experiment_config.contribution_score_strategy
+      )
+
+  if extra_configs:
+      configs = tuple(configs) + (extra_configs,)
+
   model = Challenge.FLChallenge(manager, 
                       configs,
                       pytorch_model)
 
 
   model.simulate(rounds=experiment_config.minimum_rounds)
+  experiment_end = time.perf_counter()
+  total_experiment_time = experiment_end - experiment_start
+
+  print("\n" + "="*75)
+  print(f"TOTAL EXPERIMENT TIME: {total_experiment_time:.2f} seconds")
+  print("="*75 + "\n")
 
   return Experiment(model, manager)
 

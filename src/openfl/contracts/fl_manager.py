@@ -133,4 +133,5 @@ class FLManager(ConnectionHelper):
                                                            ))
 
         self.pytorch_model.participants[0].isRegistered = True
+        self.model_address = self.challenge_contract.address
         return (self.challenge_contract, self.challenge_contract.address) + args
