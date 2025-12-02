@@ -675,46 +675,6 @@ contract OpenFLModel {
         }
     }
 
-    function getAllAccuracies()
-    external
-    view
-    returns (address[] memory voters, uint8[] memory accuracies)
-    {
-        uint totalCount = 0;
-
-        // count elements
-        for (uint i = 0; i < participants.length; i++) {
-            address sender = participants[i];
-            uint subCount = accuracySubmissions[sender].length;
-
-            for (uint j = 0; j < subCount; j++) {
-                totalCount += accuracySubmissions[sender][j].acc.length;
-            }
-        }
-
-        voters = new address[](totalCount);
-        accuracies = new uint8[](totalCount);
-
-        uint idx = 0;
-
-        for (uint i = 0; i < participants.length; i++) {
-            address sender = participants[i];
-            uint subCount = accuracySubmissions[sender].length;
-
-            for (uint j = 0; j < subCount; j++) {
-                AccuracySubmission storage sub =
-                    accuracySubmissions[sender][j];
-
-                for (uint k = 0; k < sub.acc.length; k++) {
-                    voters[idx] = sender;
-                    accuracies[idx] = sub.acc[k];
-                    idx++;
-                }
-            }
-        }
-    }
-
-
 
     // Fallback function parses dynamic size feedback arrays
     // @dev This allows the contract to have an arbitrary number of participants
