@@ -58,6 +58,7 @@ contract OpenFLModel {
     struct AccuracySubmission {
         address[] adrs;
         uint8[] acc;
+        uint256[] loss;
     }
 
     // Mapping from sender to all their submissions
@@ -564,7 +565,7 @@ contract OpenFLModel {
         }
     }
 
-    function submitFeedbackBytesAndAccuracies(bytes calldata raw, uint8[] calldata accuracies) external {
+    function submitFeedbackBytesAndAccuracies(bytes calldata raw, uint8[] calldata accuracies, uint256[] calldata losses) external {
         address[] memory ads;
         int256[] memory ints;
 
@@ -604,11 +605,13 @@ contract OpenFLModel {
             }
         }
 
-        require(accuracies.length == ads.length, "INVALID_LENGTH");
+        require(accuracies.length == ads.length, "INVALID_LENGTH OF ACCURACY ARRAY");
+        require(losses.length == ads.length, "INVALID_LENGTH OF LOSS ARRAY");
         accuracySubmissions[msg.sender].push(
             AccuracySubmission({
                 adrs: ads,
-                acc: accuracies
+                acc: accuracies,
+                loss: losses
             })
         );
 
@@ -625,7 +628,7 @@ contract OpenFLModel {
     function getAllAccuraciesAbout(address target)
     external
     view
-    returns (address[] memory voters, uint8[] memory accuracies)
+    returns (address[] memory voters, uint8[] memory accuracies, uint256[] memory losses)
     {
         uint totalCount = 0;
 
@@ -648,6 +651,7 @@ contract OpenFLModel {
         // 2️⃣ Allocate arrays
         voters = new address[](totalCount);
         accuracies = new uint8[](totalCount);
+        losses = new uint256[](totalCount);
 
         uint idx = 0;
 
@@ -663,6 +667,7 @@ contract OpenFLModel {
                     if (sub.adrs[k] == target) {
                         voters[idx] = sender;
                         accuracies[idx] = sub.acc[k];
+                        losses[idx] = sub.loss[k];
                         idx++;
                     }
                 }

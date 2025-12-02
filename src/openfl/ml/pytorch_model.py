@@ -500,6 +500,7 @@ class PytorchModel:
         feedback_matrix = np.zeros((1,len(self.participants)+count_dq,len(self.participants)+count_dq))[0]
         n = len(self.participants) + count_dq
         accuracy_matrix = [[0 for _ in range(n)] for _ in range(n)]
+        loss_matrix = [[0 for _ in range(n)] for _ in range(n)]
 
         for feedbackGiver in self.participants:
             valloader = feedbackGiver.val
@@ -509,35 +510,41 @@ class PytorchModel:
 
             for ix, user in enumerate(feedbackGiver.userToEvaluate):
                 if not bad_att and not free_att:
-                    _, accuracy = test(user.model, valloader, DEVICE)
+                    loss, accuracy = test(user.model, valloader, DEVICE)
 
                 if bad_att:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
                     accuracy_matrix[feedbackGiver.id][user.id] = 0
+                    loss_matrix[feedbackGiver.id][user.id] = 100000
 
                 elif free_att:
                     feedback_matrix[feedbackGiver.id][user.id] = 0
                     if accuracy_last_round == -1:
-                        _, accuracy_last_round = test(self.global_model, valloader, DEVICE)  # TODO: Unitest her
+                        loss_last_round, accuracy_last_round = test(self.global_model, valloader, DEVICE)  # TODO: Unitest her
                         accuracy_last_round *= 100
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy_last_round)
+                    loss_matrix[feedbackGiver.id][user.id] = round(loss_last_round)
 
                 elif user in feedbackGiver.cheater:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
+                    loss_matrix[feedbackGiver.id][user.id] = round(loss)
 
 
                 elif accuracy > feedbackGiver.currentAcc - 0.07: # 7% Worse TODO: Evt tweak
                     feedback_matrix[feedbackGiver.id][user.id] = 1
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
+                    loss_matrix[feedbackGiver.id][user.id] = round(loss)
 
                 elif accuracy > feedbackGiver.currentAcc - 0.14: # 14% Worse TODO: Evt tweak
                     feedback_matrix[feedbackGiver.id][user.id] = 0
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
+                    loss_matrix[feedbackGiver.id][user.id] = round(loss)
 
                 else : # Even Worse
                     feedback_matrix[feedbackGiver.id][user.id] = -1
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
+                    loss_matrix[feedbackGiver.id][user.id] = round(loss)
 
 
             # RESET
@@ -549,7 +556,7 @@ class PytorchModel:
         print("ACCURACY MATRIX:")
         print(accuracy_matrix)
         print("-----------------------------------------------------------------------------------\n")
-        return feedback_matrix, accuracy_matrix
+        return feedback_matrix, accuracy_matrix, loss_matrix
 
     
 # PYTORCH FUNCTIONS
