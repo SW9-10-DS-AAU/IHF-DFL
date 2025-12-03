@@ -379,10 +379,20 @@ class FLChallenge(FLManager):
             self.log_receipt(i, txHash, len(txs), "feedback")
 
         for user in self.pytorch_model.participants:
+            if len(user._roundrep) == 0:
+                print(f"model participant: {user.address} had no roundrep")
+            else:
+                print(f"model participant: {user.address} had {user._roundrep[-1]} round reputation")
             user._roundrep.append(self.get_round_reputation_of_user(user.address))
+            print(f"model participant: {user.address} now gets {user._roundrep[-1]} round reputation")
 
         for user in self.pytorch_model.disqualified:
+            if len(user._roundrep) == 0:
+                print(f"model participant: {user.address} had no roundrep")
+            else:
+                print(f"model disquilified: {user.address} had {user._roundrep[-1]} round reputation")
             user._roundrep.append(self.get_round_reputation_of_user(user.address))
+            print(f"model disqualified: {user.address} now gets {user._roundrep[-1]} round reputation")
 
         printer._print("                                                   ")
         print("\n-----------------------------------------------------------------------------------")
@@ -492,7 +502,7 @@ class FLChallenge(FLManager):
         receipt = self.w3.eth.wait_for_transaction_receipt(txHash,
                                                         timeout=600,
                                                         poll_latency=1)
-
+        print("settling round completed")
 
         self.txHashes.append(("close", receipt["transactionHash"].hex()))
         self.gas_close.append(receipt["gasUsed"])
@@ -723,7 +733,12 @@ class FLChallenge(FLManager):
         """
 
         print("START CONTRIBUTION SCORE\n")
-
+        voters, accs, losses = self.model.functions.getAllAccuraciesAbout(_users[0].address).call()
+        for v, a, l in zip(voters, accs, losses):
+            print(f"{v} gave accuracy {a} and loss {l} for target {_users[0].address}")
+        prev_accs, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses.call()
+        print(f"previous accuracies: {prev_accs}")
+        print(f"previous losses: {prev_losses}")
 
         merged_model = _users[0].model
 
@@ -842,12 +857,12 @@ class FLChallenge(FLManager):
             # self.quick_feedback_round(feedback_matrix, accuracy_matrix, fallback_type="feedbackBytes")
             # self.quick_feedback_round(feedback_matrix, accuracy_matrix, fallback_type="feedbackBytesAndAccuracy")
 
-            self.pytorch_model.the_merge([user for user in self.pytorch_model.participants if user.roundRep > 0])
+            self.pytorch_model.the_merge([user for user in self.pytorch_model.participants if user._roundrep[-1] > 0])
             
             print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
 
             #contributionScoreTask = asyncio.create_task(self.contribution_score([user for user in self.pytorch_model.participants if user.roundRep > 0]))
-            self.contribution_score([user for user in self.pytorch_model.participants if user.roundRep > 0])
+            self.contribution_score([user for user in self.pytorch_model.participants if user._roundrep[-1] > 0])
             receipt = self.close_round()
             #contributionScoreTask
 
