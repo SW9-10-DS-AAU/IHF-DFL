@@ -5,16 +5,16 @@ class ExperimentConfiguration:
                  number_of_freerider_contributors=1,
                  number_of_inactive_contributors=0,
                  reward=int(1e18),
-                 minimum_rounds=5,
+                 minimum_rounds=6,
                  min_buy_in=int(1e18),
-                 max_buy_in=int(1.8e18),
+                 max_buy_in=int(1e18),
                  standard_buy_in=int(1e18),
                  epochs=1,
                  batch_size=32,
-                 punish_factor=3,
+                 punish_factor=2,
                  first_round_fee=50,
                  fork=True,
-                 contribution_score_strategy="legacy"): # Options: mad, legacy, None (defaults to MAD)
+                 contribution_score_strategy="mad"): # Options: mad, legacy, None (defaults to MAD)
 
       self.number_of_good_contributors = number_of_good_contributors
       self.number_of_bad_contributors = number_of_bad_contributors

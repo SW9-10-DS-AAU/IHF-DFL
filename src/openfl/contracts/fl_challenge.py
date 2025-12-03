@@ -321,6 +321,10 @@ class FLChallenge(FLManager):
             addrs = []
             votes = []
             user_votes = fbm[user.id]
+            filtered_accs = []
+            filtered_losses = []
+            accs = am[idx]
+            losses = lm[idx]
             for ix, vote in enumerate(user_votes):
                 if user.id == ix:
                     continue
@@ -332,6 +336,10 @@ class FLChallenge(FLManager):
                 addrs.append(votee.address)
                 votes.append(int(vote))
                 votee.roundRep = votee.roundRep + self.get_global_reputation_of_user(user.address) * int(vote)
+                filtered_accs.append(accs[ix])
+                filtered_losses.append(losses[ix])
+
+
 
             fbb = self.build_feedback_bytes(addrs, votes)
             if feedback_type == "fallback":
@@ -361,7 +369,7 @@ class FLChallenge(FLManager):
                     prev_acc = prev_accs[idx]
                     prev_loss = prev_losses[idx]
 
-                    tx_hash = self.model.functions.submitFeedbackBytesAndAccuracies(Web3.to_bytes(hexstr="0x" + fbb), filtered_row_am, filtered_row_lm, prev_acc, prev_loss).transact(tx)
+                    tx_hash = self.model.functions.submitFeedbackBytesAndAccuracies(Web3.to_bytes(hexstr="0x" + fbb), filtered_accs, filtered_losses, prev_acc, prev_loss).transact(tx)
                 else:  # TODO: Dobbeltjek at logic er rigtig her.
                     nonce = self.w3.eth.get_transaction_count(user.address)
                     cl = super().build_non_fork_tx(user.address, nonce)
