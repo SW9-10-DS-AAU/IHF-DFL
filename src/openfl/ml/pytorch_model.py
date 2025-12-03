@@ -501,6 +501,8 @@ class PytorchModel:
         n = len(self.participants) + count_dq
         accuracy_matrix = [[0 for _ in range(n)] for _ in range(n)]
         loss_matrix = [[0 for _ in range(n)] for _ in range(n)]
+        prev_accs = [0 for _ in range(n)]
+        prev_losses = [0 for _ in range(n)]
 
         for feedbackGiver in self.participants:
             valloader = feedbackGiver.val
@@ -511,11 +513,17 @@ class PytorchModel:
             for ix, user in enumerate(feedbackGiver.userToEvaluate):
                 if not bad_att and not free_att:
                     loss, accuracy = test(user.model, valloader, DEVICE)
+                    prev_loss, prev_acc = test(self.global_model, valloader, DEVICE)
+                    prev_acc = round(prev_acc * 100)
+                    prev_loss = round(prev_loss)
 
                 if bad_att:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
                     accuracy_matrix[feedbackGiver.id][user.id] = 0
                     loss_matrix[feedbackGiver.id][user.id] = 100000
+                    prev_loss, prev_acc = test(self.global_model, valloader, DEVICE)
+                    prev_accs[feedbackGiver.id] = round(prev_acc * 100)
+                    prev_losses[feedbackGiver.id] = round(prev_loss)
 
                 elif free_att:
                     feedback_matrix[feedbackGiver.id][user.id] = 0
@@ -524,27 +532,37 @@ class PytorchModel:
                         accuracy_last_round *= 100
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy_last_round)
                     loss_matrix[feedbackGiver.id][user.id] = round(loss_last_round)
+                    prev_accs[feedbackGiver.id] = round(accuracy_last_round)
+                    prev_losses[feedbackGiver.id] = round(loss_last_round)
 
                 elif user in feedbackGiver.cheater:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
                     loss_matrix[feedbackGiver.id][user.id] = round(loss)
+                    prev_accs[feedbackGiver.id] = prev_acc
+                    prev_losses[feedbackGiver.id] = prev_loss
 
 
                 elif accuracy > feedbackGiver.currentAcc - 0.07: # 7% Worse TODO: Evt tweak
                     feedback_matrix[feedbackGiver.id][user.id] = 1
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
                     loss_matrix[feedbackGiver.id][user.id] = round(loss)
+                    prev_accs[feedbackGiver.id] = prev_acc
+                    prev_losses[feedbackGiver.id] = prev_loss
 
                 elif accuracy > feedbackGiver.currentAcc - 0.14: # 14% Worse TODO: Evt tweak
                     feedback_matrix[feedbackGiver.id][user.id] = 0
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
                     loss_matrix[feedbackGiver.id][user.id] = round(loss)
+                    prev_accs[feedbackGiver.id] = prev_acc
+                    prev_losses[feedbackGiver.id] = prev_loss
 
                 else : # Even Worse
                     feedback_matrix[feedbackGiver.id][user.id] = -1
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
                     loss_matrix[feedbackGiver.id][user.id] = round(loss)
+                    prev_accs[feedbackGiver.id] = prev_acc
+                    prev_losses[feedbackGiver.id] = prev_loss
 
 
             # RESET
@@ -559,7 +577,13 @@ class PytorchModel:
         print("LOSS MATRIX:")
         print(loss_matrix)
         print("-----------------------------------------------------------------------------------")
-        return feedback_matrix, accuracy_matrix, loss_matrix
+        print("PREVIOUS ACCURACIES:")
+        print(prev_accs)
+        print("-----------------------------------------------------------------------------------")
+        print("PREVIOUS LOSSES:")
+        print(prev_losses)
+        print("-----------------------------------------------------------------------------------")
+        return feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses
 
     
 # PYTORCH FUNCTIONS

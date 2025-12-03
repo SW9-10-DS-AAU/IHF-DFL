@@ -314,7 +314,7 @@ class FLChallenge(FLManager):
 
                 
     
-    def quick_feedback_round(self, fbm, feedback_type, am = None, lm = None):
+    def quick_feedback_round(self, fbm, feedback_type, am = None, lm = None, prev_accs = None, prev_losses = None):
         print("Users exchanging feedback...")
         txs = []
         for idx, user in enumerate(self.pytorch_model.participants):
@@ -358,8 +358,10 @@ class FLChallenge(FLManager):
                     row_lm = lm[idx]
                     filtered_row_am = row_am[:idx] + row_am[idx + 1:]
                     filtered_row_lm = row_lm[:idx] + row_lm[idx + 1:]
+                    prev_acc = prev_accs[idx]
+                    prev_loss = prev_losses[idx]
 
-                    tx_hash = self.model.functions.submitFeedbackBytesAndAccuracies(Web3.to_bytes(hexstr="0x" + fbb), filtered_row_am, filtered_row_lm).transact(tx)
+                    tx_hash = self.model.functions.submitFeedbackBytesAndAccuracies(Web3.to_bytes(hexstr="0x" + fbb), filtered_row_am, filtered_row_lm, prev_acc, prev_loss).transact(tx)
                 else:  # TODO: Dobbeltjek at logic er rigtig her.
                     nonce = self.w3.eth.get_transaction_count(user.address)
                     cl = super().build_non_fork_tx(user.address, nonce)
@@ -730,10 +732,7 @@ class FLChallenge(FLManager):
         scores = calculator(_users, merged_model)
 
 
-        # HENT ACC HER!
-        voters, accs, losses = self.model.functions.getAllAccuraciesAbout(_users[0].address).call()
-        for v, a, l in zip(voters, accs, losses):
-           print(f"{v} gave accuracy {a} and loss {l} for target {_users[0].address}")
+
 
         txs = []
         for u, score in zip(_users, scores):
@@ -767,7 +766,7 @@ class FLChallenge(FLManager):
             print(green(f"{'CONTRIBUTION SCORE:':25} {u.contribution_score:}"))
 
         for i, txHash in enumerate(txs):
-            self.log_receipt(i, txHash, len(txs), "contribution_score")
+            self.log_receipt(i, txHash, len(txs), "contrib")
 
         print("-----------------------------------------------------------------------------------\n")
 
@@ -830,7 +829,7 @@ class FLChallenge(FLManager):
             
             self.pytorch_model.verify_models({u.id: self.get_hashed_weights_of(u) for u in self.pytorch_model.participants})
 
-            feedback_matrix, accuracy_matrix, loss_matrix = self.pytorch_model.evaluation()
+            feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses = self.pytorch_model.evaluation()
             # accuracy matrix
             # XX 60 64 69 70 75
             # 59 XX 66 67 75 40
@@ -839,7 +838,7 @@ class FLChallenge(FLManager):
             # 75 75 75 75 XX 75 # free-rider giver alle samme accuracy som han fik med global model fra sidste runde på eget data
             # 00 00 00 00 00 XX # malicious giver alle andre 0 accuracy
             
-            self.quick_feedback_round(fbm = feedback_matrix, feedback_type="feedbackBytesAndAccuracy", am=accuracy_matrix, lm=loss_matrix)
+            self.quick_feedback_round(fbm = feedback_matrix, feedback_type="feedbackBytesAndAccuracy", am=accuracy_matrix, lm=loss_matrix, prev_accs=prev_accs, prev_losses=prev_losses)
             # self.quick_feedback_round(feedback_matrix, accuracy_matrix, fallback_type="feedbackBytes")
             # self.quick_feedback_round(feedback_matrix, accuracy_matrix, fallback_type="feedbackBytesAndAccuracy")
 

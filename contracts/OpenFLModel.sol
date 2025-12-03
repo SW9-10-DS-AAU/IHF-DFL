@@ -54,12 +54,13 @@ contract OpenFLModel {
     mapping(uint8 => mapping(address => bool)) public isContribScoreNegative;
     mapping(uint8 => uint256) public nrOfContributionScores; // round => number of submissions
     mapping(uint8 => mapping(address => mapping(address => int8))) public feedbackOf; // round → voter → target → score
-    mapping(address => mapping(address => uint8)) public accuracyOfFrom; // participant => target participant => accuracy
     struct AccuracySubmission {
         address[] adrs;
         uint8[] acc;
         uint256[] loss;
     }
+    mapping(uint8 => mapping(address => uint8)) public prev_accs;
+    mapping(uint8 => mapping(address => uint256)) public prev_losses;
 
     // Mapping from sender to all their submissions
     mapping(uint8 => mapping(address => AccuracySubmission[])) private accuracySubmissions;
@@ -565,7 +566,7 @@ contract OpenFLModel {
         }
     }
 
-    function submitFeedbackBytesAndAccuracies(bytes calldata raw, uint8[] calldata accuracies, uint256[] calldata losses) external {
+    function submitFeedbackBytesAndAccuracies(bytes calldata raw, uint8[] calldata accuracies, uint256[] calldata losses, uint8 prev_acc, uint256 prev_loss) external {
         address[] memory ads;
         int256[] memory ints;
 
@@ -614,6 +615,9 @@ contract OpenFLModel {
                 loss: losses
             })
         );
+        require(prev_acc >= 0 && prev_acc <= 100, "PREVIOUS ACCURACY NOT BETWEEN 0 AND 100");
+        prev_accs[round][msg.sender] = prev_acc;
+        prev_losses[round][msg.sender] = prev_loss;
 
         // EXACT same for-loop as fallback
         for (uint i = 0; i < ads.length; i++) {
@@ -622,7 +626,14 @@ contract OpenFLModel {
             }
         }
     }
-
+    function getAllPreviousAccuraciesAndLosses() external view returns (uint8[] memory previous_accuracies, uint256[] memory previous_losses) {
+        previous_accuracies = new uint8[](participants.length);
+        previous_losses = new uint256[](participants.length);
+        for (uint i = 0; i < participants.length; i++) {
+            previous_accuracies[i] = prev_accs[round][participants[i]];
+            previous_losses[i] = prev_losses[round][participants[i]];
+        }
+    }
 
 
     function getAllAccuraciesAbout(address target)
@@ -673,6 +684,7 @@ contract OpenFLModel {
                 }
             }
         }
+
     }
 
 
