@@ -62,7 +62,7 @@ contract OpenFLModel {
     }
 
     // Mapping from sender to all their submissions
-    mapping(address => AccuracySubmission[]) private accuracySubmissions;
+    mapping(uint8 => mapping(address => AccuracySubmission[])) private accuracySubmissions;
 
 
     modifier onlyRegisteredUsers() {
@@ -607,7 +607,7 @@ contract OpenFLModel {
 
         require(accuracies.length == ads.length, "INVALID_LENGTH OF ACCURACY ARRAY");
         require(losses.length == ads.length, "INVALID_LENGTH OF LOSS ARRAY");
-        accuracySubmissions[msg.sender].push(
+        accuracySubmissions[round][msg.sender].push(
             AccuracySubmission({
                 adrs: ads,
                 acc: accuracies,
@@ -635,10 +635,10 @@ contract OpenFLModel {
         // 1️⃣ First, count total matching entries to size arrays
         for (uint i = 0; i < participants.length; i++) {
             address sender = participants[i];
-            uint subCount = accuracySubmissions[sender].length;
+            uint subCount = accuracySubmissions[round][sender].length;
 
             for (uint j = 0; j < subCount; j++) {
-                AccuracySubmission storage sub = accuracySubmissions[sender][j];
+                AccuracySubmission storage sub = accuracySubmissions[round][sender][j];
 
                 for (uint k = 0; k < sub.adrs.length; k++) {
                     if (sub.adrs[k] == target) {
@@ -658,10 +658,10 @@ contract OpenFLModel {
         // 3️⃣ Fill arrays
         for (uint i = 0; i < participants.length; i++) {
             address sender = participants[i];
-            uint subCount = accuracySubmissions[sender].length;
+            uint subCount = accuracySubmissions[round][sender].length;
 
             for (uint j = 0; j < subCount; j++) {
-                AccuracySubmission storage sub = accuracySubmissions[sender][j];
+                AccuracySubmission storage sub = accuracySubmissions[round][sender][j];
 
                 for (uint k = 0; k < sub.adrs.length; k++) {
                     if (sub.adrs[k] == target) {
