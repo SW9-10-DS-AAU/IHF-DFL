@@ -789,28 +789,44 @@ class FLChallenge(FLManager):
 
         participants =self.pytorch_model.participants + self.pytorch_model.disqualified
 
-        x = list(range(0,len(accuracy)))
+        #  True to get old setep graph, False to get point graph
+        use_step_grs = False
+
+        rounds = list(range(len(accuracy)))
         #x = [item for sublist in zip(x,(np.array(x)+1).tolist()) for item in sublist]
 
         y = accuracy
         #y = [item for sublist in zip(yy,yy) for item in sublist]
-        axs[1].plot(x, y, color=colors[0], linewidth=2.5) 
+        acc_line = axs[1].plot(rounds, y, color=colors[0], linewidth=2.5, label="Avg. Accuracy")[0]
         twin = axs[1].twinx()
         y = loss
         #y = [item for sublist in zip(yy,yy) for item in sublist]
-        twin.plot(x, y, color=colors[1], linewidth=2.5) 
+        loss_line = twin.plot(rounds, y, color=colors[1], linewidth=2.5, linestyle="--", label="Avg. Loss")[0]
 
 
 
-        x = list(range(len(participants[0]._globalrep)))
-        x = [item for sublist in zip(x,(np.array(x)+1).tolist()) for item in sublist]
-
-
-        # plotting the points  
-        yy=[]
-        for i, user in enumerate(participants):
-            y = [item for sublist in zip(user._globalrep, user._globalrep) for item in sublist]
-            axs[2].plot(x, y, linewidth=2.5, color=user.color) 
+        grs_rounds = list(range(len(participants[0]._globalrep)))
+        if use_step_grs:
+            grs_x = [item for sublist in zip(grs_rounds, (np.array(grs_rounds) + 1).tolist()) for item in sublist]
+            grs_ticks = grs_rounds
+            for i, user in enumerate(participants):
+                grs_y = [item for sublist in zip(user._globalrep, user._globalrep) for item in sublist]
+                axs[2].plot(grs_x, grs_y, linewidth=2.5, color=user.color)
+        else:
+            grs_x = grs_rounds
+            grs_ticks = grs_rounds
+            # plotting the points  
+            for i, user in enumerate(participants):
+                axs[2].plot(
+                    grs_x,
+                    user._globalrep,
+                    linewidth=2.5,
+                    color=user.color,
+                    alpha=0.9,
+                    marker="o",
+                    markersize=4,
+                    markevery=1,
+                )
 
 
 
@@ -861,16 +877,22 @@ class FLChallenge(FLManager):
         axs[2].tick_params(axis='both', which='major', labelsize=14)
         axs[3].tick_params(axis='both', which='major', labelsize=14)
         
-        if len(x) > 20:
-            axs[1].set_xticks([i for i in x if i%5==0 or i == 0])
-            axs[2].set_xticks([i for i in x if i%5==0 or i == 0])
-            axs[3].set_xticks([i for i in x if i%5==0 or i == 0])
+        if len(rounds) > 20:
+            axs[1].set_xticks([i for i in rounds if i%5==0 or i == 0])
         else:
-            axs[1].set_xticks([i for i in x])
-            axs[2].set_xticks([i for i in x])
-            axs[3].set_xticks([i for i in x])
+            axs[1].set_xticks([i for i in rounds])
+
+        if len(grs_ticks) > 20:
+            axs[2].set_xticks([i for i in grs_ticks if i%5==0 or i == 0])
+        else:
+            axs[2].set_xticks([i for i in grs_ticks])
+
+        if len(x_reward) > 20:
+            axs[3].set_xticks([i for i in x_reward if i%5==0 or i == 0])
+        else:
+            axs[3].set_xticks([i for i in x_reward])
     
-        axs[1].set_xlim(0,max(x))
+        axs[1].set_xlim(0, max(rounds) if rounds else 0)
         
         axs[2].yaxis.get_offset_text().set_fontsize(14)
         axs[3].yaxis.get_offset_text().set_fontsize(14)
@@ -878,6 +900,10 @@ class FLChallenge(FLManager):
         axs[1].grid()
         axs[2].grid()
         axs[3].grid()
+
+        # Legend for the dual-axis accuracy/loss plot
+        twin_lines = [acc_line, loss_line]
+        axs[1].legend(twin_lines, [l.get_label() for l in twin_lines], loc="lower right", fontsize=10)
 
         lgnd = axs[3].legend(fontsize=10)
 
