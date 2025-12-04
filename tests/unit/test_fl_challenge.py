@@ -1,0 +1,527 @@
+import pytest
+import torch
+import torch.nn as nn
+from decimal import Decimal
+from unittest.mock import MagicMock, patch, call
+from web3.exceptions import ContractLogicError
+
+from openfl.contracts.fl_challenge import FLChallenge, calc_contribution_score, calc_contribution_scores_mad
+
+
+class DummyModel(nn.Module):
+    def __init__(self, weight_value):
+        super().__init__()
+        self.fc = nn.Linear(2, 2, bias=False)
+        with torch.no_grad():
+            self.fc.weight.copy_(torch.tensor([[weight_value, weight_value],
+                                               [weight_value, weight_value]], dtype=torch.float32))
+
+    def parameters(self):
+        return super().parameters()
+
+
+class TestCalcContributionScore:
+    # Basic test case with non-zero global model
+    def test_calc_contribution_score_basic(self):
+        """
+        Basic test case where local and global models have distinct weights.
+        The contribution score should be calculated correctly.
+        """
+        local_model = DummyModel(1.0)
+        global_model = DummyModel(2.0)
+        num_mergers = 2
+
+        score = calc_contribution_score(local_model, global_model, num_mergers)
+
+        local_update = torch.cat([p.data.view(-1) for p in local_model.parameters()])
+        global_update = torch.cat([p.data.view(-1) for p in global_model.parameters()])
+        norm_U_sq = torch.dot(global_update, global_update)
+        expected_score = torch.dot(local_update, global_update) / (num_mergers * norm_U_sq)
+        expected_score = int(Decimal(expected_score.item()) * Decimal('1e18'))
+
+        assert score == expected_score
+
+    # Edge case where local model is identical to global model
+    def test_calc_contribution_score_identical_models(self):
+        """
+        Edge case where the local model is identical to the global model.
+        The contribution score should be maximized.
+        """
+        local_model = DummyModel(2.0)
+        global_model = DummyModel(2.0)
+        num_mergers = 2
+
+        score = calc_contribution_score(local_model, global_model, num_mergers)
+
+        local_update = torch.cat([p.data.view(-1) for p in local_model.parameters()])
+        global_update = torch.cat([p.data.view(-1) for p in global_model.parameters()])
+        norm_U_sq = torch.dot(global_update, global_update)
+        expected_score = torch.dot(local_update, global_update) / (num_mergers * norm_U_sq)
+        expected_score = int(Decimal(expected_score.item()) * Decimal('1e18'))
+
+        assert score == expected_score
+
+    # Edge case where global model has zero weights
+    def test_calc_contribution_score_zero_global(self):
+        """
+        Edge case where the global model has zero weights.
+        The contribution score should default to 1/N.
+        """
+        local_model = DummyModel(1.0)
+        global_model = DummyModel(0.0)
+        num_mergers = 3
+
+        score = calc_contribution_score(local_model, global_model, num_mergers)
+        expected_score = int(Decimal(1) / Decimal(num_mergers) * Decimal('1e18'))
+        assert score == expected_score
+
+    # Edge case where both models have zero weights
+    def test_calc_contribution_score_both_zero(self):
+        """
+        Edge case where both local and global models have zero weights.
+        The contribution score should default to 1/N.
+        """
+        local_model = DummyModel(0.0)
+        global_model = DummyModel(0.0)
+        num_mergers = 4
+
+        score = calc_contribution_score(local_model, global_model, num_mergers)
+        expected_score = int(Decimal(1) / Decimal(num_mergers) * Decimal('1e18'))
+        assert score == expected_score
+
+
+class TestCalcContributionScoresMAD:
+    # Basic test case with no outliers
+    def test_basic_no_outliers(self):
+        """
+        Scenario: 3 users with updates that are close to each other.
+        No values should be filtered out.
+        """
+        num_mergers = 3
+
+        local_updates = torch.tensor([
+            [1.0, 2.0],
+            [1.1, 2.1],
+            [0.9, 1.9]
+        ])
+        global_update = torch.tensor([1.0, 2.0])
+
+        scores = calc_contribution_scores_mad(local_updates, global_update, mad_thresh=3.5)
+
+        # Manual Calculation for verification
+        norm_U_sq = torch.dot(global_update, global_update)
+
+        expected_scores = []
+        for i in range(num_mergers):
+            # Standard logic: dot(u, U) / (N * ||U||^2)
+            dot = torch.dot(local_updates[i], global_update)
+            score_float = dot / (num_mergers * norm_U_sq)
+            expected_scores.append(int(Decimal(score_float.item()) * Decimal('1e18')))
+
+        assert scores == expected_scores
+
+    # Test case with an outlier
+    def test_with_outliers(self):
+        """
+        Scenario: User 2 has a massive weight that deviates significantly from the median.
+        The MAD logic should zero out that specific weight for User 2.
+        """
+
+        local_updates = torch.tensor([
+            [1.0],
+            [2.0],
+            [100.0]
+        ])
+        global_update = torch.tensor([1.0])
+
+        scores = calc_contribution_scores_mad(local_updates, global_update, mad_thresh=3.5)
+
+        norm_U_sq = torch.dot(global_update, global_update)
+
+        assert scores[2] == 0
+
+        expected_u1 = 2.0 / (3 * norm_U_sq)
+        expected_u1_int = int(Decimal(expected_u1.item()) * Decimal('1e18'))
+        assert scores[1] == expected_u1_int
+
+    # Edge case: Global update is zero vector
+    def test_zero_global_update(self):
+        """
+        Edge case: Global update vector is zero (or very close to zero).
+        Everyone should receive equal contribution scores (1/N).
+        """
+        num_mergers = 4
+        local_updates = torch.randn(num_mergers, 10)
+        global_update = torch.zeros(10)
+
+        scores = calc_contribution_scores_mad(local_updates, global_update)
+
+        # Expectation: 1/4 * 1e18
+        expected_val = int((Decimal(1) / Decimal(num_mergers)) * Decimal('1e18'))
+
+        for score in scores:
+            assert score == expected_val
+
+    # Edge case: All users submit identical models
+    def test_identical_inputs(self):
+        """
+        Edge case: All users submit identical models.
+        MAD will be 0. Ensure eps prevents division by zero and logic holds.
+        """
+        num_mergers = 2
+        # Both users submit [2.0, 2.0]
+        local_updates = torch.tensor([[2.0, 2.0], [2.0, 2.0]])
+        global_update = torch.tensor([2.0, 2.0])
+
+        scores = calc_contribution_scores_mad(local_updates, global_update)
+
+        # If identical, deviation is 0. Z-score is 0. Mask is True
+        norm_U_sq = 8.0  # 2*2 + 2*2
+        dot = 8.0  # 2*2 + 2*2
+
+        expected_float = dot / (num_mergers * norm_U_sq)
+        expected_int = int(Decimal(expected_float) * Decimal('1e18'))
+
+        assert scores[0] == expected_int
+        assert scores[1] == expected_int
+
+    # Test case with partial filtering
+    def test_partial_filtering(self):
+        """
+        Converted manual calculation to use PyTorch Tensors to match precision.
+        """
+        local_updates = torch.tensor([
+            [1.0, 1.0],
+            [2.0, 1.0],
+            [100.0, 1.0]
+        ])
+        global_update = torch.tensor([1.0, 1.0])
+
+        scores = calc_contribution_scores_mad(local_updates, global_update)
+
+        effective_u2_filtered = torch.tensor([0.0, 1.0])
+        norm_U_sq = torch.dot(global_update, global_update)
+
+        effective_dot = torch.dot(effective_u2_filtered, global_update)
+
+        expected_u2_float = effective_dot / (3 * norm_U_sq)
+
+        expected_u2_int = int(Decimal(expected_u2_float.item()) * Decimal('1e18'))
+
+        assert scores[2] == expected_u2_int
+
+
+class TestFLChallengeFeatures:
+    # Test user registration process
+    def test_register_all_users(self, fl_challenge, mock_participants, mock_contract):
+        """
+        Test the register_all_users method to ensure all users are registered correctly.
+        3 users should result in 3 calls to the contract's register function.
+        1st user's isRegistered flag should be set to True.
+        """
+        fl_challenge.register_all_users()
+        assert mock_contract.functions.register.call_count == 3
+        assert mock_participants[0].isRegistered is True
+
+    # Test feedback giving when no cheater is detected
+    def test_give_feedback_no_cheater(self, fl_challenge):
+        """
+        Test the give_feedback method when the target is not marked as a cheater by the giver.
+        """
+        giver = MagicMock()
+        giver.address = "0xGiver"
+
+        target = MagicMock()
+        target.address = "0xTarget"
+
+        target.roundRep = 5
+        giver.cheater = []
+
+        fl_challenge.give_feedback(giver, target, 1)
+
+        fl_challenge.model.functions.feedback.assert_called_with(target.address, 1)
+
+    # Test feedback giving when a cheater is detected
+    def test_give_feedback_cheater_detected(self, fl_challenge):
+        """
+        Test the give_feedback method when the target is marked as a cheater by the giver.
+        """
+        giver = MagicMock()
+        giver.address = "0xGiver"
+
+        target = MagicMock()
+        target.address = "0xTarget"
+
+        target.roundRep = 0
+        giver.cheater = [target]
+
+        fl_challenge.give_feedback(giver, target, 1)
+
+        fl_challenge.model.functions.feedback.assert_called_with(target.address, -1)
+
+    # Test building feedback bytes
+    def test_build_feedback_bytes(self, fl_challenge):
+        """
+        Test the build_feedback_bytes method to ensure it returns a non-empty string.
+        """
+        valid_address = "0xdD870fA1b7C4700F2BD7f44238821C26f7392148"
+        votes = [1]
+
+        res = fl_challenge.build_feedback_bytes([valid_address], votes)
+
+        assert isinstance(res, str)
+        assert len(res) > 0
+
+    # Test the MAD score calculation wrapper
+    def test_calculate_scores_mad_wrapper(self, fl_challenge, mock_participants):
+        """
+        Test that _calculate_scores_mad correctly flattens parameters from
+        user models and the global model, stacks them, and passes them
+        to the underlying math function.
+        """
+        merged_model = DummyModel(10.0)
+
+        for i, user in enumerate(mock_participants):
+            user.previousModel = DummyModel(float(i + 1))
+
+        with patch('openfl.contracts.fl_challenge.calc_contribution_scores_mad') as mock_math:
+            mock_math.return_value = [1000, 2000, 3000]
+
+            scores = fl_challenge._calculate_scores_mad(mock_participants, merged_model)
+
+            assert scores == [1000, 2000, 3000]
+
+            args, _ = mock_math.call_args
+            local_updates_arg = args[0]
+            global_update_arg = args[1]
+
+            assert global_update_arg.shape == (4,)
+            expected_global = torch.tensor([10.0, 10.0, 10.0, 10.0])
+            assert torch.equal(global_update_arg, expected_global)
+
+            assert local_updates_arg.shape == (3, 4)
+
+            assert torch.equal(local_updates_arg[0], torch.tensor([1.0, 1.0, 1.0, 1.0]))
+            assert torch.equal(local_updates_arg[2], torch.tensor([3.0, 3.0, 3.0, 3.0]))
+
+
+class TestFLChallengeWorkflow:
+    # Test legacy strategy selection
+    def test_strategy_selection_legacy(self, mock_w3, mock_contract):
+        manager = MagicMock(w3=mock_w3, fork=True)
+        extra_config = {'contribution_score_strategy': 'legacy'}
+        configs = [mock_contract, "0xModel", 100, 1000, 500, 3, 0.5, 0.1, extra_config]
+        pytorch_model = MagicMock()
+
+        challenge = FLChallenge(manager, configs, pytorch_model)
+
+        assert challenge._contribution_score_strategy == 'legacy'
+        assert challenge._get_contribution_score_calculator() == challenge._calculate_scores_legacy
+
+    # Test MAD strategy selection
+    def test_strategy_selection_mad(self, mock_w3, mock_contract):
+        manager = MagicMock(w3=mock_w3)
+        extra_config = {'contribution_score_strategy': 'mad'}
+        configs = [mock_contract, "0xModel", 100, 1000, 500, 3, 0.5, 0.1, extra_config]
+        pytorch_model = MagicMock()
+
+        challenge = FLChallenge(manager, configs, pytorch_model)
+
+        assert challenge._contribution_score_strategy == 'mad'
+        assert challenge._get_contribution_score_calculator() == challenge._calculate_scores_mad
+
+    # Test invalid strategy selection
+    def test_strategy_selection_invalid(self, mock_w3, mock_contract):
+        manager = MagicMock(w3=mock_w3)
+        extra_config = {'contribution_score_strategy': 'invalid_strategy'}
+        configs = [mock_contract, "0xModel", 100, 1000, 500, 3, 0.5, 0.1, extra_config]
+        pytorch_model = MagicMock()
+
+        challenge = FLChallenge(manager, configs, pytorch_model)
+
+        with pytest.raises(ValueError) as excinfo:
+            challenge._get_contribution_score_calculator()
+        assert "Unknown contribution score strategy" in str(excinfo.value)
+
+    # Test hashed weights provision filtering inactive users
+    def test_users_provide_hashed_weights_filters_inactive(self, fl_challenge, mock_participants):
+        """
+        Test that inactive users are skipped when providing hashed weights.
+        Relying on conftest.py unique secrets (100, 101, 102).
+        """
+        mock_participants[1].attitude = "inactive"
+
+        fl_challenge.users_provide_hashed_weights()
+
+        assert fl_challenge.model.functions.provideHashedWeights.call_count == 2
+
+        calls = fl_challenge.model.functions.provideHashedWeights.call_args_list
+        secrets_sent = [c[0][1] for c in calls]  # args[1] is the secret
+
+        assert mock_participants[0].secret in secrets_sent
+        assert mock_participants[2].secret in secrets_sent
+        assert mock_participants[1].secret not in secrets_sent
+
+    # Test slot registration logic
+    def test_user_register_slot(self, fl_challenge, mock_participants):
+        """
+        Test that slot registration calls keccak and the contract.
+        """
+        with patch('web3.Web3.solidity_keccak') as mock_keccak:
+            mock_keccak.return_value = b'\x09' * 32
+
+            fl_challenge.user_register_slot()
+
+            assert mock_keccak.call_count == 3
+            assert fl_challenge.model.functions.registerSlot.call_count == 3
+            fl_challenge.model.functions.registerSlot.assert_called_with(b'\x09' * 32)
+
+    # Test contribution score submission logic
+    def test_contribution_score_submission(self, fl_challenge, mock_participants):
+        """
+        Test the contribution_score method (submission logic).
+        """
+        mock_strategy_fn = MagicMock(return_value=[100, 200, 300])
+
+        fl_challenge._get_contribution_score_calculator = MagicMock(return_value=mock_strategy_fn)
+
+        for u in mock_participants:
+            u.model = DummyModel(1.0)
+            u.previousModel = DummyModel(1.0)
+
+        fl_challenge.contribution_score(mock_participants)
+
+        assert fl_challenge.model.functions.submitContributionScore.call_count == 3
+
+        fl_challenge.model.functions.submitContributionScore.assert_any_call(300, False)
+
+        assert mock_participants[0].contribution_score == 100
+        assert mock_participants[2].contribution_score == 300
+
+    # Test legacy score calculation wrapper
+    def test_calculate_scores_legacy_helper(self, fl_challenge, mock_participants):
+        merged_model = DummyModel(10.0)
+        for i, user in enumerate(mock_participants):
+            user.previousModel = DummyModel(float(i + 1))
+
+        with patch('openfl.contracts.fl_challenge.calc_contribution_score') as mock_calc:
+            mock_calc.side_effect = [10, 20, 30]
+            scores = fl_challenge._calculate_scores_legacy(mock_participants, merged_model)
+            assert scores == [10, 20, 30]
+
+    @patch('time.sleep', return_value=None)
+    # Test close_round where everything goes exactly as planned
+    def test_close_round_happy_path(self, mock_sleep, fl_challenge):
+        """
+        Test close_round where feedback and contribution rounds finish immediately.
+        Relies on conftest.py handling the hybrid receipt mock.
+        """
+        fl_challenge.model.functions.isFeedBackRoundDone.return_value.call.return_value = True
+        fl_challenge.model.functions.isContributionRoundDone.return_value.call.return_value = True
+
+        fl_challenge.close_round()
+
+        assert fl_challenge.model.functions.settle.call_count == 1
+        assert fl_challenge.pytorch_model.round == 2
+
+    @patch('time.sleep', return_value=None)
+    # Test close_round with wait loops
+    def test_close_round_wait_loops(self, mock_sleep, fl_challenge):
+        """
+        Test close_round logic when it has to wait (loop).
+        """
+        fl_challenge.model.functions.isFeedBackRoundDone.return_value.call.side_effect = [False, True]
+        fl_challenge.model.functions.isContributionRoundDone.return_value.call.return_value = True
+
+        fl_challenge.close_round()
+
+        assert fl_challenge.model.functions.settle.call_count == 1
+        assert mock_sleep.called
+
+
+class TestNonForkInteractions:
+    # Test registration flow when fork=False (Production mode)
+    def test_register_all_users_non_fork(self, mock_w3, mock_contract, mock_participants):
+        """
+        Test registration flow when fork=False (Production mode).
+        Should sign transactions locally and send raw transaction.
+        """
+        manager = MagicMock()
+        manager.w3 = mock_w3
+        manager.fork = False  # Switch to non-fork mode
+
+        configs = [mock_contract, "0xModel", 100, 1000, 500, 3, 0.5, 0.1]
+        pytorch_model = MagicMock()
+        pytorch_model.participants = mock_participants
+
+        mock_signed_tx = MagicMock()
+        mock_signed_tx.rawTransaction = b'raw_tx_bytes'
+        mock_w3.eth.account.signTransaction.return_value = mock_signed_tx
+        mock_w3.eth.sendRawTransaction.return_value = b'\x09' * 32
+
+        with patch('openfl.contracts.fl_challenge.FLManager.build_non_fork_tx') as mock_build_nf:
+            mock_build_nf.return_value = {'gas': 100000, 'nonce': 1}
+
+            challenge = FLChallenge(manager, configs, pytorch_model)
+            challenge.register_all_users()
+
+            assert mock_w3.eth.account.signTransaction.call_count == 3
+            assert mock_w3.eth.sendRawTransaction.call_count == 3
+
+
+class TestErrorHandling:
+    @patch('builtins.input', return_value='')
+    # Test that FRC error during feedback triggers time jump and retry
+    def test_give_feedback_handles_frc_error(self, mock_input, fl_challenge, mock_w3):
+        """
+        Test that encountering a 'FRC' error triggers a time jump and a retry.
+        """
+        giver = MagicMock()
+        giver.address = "0xGiver"
+        giver.cheater = []
+        target = MagicMock()
+        target.address = "0xTarget"
+
+        contract_func = fl_challenge.model.functions.feedback.return_value
+        contract_func.transact.side_effect = [
+            ContractLogicError("Execution reverted: FRC"),
+            b'\x01' * 32
+        ]
+
+        fl_challenge.give_feedback(giver, target, 1)
+
+        mock_w3.provider.make_request.assert_called_with("evm_increaseTime", [fl_challenge.config.WAIT_DELAY])
+
+        assert contract_func.transact.call_count == 2
+
+
+class TestSystemExit:
+    # Test exit_system loops through participants
+    def test_exit_system(self, fl_challenge, mock_participants):
+        """Test the exit_system loops through participants."""
+        for i in mock_participants:
+            fl_challenge.w3.eth.get_balance.return_value = 0
+
+        fl_challenge.exit_system()
+
+        assert fl_challenge.model.functions.exitModel.call_count == 3
+        assert fl_challenge.w3.eth.wait_for_transaction_receipt.call_count == 3
+
+
+class TestReporting:
+    # Test log parsing and round summary printing
+    def test_print_round_summary(self, fl_challenge):
+        """
+        Test that log parsing works correctly given a mock receipt with specific events.
+        """
+        mock_receipt = MagicMock()
+
+        expected_events = {
+            "EndRound": [{"args": {"round": 1, "validVotes": 10, "sumOfWeights": 500, "totalPunishment": 0}}],
+            "Reward": [{"args": {"user": "0xUser", "roundScore": 100, "win": 50, "newReputation": 1050}}],
+            "Punishment": [],
+            "Disqualification": []
+        }
+
+        with patch.object(fl_challenge, 'get_events', return_value=expected_events):
+            fl_challenge.print_round_summary(mock_receipt)
