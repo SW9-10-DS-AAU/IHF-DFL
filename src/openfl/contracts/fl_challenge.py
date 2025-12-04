@@ -71,6 +71,7 @@ class FLChallenge(FLManager):
         self._contribution_score_calculators = {
             "legacy": self._calculate_scores_legacy,
             "mad": self._calculate_scores_mad,
+            "naive": self._calculate_scores_naive,
         }
 
     def _determine_contribution_score_strategy(self):
@@ -114,10 +115,10 @@ class FLChallenge(FLManager):
             else:
                 # Non-fork: build and sign a raw transaction manually
                 nonce = self.w3.eth.get_transaction_count(acc.address) 
-                reg = super().build_non_fork_tx(acc.address, nonce, self.modelAddress, acc.collateral)   
-                reg = self.model.functions.register().buildTransaction(reg)
-                signed = self.w3.eth.account.signTransaction(reg, private_key=acc.privateKey)
-                txHash = self.w3.eth.sendRawTransaction(signed.rawTransaction)
+                reg = super().build_non_fork_tx(acc.address, nonce, value=acc.collateral)
+                reg = self.model.functions.register().build_transaction(reg)
+                signed = self.w3.eth.account.sign_transaction(reg, private_key=acc.privateKey)
+                txHash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
             txs.append(txHash)
             bal = self.w3.eth.get_balance(self.w3.eth.default_account)
             acc.isRegistered = True
@@ -172,10 +173,10 @@ class FLChallenge(FLManager):
 
             else:          
                 nonce = self.w3.eth.get_transaction_count(acc.address) 
-                hw = super().build_non_fork_tx(acc.address, nonce, self.modelAddress, 0)   
-                hw =  self.model.functions.provideHashedWeights(acc.hashedModel, acc.secret).buildTransaction(hw)
-                signed = self.w3.eth.account.signTransaction(hw, private_key=acc.privateKey)
-                txHash = self.w3.eth.sendRawTransaction(signed.rawTransaction)
+                hw = super().build_non_fork_tx(acc.address, nonce)
+                hw =  self.model.functions.provideHashedWeights(acc.hashedModel, acc.secret).build_transaction(hw)
+                signed = self.w3.eth.account.sign_transaction(hw, private_key=acc.privateKey)
+                txHash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
             txs.append(txHash)
             print("{:<17}   {} | {} | {:>25,.0f} WEI".format("Weights provided:", 
                                                                          acc.address[0:16] + "...", 
@@ -213,11 +214,11 @@ class FLChallenge(FLManager):
             if self.fork:
                 txHash = self.model.functions.feedback(target.address, score).transact(tx)
             else:          
-                nonce = self.w3.eth.get_transaction_count(acc.address) 
-                fe = super().build_non_fork_tx(acc.address, nonce, self.modelAddress, 0)   
-                fe =  self.model.functions.feedback(target.address, score).buildTransaction(fe)
-                signed = self.w3.eth.account.signTransaction(fe, private_key=acc.privateKey)
-                txHash = self.w3.eth.sendRawTransaction(signed.rawTransaction)
+                nonce = self.w3.eth.get_transaction_count(feedbackGiver.address)
+                fe = super().build_non_fork_tx(feedbackGiver.address, nonce)
+                fe =  self.model.functions.feedback(target.address, score).build_transaction(fe)
+                signed = self.w3.eth.account.sign_transaction(fe, private_key=feedbackGiver.privateKey)
+                txHash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
         except ContractLogicError as e:
             if "FRC" in str(e):
                 input("Inactive users found - such users do not provide hashed weights.. \nGoing to forward time for 1 day\n")
@@ -421,9 +422,9 @@ class FLChallenge(FLManager):
                 tx_hash = self.w3.eth.send_transaction({'to': _to, 'from': _from, 'data': data})
             else:
                 nonce = self.w3.eth.get_transaction_count(_from)
-                hw = super().buildNonForkTx(_from, nonce, self.modelAddress, 0, data)
-                signed = self.w3.eth.account.signTransaction(hw, private_key=private_key)
-                tx_hash = self.w3.eth.sendRawTransaction(signed.rawTransaction)
+                hw = super().build_non_fork_tx(_from, nonce, self.modelAddress, 0, data)
+                signed = self.w3.eth.account.sign_transaction(hw, private_key=private_key)
+                tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
 
         except ContractLogicError as e:
             if "FRC" in str(e):
@@ -497,15 +498,12 @@ class FLChallenge(FLManager):
             txHash = self.model.functions.settle().transact(tx)
             
         else:          
-            nonce = self.w3.eth.get_transaction_count(self.pytorch_model.participants[0].address) 
-            cl = super().build_non_fork_tx(self.pytorch_model.participants[0].address, 
-                                        nonce, 
-                                        self.modelAddress, 
-                                        0)   
-            cl =  self.model.functions.settle().buildTransaction(cl)
+            nonce = self.w3.eth.get_transaction_count(self.pytorch_model.participants[0].address, 'pending')
+            cl = super().build_non_fork_tx(self.pytorch_model.participants[0].address, nonce)
+            cl =  self.model.functions.settle().build_transaction(cl)
             pk = self.pytorch_model.participants[0].privateKey
-            signed = self.w3.eth.account.signTransaction(cl, private_key=pk)
-            txHash = self.w3.eth.sendRawTransaction(signed.rawTransaction)
+            signed = self.w3.eth.account.sign_transaction(cl, private_key=pk)
+            txHash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
 
         receipt = self.w3.eth.wait_for_transaction_receipt(txHash,
                                                         timeout=600,
@@ -542,10 +540,10 @@ class FLChallenge(FLManager):
             else:
                 w3 = ConnectionHelper.get_w3()          
                 nonce = w3.eth.get_transaction_count(acc.address) 
-                sl = super().build_non_fork_tx(acc.address, nonce, self.modelAddress, 0)   
-                sl =  self.model.functions.registerSlot(reservation).buildTransaction(sl)
-                signed = w3.eth.account.signTransaction(sl, private_key=acc.privateKey)
-                txHash = w3.eth.sendRawTransaction(signed.rawTransaction)
+                sl = super().build_non_fork_tx(acc.address, nonce)
+                sl =  self.model.functions.registerSlot(reservation).build_transaction(sl)
+                signed = w3.eth.account.sign_transaction(sl, private_key=acc.privateKey)
+                txHash = w3.eth.send_raw_transaction(signed.raw_transaction)
             txs.append(txHash)
             print("{:<17}   {} | {} | {:>25,.0f} WEI".format("Slot registered: ", 
                                                                          acc.address[0:16] + "...", 
@@ -579,10 +577,10 @@ class FLChallenge(FLManager):
             else:
                 w3 = ConnectionHelper.get_w3()          
                 nonce = w3.eth.get_transaction_count(acc.address) 
-                ex = super().build_non_fork_tx(acc.address, nonce, self.modelAddress, 0)   
-                ex =  self.model.functions.exitModel().buildTransaction(ex)
-                signed = w3.eth.account.signTransaction(ex, private_key=acc.privateKey)
-                txHash = w3.eth.sendRawTransaction(signed.rawTransaction)
+                ex = super().build_non_fork_tx(acc.address, nonce)
+                ex =  self.model.functions.exitModel().build_transaction(ex)
+                signed = w3.eth.account.sign_transaction(ex, private_key=acc.privateKey)
+                txHash = w3.eth.send_raw_transaction(signed.raw_transaction)
             txs.append(txHash)
             print("{:<17}   {} | {} | {:>27,.0f} WEI".format("Account exited:  ", 
                                                              acc.address[0:16] + "...", 
@@ -738,6 +736,7 @@ class FLChallenge(FLManager):
         contract, and log them. Strategy is chosen by _get_contribution_score_calculator:
           - legacy: simple dot-product
           - mad: MAD-based outlier filtering of weights
+          - naive: equal-share (1 / num_mergers)
         """
 
         print("START CONTRIBUTION SCORE\n")
@@ -770,19 +769,17 @@ class FLChallenge(FLManager):
                 ).transact(tx)
             else:  # TODO: Dobbeltjek at logic er rigtig her.
                 nonce = self.w3.eth.get_transaction_count(u.address)
-                cl = super().buildNonForkTx(
+                cl = super().build_non_fork_tx(
                     u.address,
                     nonce,
-                    self.modelAddress
                 )
-                cl = self.model.functions.settleContributionScore(
+                cl = self.model.functions.submitContributionScore(
                     abs(score),
                     u.is_contrib_score_negative
-                ).buildTransaction(cl)
-                pk = u.private_key
-                signed = self.w3.eth.account.signTransaction(cl, private_key=pk)
-                tx_hash = self.w3.eth.sendRawTransaction(signed.rawTransaction)
-
+                ).build_transaction(cl)
+                pk = u.privateKey
+                signed = self.w3.eth.account.sign_transaction(cl, private_key=pk)
+                tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
             txs.append(tx_hash)
 
             print(green(f"\nUSER @ {u.id}"))
@@ -815,6 +812,14 @@ class FLChallenge(FLManager):
         ]
         local_updates = torch.stack(local_updates)
         return calc_contribution_scores_mad(local_updates, global_update)
+
+    def _calculate_scores_naive(self, users, merged_model):
+        """
+        Equal-share scoring: everyone contributing gets 1 / num_mergers.
+        """
+        _ = merged_model  # unused; included for signature consistency
+        num_mergers = len(users)
+        return [calc_contribution_score_naive(num_mergers) for _ in users]
 
     def simulate(self, rounds):
         """
@@ -853,17 +858,8 @@ class FLChallenge(FLManager):
             self.pytorch_model.verify_models({u.id: self.get_hashed_weights_of(u) for u in self.pytorch_model.participants})
 
             feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses = self.pytorch_model.evaluation()
-            # accuracy matrix
-            # XX 60 64 69 70 75
-            # 59 XX 66 67 75 40
-            # 70 68 XX 69 72 85
-            # 85 70 42 XX 70 71
-            # 75 75 75 75 XX 75 # free-rider giver alle samme accuracy som han fik med global model fra sidste runde på eget data
-            # 00 00 00 00 00 XX # malicious giver alle andre 0 accuracy
-            
+
             self.quick_feedback_round(fbm = feedback_matrix, feedback_type="feedbackBytesAndAccuracy", am=accuracy_matrix, lm=loss_matrix, prev_accs=prev_accs, prev_losses=prev_losses)
-            # self.quick_feedback_round(feedback_matrix, accuracy_matrix, fallback_type="feedbackBytes")
-            # self.quick_feedback_round(feedback_matrix, accuracy_matrix, fallback_type="feedbackBytesAndAccuracy")
 
             self.pytorch_model.the_merge([user for user in self.pytorch_model.participants if user._roundrep[-1] > 0])
             
@@ -897,28 +893,44 @@ class FLChallenge(FLManager):
 
         participants =self.pytorch_model.participants + self.pytorch_model.disqualified
 
-        x = list(range(0,len(accuracy)))
+        #  True to get old setep graph, False to get point graph
+        use_step_grs = False
+
+        rounds = list(range(len(accuracy)))
         #x = [item for sublist in zip(x,(np.array(x)+1).tolist()) for item in sublist]
 
         y = accuracy
         #y = [item for sublist in zip(yy,yy) for item in sublist]
-        axs[1].plot(x, y, color=colors[0], linewidth=2.5) 
+        acc_line = axs[1].plot(rounds, y, color=colors[0], linewidth=2.5, label="Avg. Accuracy")[0]
         twin = axs[1].twinx()
         y = loss
         #y = [item for sublist in zip(yy,yy) for item in sublist]
-        twin.plot(x, y, color=colors[1], linewidth=2.5) 
+        loss_line = twin.plot(rounds, y, color=colors[1], linewidth=2.5, linestyle="--", label="Avg. Loss")[0]
 
 
 
-        x = list(range(len(participants[0]._globalrep)))
-        x = [item for sublist in zip(x,(np.array(x)+1).tolist()) for item in sublist]
-
-
-        # plotting the points  
-        yy=[]
-        for i, user in enumerate(participants):
-            y = [item for sublist in zip(user._globalrep, user._globalrep) for item in sublist]
-            axs[2].plot(x, y, linewidth=2.5, color=user.color) 
+        grs_rounds = list(range(len(participants[0]._globalrep)))
+        if use_step_grs:
+            grs_x = [item for sublist in zip(grs_rounds, (np.array(grs_rounds) + 1).tolist()) for item in sublist]
+            grs_ticks = grs_rounds
+            for i, user in enumerate(participants):
+                grs_y = [item for sublist in zip(user._globalrep, user._globalrep) for item in sublist]
+                axs[2].plot(grs_x, grs_y, linewidth=2.5, color=user.color)
+        else:
+            grs_x = grs_rounds
+            grs_ticks = grs_rounds
+            # plotting the points
+            for i, user in enumerate(participants):
+                axs[2].plot(
+                    grs_x,
+                    user._globalrep,
+                    linewidth=2.5,
+                    color=user.color,
+                    alpha=0.9,
+                    marker="o",
+                    markersize=4,
+                    markevery=1,
+                )
 
 
 
@@ -969,16 +981,22 @@ class FLChallenge(FLManager):
         axs[2].tick_params(axis='both', which='major', labelsize=14)
         axs[3].tick_params(axis='both', which='major', labelsize=14)
         
-        if len(x) > 20:
-            axs[1].set_xticks([i for i in x if i%5==0 or i == 0])
-            axs[2].set_xticks([i for i in x if i%5==0 or i == 0])
-            axs[3].set_xticks([i for i in x if i%5==0 or i == 0])
+        if len(rounds) > 20:
+            axs[1].set_xticks([i for i in rounds if i%5==0 or i == 0])
         else:
-            axs[1].set_xticks([i for i in x])
-            axs[2].set_xticks([i for i in x])
-            axs[3].set_xticks([i for i in x])
+            axs[1].set_xticks([i for i in rounds])
+
+        if len(grs_ticks) > 20:
+            axs[2].set_xticks([i for i in grs_ticks if i%5==0 or i == 0])
+        else:
+            axs[2].set_xticks([i for i in grs_ticks])
+
+        if len(x_reward) > 20:
+            axs[3].set_xticks([i for i in x_reward if i%5==0 or i == 0])
+        else:
+            axs[3].set_xticks([i for i in x_reward])
     
-        axs[1].set_xlim(0,max(x))
+        axs[1].set_xlim(0, max(rounds) if rounds else 0)
         
         axs[2].yaxis.get_offset_text().set_fontsize(14)
         axs[3].yaxis.get_offset_text().set_fontsize(14)
@@ -986,6 +1004,10 @@ class FLChallenge(FLManager):
         axs[1].grid()
         axs[2].grid()
         axs[3].grid()
+
+        # Legend for the dual-axis accuracy/loss plot
+        twin_lines = [acc_line, loss_line]
+        axs[1].legend(twin_lines, [l.get_label() for l in twin_lines], loc="lower right", fontsize=10)
 
         lgnd = axs[3].legend(fontsize=10)
 
@@ -1031,6 +1053,9 @@ def calc_contribution_score(local_model, global_model, num_mergers, eps=1e-12) -
     return int(Decimal(score.item()) * Decimal('1e18'))
 
 
+def calc_contribution_score_naive(num_mergers) -> int:
+    score = Decimal(1) / Decimal(num_mergers)
+    return int(score * Decimal('1e18'))
 
 # New function
 def calc_contribution_scores_mad(local_updates: torch.Tensor,
