@@ -32,7 +32,10 @@ def run_experiment(dataset_name, experiment_config):
                               experiment_config.epochs, 
                               experiment_config.batch_size, 
                               experiment_config.standard_buy_in,
-                              experiment_config.max_buy_in)
+                              experiment_config.max_buy_in,
+                              experiment_config.freerider_strategy,
+                              experiment_config.freerider_noise_scale,
+                              experiment_config.freerider_start_round)
 
   for i in range(experiment_config.number_of_bad_contributors):
       pytorch_model.add_participant("bad",3)
