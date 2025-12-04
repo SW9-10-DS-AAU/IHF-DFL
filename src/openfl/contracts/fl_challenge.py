@@ -2,6 +2,8 @@ import asyncio
 import datetime
 import os
 import time
+import warnings
+
 import torch
 import numpy as np
 from types import SimpleNamespace
@@ -113,7 +115,7 @@ class FLChallenge(FLManager):
             else:
                 # Non-fork: build and sign a raw transaction manually
                 nonce = self.w3.eth.get_transaction_count(acc.address) 
-                reg = super().build_non_fork_tx(acc.address, nonce, value=acc.collateral)   
+                reg = super().build_non_fork_tx(acc.address, nonce, value=acc.collateral)
                 reg = self.model.functions.register().build_transaction(reg)
                 signed = self.w3.eth.account.sign_transaction(reg, private_key=acc.privateKey)
                 txHash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
@@ -171,7 +173,7 @@ class FLChallenge(FLManager):
 
             else:          
                 nonce = self.w3.eth.get_transaction_count(acc.address) 
-                hw = super().build_non_fork_tx(acc.address, nonce)   
+                hw = super().build_non_fork_tx(acc.address, nonce)
                 hw =  self.model.functions.provideHashedWeights(acc.hashedModel, acc.secret).build_transaction(hw)
                 signed = self.w3.eth.account.sign_transaction(hw, private_key=acc.privateKey)
                 txHash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
@@ -212,8 +214,8 @@ class FLChallenge(FLManager):
             if self.fork:
                 txHash = self.model.functions.feedback(target.address, score).transact(tx)
             else:          
-                nonce = self.w3.eth.get_transaction_count(feedbackGiver.address) 
-                fe = super().build_non_fork_tx(feedbackGiver.address, nonce)   
+                nonce = self.w3.eth.get_transaction_count(feedbackGiver.address)
+                fe = super().build_non_fork_tx(feedbackGiver.address, nonce)
                 fe =  self.model.functions.feedback(target.address, score).build_transaction(fe)
                 signed = self.w3.eth.account.sign_transaction(fe, private_key=feedbackGiver.privateKey)
                 txHash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
@@ -313,13 +315,17 @@ class FLChallenge(FLManager):
 
                 
     
-    def quick_feedback_round(self, fbm):
+    def quick_feedback_round(self, fbm, feedback_type, am = None, lm = None, prev_accs = None, prev_losses = None):
         print("Users exchanging feedback...")
         txs = []
-        for user in self.pytorch_model.participants:
+        for idx, user in enumerate(self.pytorch_model.participants):
             addrs = []
             votes = []
             user_votes = fbm[user.id]
+            filtered_accs = []
+            filtered_losses = []
+            accs = am[idx]
+            losses = lm[idx]
             for ix, vote in enumerate(user_votes):
                 if user.id == ix:
                     continue
@@ -331,23 +337,75 @@ class FLChallenge(FLManager):
                 addrs.append(votee.address)
                 votes.append(int(vote))
                 votee.roundRep = votee.roundRep + self.get_global_reputation_of_user(user.address) * int(vote)
-            
+                filtered_accs.append(accs[ix])
+                filtered_losses.append(losses[ix])
+
+
+
             fbb = self.build_feedback_bytes(addrs, votes)
-            txs.append(self.send_fallback_transaction_onchain(_to=self.modelAddress, _from=user.address, data=fbb,
+            if feedback_type == "fallback":
+                txs.append(self.send_fallback_transaction_onchain(_to=self.modelAddress, _from=user.address, data=fbb,
                                                               private_key=user.privateKey))
+            elif feedback_type == "feedbackBytes":
+                if self.fork:
+                    tx = super().build_tx(user.address, self.modelAddress)
+                    tx_hash = self.model.functions.submitFeedbackBytes(Web3.to_bytes(hexstr="0x" + fbb)).transact(tx)
+                else:  # TODO: Dobbeltjek at logic er rigtig her.
+                    nonce = self.w3.eth.get_transaction_count(user.address)
+                    cl = super().build_non_fork_tx(user.address, nonce)
+                    cl = self.model.functions.submitFeedbackBytes(
+                        fbb
+                    ).build_transaction(cl)
+                    pk = user.privateKey
+                    signed = self.w3.eth.account.sign_transaction(cl, private_key=pk)
+                    tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
+                txs.append(tx_hash)
+            elif feedback_type == "feedbackBytesAndAccuracy":
+                if self.fork:
+                    tx = super().build_tx(user.address, self.modelAddress)
+                    row_am = am[idx]
+                    row_lm = lm[idx]
+                    filtered_row_am = row_am[:idx] + row_am[idx + 1:]
+                    filtered_row_lm = row_lm[:idx] + row_lm[idx + 1:]
+                    prev_acc = prev_accs[idx]
+                    prev_loss = prev_losses[idx]
+
+                    tx_hash = self.model.functions.submitFeedbackBytesAndAccuracies(Web3.to_bytes(hexstr="0x" + fbb), filtered_accs, filtered_losses, prev_acc, prev_loss).transact(tx)
+                else:  # TODO: Dobbeltjek at logic er rigtig her.
+                    nonce = self.w3.eth.get_transaction_count(user.address)
+                    cl = super().build_non_fork_tx(user.address, nonce)
+                    cl = self.model.functions.submitFeedbackBytesAndAccuracies(
+                        Web3.to_bytes(hexstr="0x" + fbb), am[idx]
+                    ).build_transaction(cl)
+                    pk = user.privateKey
+                    signed = self.w3.eth.account.sign_transaction(cl, private_key=pk)
+                    tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
+                txs.append(tx_hash)
+            else:
+                warnings.warn("INVALID FEEDBACK TYPE")
 
         for i, txHash in enumerate(txs):
             self.log_receipt(i, txHash, len(txs), "feedback")
 
         for user in self.pytorch_model.participants:
+            if len(user._roundrep) == 0:
+                print(f"model participant: {user.address} had no roundrep")
+            else:
+                print(f"model participant: {user.address} had {user._roundrep[-1]} round reputation")
             user._roundrep.append(self.get_round_reputation_of_user(user.address))
-            
+            print(f"model participant: {user.address} now gets {user._roundrep[-1]} round reputation")
+
         for user in self.pytorch_model.disqualified:
+            if len(user._roundrep) == 0:
+                print(f"model participant: {user.address} had no roundrep")
+            else:
+                print(f"model disquilified: {user.address} had {user._roundrep[-1]} round reputation")
             user._roundrep.append(self.get_round_reputation_of_user(user.address))
-            
+            print(f"model disqualified: {user.address} now gets {user._roundrep[-1]} round reputation")
+
         printer._print("                                                   ")
         print("\n-----------------------------------------------------------------------------------")
-        
+
     def log_receipt(self, i, tx_hash, len_txs, receipt_type: str):
         printer.print_bar(i, len_txs)
         receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash,
@@ -358,7 +416,7 @@ class FLChallenge(FLManager):
         self.txHashes.append((receipt_type, receipt["transactionHash"].hex()))
 
 
-    def send_fallback_transaction_onchain(self, _to, _from, data, private_key):
+    def send_fallback_transaction_onchain(self, _to, _from, data, private_key=None):
         try:
             if self.fork:
                 tx_hash = self.w3.eth.send_transaction({'to': _to, 'from': _from, 'data': data})
@@ -440,17 +498,17 @@ class FLChallenge(FLManager):
             txHash = self.model.functions.settle().transact(tx)
             
         else:          
-            nonce = self.w3.eth.get_transaction_count(self.pytorch_model.participants[0].address, 'pending') 
-            cl = super().build_non_fork_tx(self.pytorch_model.participants[0].address, nonce)   
+            nonce = self.w3.eth.get_transaction_count(self.pytorch_model.participants[0].address, 'pending')
+            cl = super().build_non_fork_tx(self.pytorch_model.participants[0].address, nonce)
             cl =  self.model.functions.settle().build_transaction(cl)
             pk = self.pytorch_model.participants[0].privateKey
             signed = self.w3.eth.account.sign_transaction(cl, private_key=pk)
             txHash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
-            
+
         receipt = self.w3.eth.wait_for_transaction_receipt(txHash,
                                                         timeout=600,
                                                         poll_latency=1)
-
+        print("settling round completed")
 
         self.txHashes.append(("close", receipt["transactionHash"].hex()))
         self.gas_close.append(receipt["gasUsed"])
@@ -482,7 +540,7 @@ class FLChallenge(FLManager):
             else:
                 w3 = ConnectionHelper.get_w3()          
                 nonce = w3.eth.get_transaction_count(acc.address) 
-                sl = super().build_non_fork_tx(acc.address, nonce)   
+                sl = super().build_non_fork_tx(acc.address, nonce)
                 sl =  self.model.functions.registerSlot(reservation).build_transaction(sl)
                 signed = w3.eth.account.sign_transaction(sl, private_key=acc.privateKey)
                 txHash = w3.eth.send_raw_transaction(signed.raw_transaction)
@@ -519,7 +577,7 @@ class FLChallenge(FLManager):
             else:
                 w3 = ConnectionHelper.get_w3()          
                 nonce = w3.eth.get_transaction_count(acc.address) 
-                ex = super().build_non_fork_tx(acc.address, nonce)   
+                ex = super().build_non_fork_tx(acc.address, nonce)
                 ex =  self.model.functions.exitModel().build_transaction(ex)
                 signed = w3.eth.account.sign_transaction(ex, private_key=acc.privateKey)
                 txHash = w3.eth.send_raw_transaction(signed.raw_transaction)
@@ -635,6 +693,43 @@ class FLChallenge(FLManager):
 
         print()
 
+    # def contribution_score_old(self, _users):
+    #     print("START CONTRIBUTION SCORE\n")
+    #     merged_model = _users[0].model
+    #     num_mergers = len(_users)
+    #     txs = []
+    #     for u in _users:
+    #         u.roundRep = 0
+    #         score = calc_contribution_score(u.previousModel, merged_model, num_mergers)
+    #         u.is_contrib_score_negative = True if score < 0 else False
+    #         u.contribution_score = score
+    #
+    #         if self.fork:
+    #             tx = super().build_tx(u.address, self.modelAddress)
+    #             tx_hash = self.model.functions.submitContributionScore(abs(score),
+    #                                                                    u.is_contrib_score_negative).transact(tx)
+    #         else:
+    #             nonce = self.w3.eth.get_transaction_count(u.address)
+    #             cl = super().buildNonForkTx(u.address,
+    #                                         nonce,
+    #                                         self.modelAddress)
+    #             cl = self.model.functions.settleContributionScore(abs(score),
+    #                                                               u.is_contrib_score_negative).buildTransaction(cl)
+    #             pk = u.private_key
+    #             signed = self.w3.eth.account.signTransaction(cl, private_key=pk)
+    #             tx_hash = self.w3.eth.sendRawTransaction(signed.rawTransaction)
+    #         txs.append(tx_hash)
+    #
+    #         print(green(f"\nUSER @ {u.id}"))
+    #         print(green(f"{'CONTRIBUTION SCORE:':25} {u.contribution_score:}"))
+    #
+    #     for i, txHash in enumerate(txs):
+    #         self.log_receipt(i, txHash, len(txs), "con_score")
+    #     print("-----------------------------------------------------------------------------------\n")
+
+
+
+    # New contribution score
     def contribution_score(self, _users):
         """
         Compute contribution scores for all merging users, submit them to the
@@ -645,12 +740,21 @@ class FLChallenge(FLManager):
         """
 
         print("START CONTRIBUTION SCORE\n")
+        voters, accs, losses = self.model.functions.getAllAccuraciesAbout(_users[0].address).call()
+        for v, a, l in zip(voters, accs, losses):
+            print(f"{v} gave accuracy {a} and loss {l} for target {_users[0].address}")
+        prev_accs, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses.call()
+        print(f"previous accuracies: {prev_accs}")
+        print(f"previous losses: {prev_losses}")
 
         merged_model = _users[0].model
 
         # Choose scoring algorithm based on configured strategy
         calculator = self._get_contribution_score_calculator()
         scores = calculator(_users, merged_model)
+
+
+
 
         txs = []
         for u, score in zip(_users, scores):
@@ -682,7 +786,7 @@ class FLChallenge(FLManager):
             print(green(f"{'CONTRIBUTION SCORE:':25} {u.contribution_score:}"))
 
         for i, txHash in enumerate(txs):
-            self.log_receipt(i, txHash, len(txs), "contribution_score")
+            self.log_receipt(i, txHash, len(txs), "contrib")
 
         print("-----------------------------------------------------------------------------------\n")
 
@@ -753,16 +857,16 @@ class FLChallenge(FLManager):
             
             self.pytorch_model.verify_models({u.id: self.get_hashed_weights_of(u) for u in self.pytorch_model.participants})
 
-            feedback = self.pytorch_model.evaluation()
-            
-            self.quick_feedback_round(feedback)
+            feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses = self.pytorch_model.evaluation()
 
-            self.pytorch_model.the_merge([user for user in self.pytorch_model.participants if user.roundRep > 0])
+            self.quick_feedback_round(fbm = feedback_matrix, feedback_type="feedbackBytesAndAccuracy", am=accuracy_matrix, lm=loss_matrix, prev_accs=prev_accs, prev_losses=prev_losses)
+
+            self.pytorch_model.the_merge([user for user in self.pytorch_model.participants if user._roundrep[-1] > 0])
             
             print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
 
-            self.contribution_score([user for user in self.pytorch_model.participants if user.roundRep > 0])
-
+            #contributionScoreTask = asyncio.create_task(self.contribution_score([user for user in self.pytorch_model.participants if user.roundRep > 0]))
+            self.contribution_score([user for user in self.pytorch_model.participants if user._roundrep[-1] > 0])
             receipt = self.close_round()
             #contributionScoreTask
 
@@ -815,7 +919,7 @@ class FLChallenge(FLManager):
         else:
             grs_x = grs_rounds
             grs_ticks = grs_rounds
-            # plotting the points  
+            # plotting the points
             for i, user in enumerate(participants):
                 axs[2].plot(
                     grs_x,

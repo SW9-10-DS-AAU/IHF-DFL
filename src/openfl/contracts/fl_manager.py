@@ -1,6 +1,7 @@
 from web3 import Web3
 from openfl.ml.pytorch_model import gb, rb, b, green, red
 from openfl.api import ConnectionHelper
+from artifacts.bytecode.abi_model import OPEN_FL_MODEL_ABI  # import the ABI directly
 
 class FLManager(ConnectionHelper):
     
@@ -53,7 +54,7 @@ class FLManager(ConnectionHelper):
             genesisHash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
             
         receipt = self.w3.eth.wait_for_transaction_receipt(genesisHash,
-                                                           timeout=600, 
+                                                           timeout=600,
                                                            poll_latency=1)
         if receipt.get("status", 0) != 1:
             raise RuntimeError(
@@ -66,14 +67,14 @@ class FLManager(ConnectionHelper):
 
         deployed_address = self.w3.to_checksum_address(receipt.contractAddress)
         self.manager = self.w3.eth.contract(address=deployed_address, abi=manager_abi)
-        
+
         print("\n{:<17} {} | {}\n".format("Manager deployed", 
                                           "@ Address " + self.manager.address, 
                                           genesisHash.hex()[0:6]+"..."))
         print("-----------------------------------------------------------------------------------")
         return 
 
-    
+
     
     
     def get_model_of(self, p, c):
@@ -146,33 +147,17 @@ class FLManager(ConnectionHelper):
 
         self.gas_deploy.append(receipt["gasUsed"])
         self.txHashes.append(("buildChallenge", receipt["transactionHash"].hex()))
-
-        deployed_challenge_address = None
-        for log in receipt["logs"]:
-            log_address = self.w3.to_checksum_address(log["address"])
-            if log_address.lower() != self.manager.address.lower():
-                deployed_challenge_address = log_address
-                break
-
-        if deployed_challenge_address is None:
-            print("[WARN] Challenge address not found in logs, falling back to manager mapping.")
-            c = self.get_model_count_of(self.pytorch_model.participants[0])
-            deployed_challenge_address = self.get_model_of(self.pytorch_model.participants[0], c)
-
-        challenge_contract_template = super().initialize_model(deployed_challenge_address)
-        challenge_abi = challenge_contract_template.abi
+        c = self.get_model_count_of(self.pytorch_model.participants[0])
+        deployed_address = self.get_model_of(self.pytorch_model.participants[0], c)
+        deployed_address = Web3.to_checksum_address(deployed_address)
 
         self.challenge_contract = self.w3.eth.contract(
-            address=deployed_challenge_address,
-            abi=challenge_abi
+            address=deployed_address,
+            abi=OPEN_FL_MODEL_ABI
         )
-
-
-        print("\n{:<17} {} | {}\n".format(
-            "Model deployed",
-            "@ Address " + self.challenge_contract.address,
-            txHash.hex()[0:6] + "..."
-        ))
+        print("\n{:<17} {} | {}\n".format("Model deployed", 
+                                          "@ Address " + self.challenge_contract.address, 
+                                          txHash.hex()[0:6]+"..."))
         print("-----------------------------------------------------------------------------------")
         print("{:<17} {} | {} | {:>25,.0f} WEI".format(
             "Account registered:",
