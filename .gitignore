@@ -7,6 +7,11 @@ __pycache__/
 *.so
 
 # Distribution / packaging
+.idea
+out/                # compiled artifacts (bytecode, ABIs)
+cache/              # compiler cache
+node_modules/       # if using npm packages
+foundry.lock              # optional: foundry.lock can be committed if you want exact dependency versions, otherwise can ignore
 .Python
 .idea/**
 build/
