@@ -566,6 +566,7 @@ contract OpenFLModel {
         }
     }
 
+
     function submitFeedbackBytesAndAccuracies(bytes calldata raw, uint8[] calldata accuracies, uint256[] calldata losses, uint8 prev_acc, uint256 prev_loss) external {
         address[] memory ads;
         int256[] memory ints;
