@@ -14,7 +14,7 @@ class ExperimentConfiguration:
                  punish_factor=3,
                  first_round_fee=50,
                  fork=True,
-                 contribution_score_strategy="legacy"): # Options: mad, legacy, None (defaults to MAD)
+                 contribution_score_strategy="accuracy"): # Options: mad, legacy, accuracy, None (defaults to MAD)
 
       self.number_of_good_contributors = number_of_good_contributors
       self.number_of_bad_contributors = number_of_bad_contributors
