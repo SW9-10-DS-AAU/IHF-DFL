@@ -307,9 +307,12 @@ contract OpenFLModel {
         }
 
         for (uint i = 0; i < participants.length; i++) {
+            address user = participants[i];
             // If a particaipant hasnt voted for everyone else wait
-            if (nrOfVotesOfUser[participants[i]] < nrOfParticipants - 1) {
-                return false;
+            if (isRegistered[user]) {
+                if (nrOfVotesOfUser[participants[i]] < nrOfParticipants - 1) {
+                    return false;
+                }
             }
         }
 
