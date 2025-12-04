@@ -1,16 +1,33 @@
-import pytest
-import sys
 import os
+import sys
 from unittest.mock import MagicMock, patch
+import pytest
+import types
+
+# Provide a lightweight yaml stub to avoid external dependency during tests
+if "yaml" not in sys.modules:
+    yaml_stub = types.ModuleType("yaml")
+
+    def _safe_load(_stream):
+        return {
+            "printing": {"ONLY_PRINT_ROUND_SUMMARY": False},
+            "contracts": {
+                "WAIT_DELAY": 172800,
+                "FEEDBACK_ROUND_TIMEOUT": 30,
+                "CONTRIBUTION_ROUND_TIMEOUT": 30,
+            },
+        }
+
+    yaml_stub.safe_load = _safe_load
+    sys.modules["yaml"] = yaml_stub
 
 # Add src folder to path for imports
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../src")))
 
 from openfl.contracts.fl_challenge import FLChallenge
 
 
 @pytest.fixture
-# Simulate w3 connection - connection to Ethereum
 def mock_w3():
     """Mocks a web3 connection to Ethereum."""
     w3 = MagicMock()
@@ -31,24 +48,17 @@ def mock_w3():
 
 
 @pytest.fixture
-# Simulate Solidity Smart Contract
 def mock_contract():
     """Mocks a Solidity Smart Contract."""
     contract = MagicMock()
-    # Mock the functions from the contract
-    # Return_value.transact returns a dummy transaction hash
-    contract.functions.register.return_value.transact.return_value = b'\x01' * 32
-    contract.functions.feedback.return_value.transact.return_value = b'\x02' * 32
-    contract.functions.closeRound.return_value.transact.return_value = b'\x03' * 32
-    contract.functions.rewardLeft.return_value.call.return_value = 5000
-
-    # Mock view calls
+    contract.functions.register.return_value.transact.return_value = b"\x01" * 32
+    contract.functions.feedback.return_value.transact.return_value = b"\x02" * 32
+    contract.functions.closeRound.return_value.transact.return_value = b"\x03" * 32
     contract.functions.rewardLeft.return_value.call.return_value = 5000
     return contract
 
 
 @pytest.fixture
-# Simulate a list of 3 dummy participants
 def mock_participants():
     """Create a list of 3 dummy participants."""
     users = []
@@ -59,7 +69,7 @@ def mock_participants():
         user.collateral = 1000
         user.isRegistered = False
         user.attitude = "honest"
-        user.cheater = []  # List of who this user thinks are cheaters
+        user.cheater = []
         user.id = i
         user.hashedModel = b'hash'
 
@@ -71,12 +81,8 @@ def mock_participants():
 
 
 @pytest.fixture
-# Create an instance of FLChallenge with injected mocks
 def fl_challenge(mock_w3, mock_contract, mock_participants):
-    """
-    Create an instance of FLChallenge with injected mocks.
-    This is the object we are actually testing on.
-    """
+    """Create an instance of FLChallenge with injected mocks."""
     manager = MagicMock()
     manager.w3 = mock_w3
     manager.fork = True
@@ -89,20 +95,21 @@ def fl_challenge(mock_w3, mock_contract, mock_participants):
         500,  # REWARD
         3,  # MIN_ROUNDS
         0.5,  # PUNISHMENT_FACTOR
-        0.1  # FREERIDER_FACTOR
+        0.1,  # FREERIDER_FACTOR
     ]
 
     pytorch_model = MagicMock()
     pytorch_model.participants = mock_participants
     pytorch_model.round = 1
 
-    with patch('openfl.contracts.fl_challenge.FLManager.build_tx') as mock_build_tx:
-        mock_build_tx.return_value = {'gas': 100000, 'gasPrice': 1, 'nonce': 1}
+    with patch("openfl.contracts.fl_challenge.FLManager.build_tx") as mock_build_tx:
+        mock_build_tx.return_value = {"gas": 100000, "gasPrice": 1, "nonce": 1}
 
-        with patch('openfl.contracts.fl_challenge.FLManager.build_non_fork_tx') as mock_build_nf_tx:
-            mock_build_nf_tx.return_value = {'gas': 100000, 'nonce': 1}
+        with patch(
+            "openfl.contracts.fl_challenge.FLManager.build_non_fork_tx"
+        ) as mock_build_nf_tx:
+            mock_build_nf_tx.return_value = {"gas": 100000, "nonce": 1}
 
             challenge = FLChallenge(manager, configs, pytorch_model)
-
             challenge.get_global_reputation_of_user = MagicMock(return_value=1000)
             yield challenge
