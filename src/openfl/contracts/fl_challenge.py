@@ -1007,7 +1007,12 @@ class FLChallenge(FLManager):
 
         # Legend for the dual-axis accuracy/loss plot
         twin_lines = [acc_line, loss_line]
-        axs[1].legend(twin_lines, [l.get_label() for l in twin_lines], loc="lower right", fontsize=10)
+        axs[1].legend(
+            twin_lines,
+            [l.get_label() for l in twin_lines],
+            loc="center right",
+            fontsize=10,
+        )
 
         lgnd = axs[3].legend(fontsize=10)
 
