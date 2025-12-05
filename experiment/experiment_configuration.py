@@ -15,8 +15,8 @@ class ExperimentConfiguration:
                  first_round_fee=50,
                  fork=True,
                  contribution_score_strategy="mad", # Options: mad, legacy, None (defaults to MAD)
-                 freerider_noise_scale=0,
-                 freerider_start_round=4):
+                 freerider_noise_scale=0.01,
+                 freerider_start_round=3):
 
         # Store the fork mode
         self.fork = fork
