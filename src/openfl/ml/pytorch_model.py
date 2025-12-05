@@ -189,7 +189,7 @@ class PytorchModel:
         print("\n===================================================================================")
 
         self._freerider_handlers = { # Types of freerider behaviors
-            "default": self._freerider_copy_with_noise,
+            "default": self._freerider_submit_with_noise,
             # "copy_with_noise": self._freerider_copy_with_noise,
             # "original_model": self._freerider_original_model,
             # "light_noise": self._freerider_light_noise,
@@ -246,6 +246,7 @@ class PytorchModel:
             self.NUMBER_OF_BAD_CONTRIBUTORS +=1
         if _attitude == "freerider":
             self.NUMBER_OF_FREERIDER_CONTRIBUTORS +=1
+            _attitudeSwitch = self.freerider_start_round
         if _attitude == "inactive":
             self.NUMBER_OF_INACTIVE_CONTRIBUTORS +=1
         l = len(self.participants)
