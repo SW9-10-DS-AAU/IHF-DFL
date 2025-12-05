@@ -1074,7 +1074,7 @@ def calc_contribution_scores_mad(local_updates: torch.Tensor,
         mad_thresh:    Threshold on robust z-score to mark outliers.
 
     Returns:
-        List[int]: contribution scores scaled by 1e18, like before.
+        List[int]: contribution scores scaled by 1e18.
     """
 
     num_mergers, D = local_updates.shape
