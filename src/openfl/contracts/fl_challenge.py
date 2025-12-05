@@ -752,7 +752,7 @@ class FLChallenge(FLManager):
 
         # Choose scoring algorithm based on configured strategy
         calculator = self._get_contribution_score_calculator()
-        scores = calculator(_users, merged_model)
+        scores = calculator(_users)
 
 
 
@@ -881,7 +881,9 @@ class FLChallenge(FLManager):
         sum_nl = sum(inverted_losses)
 
         for i in range(len(norm_accuracies)):
-            scores.append((norm_accuracies[i] + inverted_losses[i]) / (sum_na + sum_nl))
+            res = (norm_accuracies[i] + inverted_losses[i]) / (sum_na + sum_nl)
+            score = int(Decimal(res) * Decimal('1e18'))
+            scores.append(score)
 
         return scores
 
@@ -1216,9 +1218,6 @@ def calc_contribution_scores_mad(local_updates: torch.Tensor,
 def calc_contribution_scores_accuracy(arr, prev_val):
     # This method takes a 1d array of an array (accuracy or loss) a scalar of previous accuracy or loss
     # Output is an array of normalized input array values
-    # I as a participant need to calculate for the others.
-
-
     norm_arr = []
     sum_val = 0.0
 
@@ -1233,49 +1232,20 @@ def calc_contribution_scores_accuracy(arr, prev_val):
         if sum_val == 0.0:
             return [1.0 / len(norm_arr)] * len(norm_arr)
         norm_arr[i] /= sum_val
-
     return norm_arr
 
 
-    # norm_acc = []
-    # norm_loss = []
-    # norm_total = []
-    # sum_acc = sum(accuracies)
-    # sum_loss = sum(losses)
-    #
-    # for i in range(len(accuracies)):
-    #     norm_acc[i] = accuracies[i] - prev_acc
-    #     norm_acc[i] /= sum_acc
-    #     norm_loss[i] = losses[i] - prev_loss
-    #     norm_loss[i] /= sum_loss
-    #
-    # for i in range(len(norm_acc)):
-    #     norm_total[i] = (norm_acc[i] + norm_loss[i]) / (sum_acc + sum_loss)
-    #
-    # return norm_total
-
-    return 0
-
-
-# THIS NEED IMPROVING!!!
-def remove_outliers_mad(arr, threshold):
-    """
-    Remove values whose absolute deviation from the mean exceeds `threshold`.
-
-    Args:
-        arr: 1D numpy array
-        threshold: positive float defining allowed deviation
-
-    Returns:
-        filtered_arr: array with outliers removed
-    """
+def remove_outliers_mad(arr, z_threshold):
     arr = np.asarray(arr)
     mean = np.mean(arr)
+    std = np.std(arr)
 
-    # Absolute deviations
-    dev = np.abs(arr - mean)
+    if std == 0:
+        return arr
 
-    # Mask of values we keep
-    mask = dev <= threshold
+    # Compute z-scores
+    zscores = (arr - mean) / std
+    # Keep values with |z| <= threshold
+    mask = np.abs(zscores) <= z_threshold
 
     return arr[mask]

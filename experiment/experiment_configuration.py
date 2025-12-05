@@ -11,7 +11,7 @@ class ExperimentConfiguration:
                  standard_buy_in=int(1e18),
                  epochs=1,
                  batch_size=32,
-                 punish_factor=2,
+                 punish_factor=3,
                  first_round_fee=50,
                  fork=True,
                  contribution_score_strategy="accuracy"): # Options: mad, legacy, accuracy, None (defaults to MAD)
@@ -29,7 +29,7 @@ class ExperimentConfiguration:
         self.number_of_bad_contributors = number_of_bad_contributors
         self.number_of_freerider_contributors = number_of_freerider_contributors
         self.number_of_inactive_contributors = number_of_inactive_contributors
-
+        self.fork = fork
         self.reward = reward
         self.minimum_rounds = minimum_rounds
         self.min_buy_in = min_buy_in
