@@ -168,7 +168,7 @@ class PytorchModel:
         # INTERFACE VARIABLES
         self.accuracy = [accuracy]
         self.loss = [loss]
-        
+
         self.round = 1
         print("===================================================================================")
         print("Pytorch Model created:\n")
@@ -325,33 +325,30 @@ class PytorchModel:
             async_results = []
             for idx, user in enumerate(self.participants):
                 device_id = idx % max(1, num_gpus)
-                sd_cpu = {k: v.cpu() for k, v in user.model.state_dict().items()} # safe copy
-                async_results.append(pool.apply_async(
-                    _train_user_proc,
-                    (user.id,
-                    sd_cpu,
-                    user.train.dataset,
-                    user.val.dataset,
-                    self.EPOCHS,
-                    device_id,
-                    self.DATASET,
-                    self.BATCHSIZE,
-                    PIN_MEMORY,
-                    False)
-                ))
+                sd_cpu = {k: v.cpu() for k, v in user.model.state_dict().items()}  # safe copy
+
+                if user.attitude=="good": # train
+                    async_results.append(pool.apply_async(
+                        train_user_proc,
+                        (user.id,
+                        sd_cpu,
+                        user.train.dataset,
+                        user.val.dataset,
+                        self.EPOCHS,
+                        device_id,
+                        self.DATASET,
+                        self.BATCHSIZE,
+                        PIN_MEMORY,
+                        False)
+                    ))
+                else: # test
+                    val_loss, val_acc = test(user.model, user.val, DEVICE)
+                    self.finalize_user_evaluation(user, val_loss, val_acc)
+
             results = [r.get() for r in async_results]
         end_pool = time.perf_counter()
 
-        # Apply results back to participants
-        user_map = {u.id: u for u in self.participants}
-        for user_id, state_dict, loss, acc in results:
-            u = user_map[user_id]
-            u.model.load_state_dict(state_dict)
-            u.currentAcc = acc
-            u._accuracy.append(acc)
-            u._loss.append(loss)
-            u.hashedModel = self.get_hash(u.model.state_dict())
-
+        self.apply_training_results(results)
         total_time = time.perf_counter() - start_total
         parallel_time = end_pool - start_pool
 
@@ -359,7 +356,24 @@ class PytorchModel:
         print(green(f"Parallel execution time: {parallel_time:.2f} seconds"))
         print(green(f"Total federated training time: {total_time:.2f} seconds\n"))
 
-    
+    def finalize_user_evaluation(self, user, loss, acc):
+        test_loss, test_acc = test(user.model, self.test, DEVICE)
+        user._accuracy.append(test_acc)
+        user._loss.append(test_loss)
+        user.hashedModel = self.get_hash(user.model.state_dict())
+
+
+    def apply_training_results(self, results):
+        # Apply results back to participants
+        user_map = {u.id: u for u in self.participants}
+        for user_id, state_dict, val_loss, val_acc in results:
+            user = user_map[user_id]
+            user.model.load_state_dict(state_dict)
+            user.currentAcc = val_acc
+
+            self.finalize_user_evaluation(user, val_loss, val_acc)
+
+
     def let_malicious_users_do_their_work(self):
         for i in range(len(self.participants)):
             if self.participants[i].attitude == "bad":                
@@ -501,6 +515,8 @@ class PytorchModel:
         n = len(self.participants) + count_dq
         accuracy_matrix = [[0 for _ in range(n)] for _ in range(n)]
         loss_matrix = [[0 for _ in range(n)] for _ in range(n)]
+        prev_accs = [0 for _ in range(n)]
+        prev_losses = [0 for _ in range(n)]
 
         for feedbackGiver in self.participants:
             valloader = feedbackGiver.val
@@ -511,11 +527,17 @@ class PytorchModel:
             for ix, user in enumerate(feedbackGiver.userToEvaluate):
                 if not bad_att and not free_att:
                     loss, accuracy = test(user.model, valloader, DEVICE)
+                    prev_loss, prev_acc = test(self.global_model, valloader, DEVICE)
+                    prev_acc = round(prev_acc * 100)
+                    prev_loss = round(prev_loss)
 
                 if bad_att:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
                     accuracy_matrix[feedbackGiver.id][user.id] = 0
                     loss_matrix[feedbackGiver.id][user.id] = 100000
+                    prev_loss, prev_acc = test(self.global_model, valloader, DEVICE)
+                    prev_accs[feedbackGiver.id] = round(prev_acc * 100)
+                    prev_losses[feedbackGiver.id] = round(prev_loss)
 
                 elif free_att:
                     feedback_matrix[feedbackGiver.id][user.id] = 0
@@ -524,27 +546,37 @@ class PytorchModel:
                         accuracy_last_round *= 100
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy_last_round)
                     loss_matrix[feedbackGiver.id][user.id] = round(loss_last_round)
+                    prev_accs[feedbackGiver.id] = round(accuracy_last_round)
+                    prev_losses[feedbackGiver.id] = round(loss_last_round)
 
                 elif user in feedbackGiver.cheater:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
                     loss_matrix[feedbackGiver.id][user.id] = round(loss)
+                    prev_accs[feedbackGiver.id] = prev_acc
+                    prev_losses[feedbackGiver.id] = prev_loss
 
 
                 elif accuracy > feedbackGiver.currentAcc - 0.07: # 7% Worse TODO: Evt tweak
                     feedback_matrix[feedbackGiver.id][user.id] = 1
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
                     loss_matrix[feedbackGiver.id][user.id] = round(loss)
+                    prev_accs[feedbackGiver.id] = prev_acc
+                    prev_losses[feedbackGiver.id] = prev_loss
 
                 elif accuracy > feedbackGiver.currentAcc - 0.14: # 14% Worse TODO: Evt tweak
                     feedback_matrix[feedbackGiver.id][user.id] = 0
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
                     loss_matrix[feedbackGiver.id][user.id] = round(loss)
+                    prev_accs[feedbackGiver.id] = prev_acc
+                    prev_losses[feedbackGiver.id] = prev_loss
 
                 else : # Even Worse
                     feedback_matrix[feedbackGiver.id][user.id] = -1
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
                     loss_matrix[feedbackGiver.id][user.id] = round(loss)
+                    prev_accs[feedbackGiver.id] = prev_acc
+                    prev_losses[feedbackGiver.id] = prev_loss
 
 
             # RESET
@@ -559,7 +591,13 @@ class PytorchModel:
         print("LOSS MATRIX:")
         print(loss_matrix)
         print("-----------------------------------------------------------------------------------")
-        return feedback_matrix, accuracy_matrix, loss_matrix
+        print("PREVIOUS ACCURACIES:")
+        print(prev_accs)
+        print("-----------------------------------------------------------------------------------")
+        print("PREVIOUS LOSSES:")
+        print(prev_losses)
+        print("-----------------------------------------------------------------------------------")
+        return feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses
 
     
 # PYTORCH FUNCTIONS
@@ -684,7 +722,7 @@ def get_color(i, a):
         return None
 
 
-def _train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, dataset, batchsize, pin_memory, shuffle):
+def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, dataset, batchsize, pin_memory, shuffle):
         # Multi-GPU Support
         # Select device
         use_cuda = torch.cuda.is_available()
@@ -706,8 +744,8 @@ def _train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, 
         train(model, train_loader, epochs, device)
         loss, acc = test(model, val_loader, device)
 
-        print(f"[{device_label(device, device_id)}] User {user_id} done | Acc: {acc:.3f}")
-
+        print(f"[{device_label(device, device_id)}] User {user_id} done | Acc: {acc:.3f}, Loss: {loss:.3f}")
+        
         # Ensure all GPU work is complete before worker exits
         if device.type == "cuda":
             torch.cuda.synchronize(device)
