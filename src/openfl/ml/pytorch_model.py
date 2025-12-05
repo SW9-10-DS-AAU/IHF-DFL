@@ -144,7 +144,7 @@ class Net_MNIST(nn.Module):
 
         
 class PytorchModel:
-    def __init__(self, DATASET, _goodParticipants, _totalParticipants, epochs, batchsize, default_collateral, max_collateral, freerider_strategy: str="default", freerider_noise_scale: float = 1.0, freerider_start_round: int = 2):
+    def __init__(self, DATASET, _goodParticipants, _totalParticipants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 2):
         self.DATASET = DATASET
         if self.DATASET == "mnist":
             self.global_model = Net_MNIST().to(DEVICE)
@@ -172,7 +172,6 @@ class PytorchModel:
             raise ValueError("freerider_start_round must be at least 1")
         self.freerider_start_round = freerider_start_round
 
-        self.freerider_strategy = freerider_strategy
         if freerider_start_round < 1:
             raise ValueError("freerider_start_round must be at least 1")
         self.freerider_start_round = freerider_start_round
@@ -188,22 +187,8 @@ class PytorchModel:
         print(str(self.global_model))
         print("\n===================================================================================")
 
-        self._freerider_handlers = { # Types of freerider behaviors
-            "default": self._freerider_submit_with_noise,
-            # "copy_with_noise": self._freerider_copy_with_noise,
-            # "original_model": self._freerider_original_model,
-            # "light_noise": self._freerider_light_noise,
-            # "random_trash": self._freerider_random_trash,
-        }
-
         if self.freerider_start_round < 1:
             raise ValueError("freerider_start_round must be at least 1")
-
-        if self.freerider_strategy not in self._freerider_handlers:
-            available = ", ".join(sorted(self._freerider_handlers))
-            raise ValueError(
-                f"Unknown freerider strategy '{self.freerider_strategy}'. Available strategies: {available}"
-            )
 
         for i in range(_goodParticipants):
             if self.DATASET == "mnist":
@@ -458,8 +443,7 @@ class PytorchModel:
                     ))
                     new_state_dict = manipulate(copy.deepcopy(user.model))
                 else:
-                    handler = self._freerider_handlers[self.freerider_strategy]
-                    new_state_dict = handler(user)
+                    new_state_dict = self._freerider_submit_with_noise(user)
 
 
                 user.model.load_state_dict(new_state_dict)
@@ -487,35 +471,6 @@ class PytorchModel:
         ))
         return manipulate(copy.deepcopy(user.model), scale=self.freerider_noise_scale)
 
-    # Different freerider behaviors
-    def _freerider_copy_with_noise(self, user):
-        """Default freerider behavior: copy global model and add noise."""
-
-        # Removed since we now ceheck for this in let_freerider_users_do_their_work() instead
-        # if self.round == 1:
-        #     print(red("Account {} going to provide ".format(user.address[0:8] + "...") \
-        #               + "random weights; starts copycat-ing " \
-        #               + "next round"))
-        #     return manipulate(copy.deepcopy(user.model))
-
-        foreign_model = copy.deepcopy(self.participants[0].previousModel)
-        print(red("Address {} going to add random noise to weights".format(user.address[0:16] + "...")))
-        return add_noise(copy.deepcopy(foreign_model))
-
-    def _freerider_original_model(self, user):
-        """Freerider simply resubmits the global model without changes."""
-        print(yellow("Address {} resubmitting original model".format(user.address[0:16] + "...")))
-        return copy.deepcopy(user.model).state_dict()
-
-    def _freerider_light_noise(self, user, scale: float = 0.1):
-        """Freerider returns lightly perturbed weights to appear unique."""
-        print(yellow("Address {} providing lightly noised weights".format(user.address[0:16] + "...")))
-        return manipulate(copy.deepcopy(user.model), scale=scale)
-
-    def _freerider_random_trash(self, user, scale: float = 2.0):
-        """Freerider sends intentionally noisy weights"""
-        print(red("Address {} going to provide random trash weights".format(user.address[0:16] + "...")))
-        return manipulate(copy.deepcopy(user.model), scale=scale)
 
     def the_merge(self, _users):
         ids, client_models = [], []

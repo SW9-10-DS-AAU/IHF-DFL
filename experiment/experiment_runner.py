@@ -42,7 +42,6 @@ def run_experiment(dataset_name, experiment_config):
                               experiment_config.batch_size, 
                               experiment_config.standard_buy_in,
                               experiment_config.max_buy_in,
-                              experiment_config.freerider_strategy,
                               experiment_config.freerider_noise_scale,
                               experiment_config.freerider_start_round)
 
