@@ -1,40 +1,71 @@
+from datetime import datetime
 import multiprocessing as mp
+from pathlib import Path
 import experiment_runner as ExperimentRunner
 from experiment_configuration import ExperimentConfiguration
-from itertools import product 
+from itertools import product
+
+from openfl.utils.async_writer import AsyncWriter 
 
 #DATASET = "cifar-10"
 DATASET = "mnist"
+RESULTDATAFOLDER = "/home/wired/dev/openFL-2.0/experiment/data"
 
-strategy_options = [
-    "naive",
-    "legacy",
-    "mad"
-]
+#strategy_options = ["naive", "legacy", "mad"]
+#outlier_detection_options = ["mad", "none"]
+#free_rider_activation_round_options = [1, 3, 5]
+#free_rider_noise_options = [0.0, 0.1, 0.5, 1.0]
 
-outlider_detection = ["mad", "none"]
+strategy_options = ["naive", "legacy", "mad"]
+outlier_detection_options = ["mad", "none"]
+free_rider_activation_round_options = [1]
+free_rider_noise_options = [0.1]
 
-free_rider_activation_round = [1, 3, 5]
-free_rider_notice = [0.0, 0.1, 0.5, 1.0]
-# max_buy_in = min_buy_in
+OUTPUTHEADERS = [
+    "time",
+    "round",
+    "globalAcc",
+    "globalLoss",
+    "GRS",
+    ]
+WRITERBUFFERSIZE = 200
 
 def main():
-    for strategy in product(strategy_options, outlider_detection, free_rider_activation_round, free_rider_notice):
+    author = input("Author?\n")
+
+    for strategy, outlier_detection, free_rider_activation_round, free_rider_noise in product(strategy_options, outlier_detection_options, free_rider_activation_round_options, free_rider_noise_options):
         # Set up configuration for the experiment run
         config = ExperimentConfiguration(
             fork=True,
+            min_buy_in=int(1e18),
+            max_buy_in=int(1e18),
+            contribution_score_strategy = strategy,
+            #outlier_detection
+            #free_rider_activation_round
+            #free_rider_noise
         )
+        
+        path = getPath(config, outlier_detection)
+        
+        writer = AsyncWriter(path, OUTPUTHEADERS, WRITERBUFFERSIZE, config, author)
+        experiment = ExperimentRunner.run_experiment(DATASET, config, writer)
 
-        config.contribution_score_strategy = strategy[0]
-
-        print_config(config)
-
-        #experiment = ExperimentRunner.run_experiment(DATASET, config)
-
-        #experiment.model.visualize_simulation("experiment/figures")
+        experiment.model.visualize_simulation("experiment/figures")
 
         #ExperimentRunner.print_transactions(experiment)
 
+        writer.finish()
+
+
+def getPath(experimentConfig: ExperimentConfiguration,extra):
+    
+    time = datetime.now().strftime("%d-%m-%y--%H:%M")
+
+    filename = f"{time}_{experimentConfig.contribution_score_strategy}-{extra}.csv"
+
+    path = Path(RESULTDATAFOLDER).joinpath(filename)
+
+    return path
 
 def print_config(cfg):
     fields = [

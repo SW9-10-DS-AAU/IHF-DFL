@@ -16,6 +16,7 @@ from openfl.contracts import FLManager
 from openfl.ml.pytorch_model import gb, rb, b, green, red
 from openfl.utils import printer, config
 from openfl.api.connection_helper import ConnectionHelper
+from openfl.utils.async_writer import AsyncWriter
 import openfl.utils.config
 
 # Smart-contract–backed federated learning simulation.
@@ -28,7 +29,7 @@ import openfl.utils.config
 
 
 class FLChallenge(FLManager):
-    def __init__(self, manager, configs, pyTorchModel):
+    def __init__(self, manager, configs, pyTorchModel, writer: AsyncWriter):
         self.manager = manager
         self.w3 = manager.w3
 
@@ -63,6 +64,7 @@ class FLChallenge(FLManager):
         self._reward_balance = [self.REWARD]
         self._punishments = []
         self.config = config.get_contracts_config()
+        self.writer = writer
 
         self._extra_contract_config = extra_config
         self._contribution_score_strategy = self._determine_contribution_score_strategy()
@@ -567,6 +569,7 @@ class FLChallenge(FLManager):
 
         return results
     def print_round_summary(self, receipt):
+
         events = self.get_events(
             w3=self.w3,
             contract=self.model,
@@ -773,6 +776,9 @@ class FLChallenge(FLManager):
                 print(b("{}  {:>25,.0f} -> {:>25,.0f}".format(user.address[0:16] + "...", i, j)))
 
             self.print_round_summary(receipt)
+
+            grs = [user._globalrep[-1] for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
+            self.writer.submitResult({"round": self.pytorch_model.round - 1, "GRS": grs})
 
         self.exit_system()
             
