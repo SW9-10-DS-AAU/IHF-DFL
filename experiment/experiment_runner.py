@@ -77,12 +77,10 @@ def run_experiment(dataset_name, experiment_config):
           experiment_config.contribution_score_strategy
       )
 
-  if extra_configs:
-      configs = tuple(configs) + (extra_configs,)
-
   model = Challenge.FLChallenge(manager, 
                       configs,
-                      pytorch_model)
+                      pytorch_model,
+                      experiment_config)
 
 
   model.simulate(rounds=experiment_config.minimum_rounds)

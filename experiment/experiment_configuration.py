@@ -14,6 +14,7 @@ class ExperimentConfiguration:
                  punish_factor=3,
                  first_round_fee=50,
                  fork=True,
+                 use_outlier_detection = True,
                  contribution_score_strategy="accuracy"): # Options: mad, legacy, accuracy, None (defaults to MAD)
                  contribution_score_strategy="mad", # Options: mad, legacy, None (defaults to MAD)
                  freerider_noise_scale=0,
@@ -46,6 +47,7 @@ class ExperimentConfiguration:
         self.punish_factor = punish_factor
         self.first_round_fee = first_round_fee
         self.contribution_score_strategy = contribution_score_strategy
+        self.use_outlier_detection = use_outlier_detection
         self.freerider_noise_scale = freerider_noise_scale
         self.freerider_start_round = freerider_start_round
 
