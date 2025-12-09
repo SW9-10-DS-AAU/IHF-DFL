@@ -633,7 +633,9 @@ contract OpenFLModel {
     function getAllPreviousAccuraciesAndLosses() external view returns (uint8[] memory previous_accuracies, uint256[] memory previous_losses) {
         uint8 count_merged_participants = 0;
         for (uint i = 0; i < participants.length; i++) {
+            if (RoundReputationOf[participants[i]] >= 0) {
                 count_merged_participants += 1;
+            }
         }
 
 
@@ -641,9 +643,11 @@ contract OpenFLModel {
         previous_losses = new uint256[](count_merged_participants);
         uint8 j = 0;
         for (uint i = 0; i < participants.length; i++) {
+            if (RoundReputationOf[participants[i]] >= 0) {
                 previous_accuracies[j] = prev_accs[round][participants[i]];
                 previous_losses[j] = prev_losses[round][participants[i]];
                 j++;
+            }
         }
     }
 
@@ -666,9 +670,9 @@ contract OpenFLModel {
                 for (uint k = 0; k < sub.adrs.length; k++) {
                     if (sub.adrs[k] == target) {
                         // TODO: GØR whitelisted eller lign. ACCESSIBLE OG CLEAR DEN EFTER ROUND END!
-
-                        totalCount++;
-
+                        if (RoundReputationOf[participants[i]] >= 0) {
+                            totalCount++;
+                        }
                     }
                 }
             }
@@ -691,10 +695,12 @@ contract OpenFLModel {
 
                 for (uint k = 0; k < sub.adrs.length; k++) {
                     if (sub.adrs[k] == target) {
+                        if (RoundReputationOf[participants[i]] >= 0) {
                             voters[idx] = sender;
                             accuracies[idx] = sub.acc[k];
                             losses[idx] = sub.loss[k];
                             idx++;
+                        }
                     }
                 }
             }

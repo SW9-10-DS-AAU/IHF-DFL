@@ -320,6 +320,8 @@ class FLChallenge(FLManager):
         print("Users exchanging feedback...")
         txs = []
         for idx, user in enumerate(self.pytorch_model.participants):
+            if user.disqualified:
+                break
             addrs = []
             votes = []
             user_votes = fbm[user.id]
@@ -337,7 +339,7 @@ class FLChallenge(FLManager):
                 votee = [_u for _u in self.pytorch_model.participants if _u.id == ix][0]
                 addrs.append(votee.address)
                 votes.append(int(vote))
-                votee.roundRep = votee.roundRep + self.get_global_reputation_of_user(user.address) * int(vote)
+                votee.roundRep = votee.roundRep + self.get_global_reputation_of_user(user.address) * int(vote) # TODO: fix?
                 filtered_accs.append(accs[ix])
                 filtered_losses.append(losses[ix])
 
@@ -370,7 +372,10 @@ class FLChallenge(FLManager):
                     filtered_row_lm = row_lm[:idx] + row_lm[idx + 1:]
                     prev_acc = prev_accs[idx]
                     prev_loss = prev_losses[idx]
-
+                    #print(f"filtered_row_am: {filtered_accs}")
+                    #print(f"filtered_loss: {filtered_losses}")
+                    #print(f"prev_acc: {prev_acc}")
+                    #print(f"prev_loss: {prev_loss}")
                     tx_hash = self.model.functions.submitFeedbackBytesAndAccuracies(Web3.to_bytes(hexstr="0x" + fbb), filtered_accs, filtered_losses, prev_acc, prev_loss).transact(tx)
                 else:  # TODO: Dobbeltjek at logic er rigtig her.
                     nonce = self.w3.eth.get_transaction_count(user.address)
@@ -397,12 +402,7 @@ class FLChallenge(FLManager):
             print(f"model participant: {user.address} now gets {user._roundrep[-1]} round reputation")
 
         for user in self.pytorch_model.disqualified:
-            if len(user._roundrep) == 0:
-                print(f"model participant: {user.address} had no roundrep")
-            else:
-                print(f"model disquilified: {user.address} had {user._roundrep[-1]} round reputation")
-            user._roundrep.append(self.get_round_reputation_of_user(user.address))
-            print(f"model disqualified: {user.address} now gets {user._roundrep[-1]} round reputation")
+            print(f"disqualified model participant: {user.address} has no roundrep. he is disquialified, you dummy")
 
         printer._print("                                                   ")
         print("\n-----------------------------------------------------------------------------------")
@@ -1107,7 +1107,7 @@ def calc_contribution_scores_mad(local_updates: torch.Tensor,
         mad_thresh:    Threshold on robust z-score to mark outliers.
 
     Returns:
-        List[int]: contribution scores scaled by 1e18, like before.
+        List[int]: contribution scores scaled by 1e18.
     """
 
     num_mergers, D = local_updates.shape
