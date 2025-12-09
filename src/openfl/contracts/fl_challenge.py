@@ -72,6 +72,7 @@ class FLChallenge(FLManager):
             "legacy": self._calculate_scores_legacy,
             "mad": self._calculate_scores_mad,
             "naive": self._calculate_scores_naive,
+            "accuracy": self._calculate_scores_accuracy
         }
 
     def _determine_contribution_score_strategy(self):
@@ -751,7 +752,7 @@ class FLChallenge(FLManager):
 
         # Choose scoring algorithm based on configured strategy
         calculator = self._get_contribution_score_calculator()
-        scores = calculator(_users, merged_model)
+        scores = calculator(_users)
 
 
 
@@ -820,6 +821,79 @@ class FLChallenge(FLManager):
         _ = merged_model  # unused; included for signature consistency
         num_mergers = len(users)
         return [calc_contribution_score_naive(num_mergers) for _ in users]
+
+
+
+    def _calculate_scores_accuracy(self, users):
+        """
+        Accuracy-based scoring: use accuracy directly as contribution score.
+        """
+
+        # accuracies: 1d array
+        # losses: 1d array
+        # prev_acc: int
+
+        # Array of previous accuracies and losses from all users: A tuple of arrays
+        prev_accuracies, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses.call()
+
+        # use mad on these and average them
+        mad_treshold = 10
+
+        mad_prev_accuracies = remove_outliers_mad(prev_accuracies, mad_treshold)
+        mad_prev_losses = remove_outliers_mad(prev_losses, mad_treshold)
+
+        avg_prev_acc = np.mean(mad_prev_accuracies)
+        avg_prev_loss = np.mean(mad_prev_losses)
+        # Lav en fælles mad
+
+        avg_accuracies = [] # after loop: [30, 20, 30, 40]
+        avg_losses = [] # after loop: [60, 70, 50, 80]
+
+        for u in users: # For loop to extract accuracies and loses.
+            # Vi kan åbenbart ikke nøjes med kune dette, da vi skal bruge global accuracies, loses.
+
+            # All accuracies and loses per user
+            _, accuracies, losses = self.model.functions.getAllAccuraciesAbout(u.address).call()
+
+            try:
+                # Multiple accuracies and losses per user
+                mad_accuracies = remove_outliers_mad(accuracies,mad_treshold)
+                mad_losses = remove_outliers_mad(losses, mad_treshold)
+
+                # One average accuracy and loss per user
+                avg_acc = np.mean(mad_accuracies)
+                avg_loss = np.mean(mad_losses)
+
+                avg_accuracies.append(avg_acc) # int
+                avg_losses.append(avg_loss) # int
+            except ValueError:
+                print("An error occured")
+
+        scores = []
+
+        norm_accuracies = calc_contribution_scores_accuracy(avg_accuracies, avg_prev_acc)
+
+        norm_losses = calc_contribution_scores_accuracy(avg_losses, avg_prev_loss)
+
+        inverted_losses = [1 - x for x in norm_losses]
+
+        sum_na = sum(norm_accuracies)
+        sum_nl = sum(inverted_losses)
+
+        for i in range(len(norm_accuracies)):
+            res = (norm_accuracies[i] + inverted_losses[i]) / (sum_na + sum_nl)
+            score = int(Decimal(res) * Decimal('1e18'))
+            scores.append(score)
+
+        return scores
+
+
+        # return scores
+    # Output: An array of user scores
+    # Find out who was merged
+
+
+
 
     def simulate(self, rounds):
         """
@@ -1022,8 +1096,6 @@ class FLChallenge(FLManager):
         return plt
 
 
-
-
 def calc_contribution_score(local_model, global_model, num_mergers, eps=1e-12) -> int:
     """
     FedAvg-normalized dot product score so that sum = 1.
@@ -1143,3 +1215,37 @@ def calc_contribution_scores_mad(local_updates: torch.Tensor,
 # def flatten_model_params(model: torch.nn.Module) -> torch.Tensor:
 #     return torch.cat([p.data.view(-1) for p in model.parameters()])
 
+def calc_contribution_scores_accuracy(arr, prev_val):
+    # This method takes a 1d array of an array (accuracy or loss) a scalar of previous accuracy or loss
+    # Output is an array of normalized input array values
+    norm_arr = []
+    sum_val = 0.0
+
+    for i in range(len(arr)):
+        norm_arr.append(arr[i] - prev_val)
+        sum_val += norm_arr[i]
+
+    if len(norm_arr) == 0:
+        raise Exception("No values to normalize")
+
+    for i in range(len(norm_arr)):
+        if sum_val == 0.0:
+            return [1.0 / len(norm_arr)] * len(norm_arr)
+        norm_arr[i] /= sum_val
+    return norm_arr
+
+
+def remove_outliers_mad(arr, z_threshold):
+    arr = np.asarray(arr)
+    mean = np.mean(arr)
+    std = np.std(arr)
+
+    if std == 0:
+        return arr
+
+    # Compute z-scores
+    zscores = (arr - mean) / std
+    # Keep values with |z| <= threshold
+    mask = np.abs(zscores) <= z_threshold
+
+    return arr[mask]
