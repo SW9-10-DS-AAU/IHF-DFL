@@ -144,7 +144,7 @@ class Net_MNIST(nn.Module):
 
         
 class PytorchModel:
-    def __init__(self, DATASET, _goodParticipants, _totalParticipants, epochs, batchsize, default_collateral, max_collateral):
+    def __init__(self, DATASET, _goodParticipants, _totalParticipants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 2):
         self.DATASET = DATASET
         if self.DATASET == "mnist":
             self.global_model = Net_MNIST().to(DEVICE)
@@ -163,6 +163,18 @@ class PytorchModel:
         self.train, self.val, self.test = self.load_data(self.NUMBER_OF_CONTRIBUTERS, _print=True)
         self.default_collateral = default_collateral
         self.max_collateral = max_collateral
+
+        if freerider_noise_scale < 0:
+            raise ValueError("freerider_noise_scale must be non-negative")
+        self.freerider_noise_scale = freerider_noise_scale
+
+        if freerider_start_round < 1:
+            raise ValueError("freerider_start_round must be at least 1")
+        self.freerider_start_round = freerider_start_round
+
+        if freerider_start_round < 1:
+            raise ValueError("freerider_start_round must be at least 1")
+        self.freerider_start_round = freerider_start_round
         loss, accuracy = test(self.global_model,self.test,DEVICE)
         
         # INTERFACE VARIABLES
@@ -174,7 +186,10 @@ class PytorchModel:
         print("Pytorch Model created:\n")
         print(str(self.global_model))
         print("\n===================================================================================")
-        
+
+        if self.freerider_start_round < 1:
+            raise ValueError("freerider_start_round must be at least 1")
+
         for i in range(_goodParticipants):
             if self.DATASET == "mnist":
                 _model = Net_MNIST().to(DEVICE)
@@ -216,6 +231,7 @@ class PytorchModel:
             self.NUMBER_OF_BAD_CONTRIBUTORS +=1
         if _attitude == "freerider":
             self.NUMBER_OF_FREERIDER_CONTRIBUTORS +=1
+            _attitudeSwitch = self.freerider_start_round
         if _attitude == "inactive":
             self.NUMBER_OF_INACTIVE_CONTRIBUTORS +=1
         l = len(self.participants)
@@ -401,30 +417,60 @@ class PytorchModel:
         for user in self.participants:
             if user.attitude == "freerider":
               
-                # Freerider has no data and must therefore provide something random
-                # After first round freerider can copy other participants
-                if self.round == 1:
-                    print(red("Account {} going to provide ".format(user.address[0:8]+"...") \
-                                  + "random weights; starts copycat-ing " \
-                                  + "next round"))
-                    
-                    new_state_dict = manipulate(copy.deepcopy(user.model)) 
+                # # Freerider has no data and must therefore provide something random
+                # # After first round freerider can copy other participants
+                # if self.round == 1:
+                #     print(red("Account {} going to provide ".format(user.address[0:8]+"...") \
+                #                   + "random weights; starts copycat-ing " \
+                #                   + "next round"))
+                #
+                #     new_state_dict = manipulate(copy.deepcopy(user.model))
+                # else:
+                #     foreign_model = copy.deepcopy(self.participants[0].previousModel)
+                #     new_state_dict = foreign_model.state_dict()
+                #
+                # user.model.load_state_dict(new_state_dict)
+                #
+                # if self.round > 1:
+                #     print(red("Address {} going to add random noise to weights".format(user.address[0:16]+"...")))
+                #     user.model.load_state_dict(add_noise(copy.deepcopy(user.model)))
+                if self.round < self.freerider_start_round:
+                    print(yellow(
+                        "Address {} waiting until round {} to start freeriding".format(
+                            user.address[0:16] + "...",
+                            self.freerider_start_round,
+                        )
+                    ))
+                    new_state_dict = manipulate(copy.deepcopy(user.model))
                 else:
-                    foreign_model = copy.deepcopy(self.participants[0].previousModel)
-                    new_state_dict = foreign_model.state_dict()
-                    
-                user.model.load_state_dict(new_state_dict)
+                    new_state_dict = self._freerider_submit_with_noise(user)
 
-                if self.round > 1:
-                    print(red("Address {} going to add random noise to weights".format(user.address[0:16]+"...")))
-                    user.model.load_state_dict(add_noise(copy.deepcopy(user.model)))
-                    
+
+                user.model.load_state_dict(new_state_dict)
                 user.hashedModel = self.get_hash(user.model.state_dict())
                 loss, accuracy = test(user.model, self.test, DEVICE)
                 print("{:<17} {} |  Testing  | Accuracy {:>3.0f} % | Loss ∞\n".format("Account testing:   ",
                                                                                 user.address[0:16]+"...",
                                                                                 accuracy*100))
-    
+
+    def _freerider_submit_with_noise(self, user):
+        """Freerider reuses the global model with configurable noise."""
+
+        if self.freerider_noise_scale < 0:
+            raise ValueError("freerider_noise_scale must be non-negative")
+
+        if self.freerider_noise_scale == 0: # Copy global model if noise is zero
+            print(yellow("Address {} resubmitting original model".format(user.address[0:16]+"...")))
+            return copy.deepcopy(user.model).state_dict()
+
+        print(red(
+            "Address {} adding noise (scale={}) to global weights".format(
+                user.address[0:16]+"...",
+                self.freerider_noise_scale,
+            )
+        ))
+        return manipulate(copy.deepcopy(user.model), scale=self.freerider_noise_scale)
+
 
     def the_merge(self, _users):
         ids, client_models = [], []
