@@ -385,6 +385,20 @@ class TestFLChallengeWorkflow:
 
         fl_challenge._get_contribution_score_calculator = MagicMock(return_value=mock_strategy_fn)
 
+        # Mock model / contract calls:
+        # getAllAccuraciesAbout(address).call() -> (voters, accuracies, losses)
+        fl_challenge.model.functions.getAllAccuraciesAbout.return_value.call.return_value = (
+            ["0xvoter1", "0xvoter2"],  # voters
+            [90, 95],  # accuracies
+            [1, 2],  # losses
+        )
+
+        # getAllPreviousAccuraciesAndLosses().call() -> (prev_accs, prev_losses)
+        fl_challenge.model.functions.getAllPreviousAccuraciesAndLosses.call.return_value = (
+            [],  # prev_accs
+            [],  # prev_losses
+        )
+
         for u in mock_participants:
             u.model = DummyModel(1.0)
             u.previousModel = DummyModel(1.0)
@@ -456,8 +470,8 @@ class TestNonForkInteractions:
 
         mock_signed_tx = MagicMock()
         mock_signed_tx.rawTransaction = b'raw_tx_bytes'
-        mock_w3.eth.account.signTransaction.return_value = mock_signed_tx
-        mock_w3.eth.sendRawTransaction.return_value = b'\x09' * 32
+        mock_w3.eth.account.sign_transaction.return_value = mock_signed_tx
+        mock_w3.eth.send_raw_transaction.return_value = b'\x09' * 32
 
         with patch('openfl.contracts.fl_challenge.FLManager.build_non_fork_tx') as mock_build_nf:
             mock_build_nf.return_value = {'gas': 100000, 'nonce': 1}
@@ -465,8 +479,8 @@ class TestNonForkInteractions:
             challenge = FLChallenge(manager, configs, pytorch_model)
             challenge.register_all_users()
 
-            assert mock_w3.eth.account.signTransaction.call_count == 3
-            assert mock_w3.eth.sendRawTransaction.call_count == 3
+            assert mock_w3.eth.account.sign_transaction.call_count == 3
+            assert mock_w3.eth.send_raw_transaction.call_count == 3
 
 
 class TestErrorHandling:
