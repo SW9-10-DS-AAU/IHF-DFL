@@ -640,7 +640,7 @@ class FLChallenge(FLManager):
         punish_events = events["Punishment"]
         disqualify_events = events["Disqualification"]
 
-        # 🟦 End of round summary
+        # End of round summary
         if end_events:
             for ev in end_events:
                 args = ev["args"]
@@ -650,7 +650,7 @@ class FLChallenge(FLManager):
                 print(b(f"TOTAL PUNISHMENT: {args['totalPunishment']:,}\n"))
             print("-----------------------------------------------------------------------------------\n")
 
-        # 🟩 Rewarded users
+        # Rewarded users
         if reward_events:
             print(b("REWARDED USERS"))
             for ev in reward_events:
@@ -662,10 +662,11 @@ class FLChallenge(FLManager):
                     print(green(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
             print("-----------------------------------------------------------------------------------\n")
 
-        # 🟥 Punished users
+        # Punished users
         if punish_events:
             print(b("PUNISHED USERS"))
             for ev in punish_events:
+                print("Punishing a user")
                 args = ev["args"]
                 self._punishments.append((
                     self.pytorch_model.round - 1, 
@@ -678,10 +679,11 @@ class FLChallenge(FLManager):
                 print(red(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
             print("-----------------------------------------------------------------------------------\n")
 
-        # 🟧 Disqualified users
+        # Disqualified users
         if disqualify_events:
             print(b("DISQUALIFIED USERS"))
             for ev in disqualify_events:
+                print("Disqualifying a user")
                 args = ev["args"]
                 self._punishments.append((
                     self.pytorch_model.round - 1,

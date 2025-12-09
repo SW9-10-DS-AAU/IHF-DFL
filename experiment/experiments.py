@@ -44,9 +44,9 @@ def main(author):
             min_buy_in=int(1e18),
             max_buy_in=int(1e18),
             contribution_score_strategy = strategy,
-            #outlier_detection
-            #free_rider_activation_round
-            #free_rider_noise
+            #outlier_detection,
+            freerider_start_round = free_rider_activation_round,
+            freerider_noise_scale = free_rider_noise,
         )
         
         path = getPath(config, outlier_detection)
@@ -61,36 +61,15 @@ def main(author):
         writer.finish()
 
 
-def getPath(experimentConfig: ExperimentConfiguration,extra):
+def getPath(experimentConfig: ExperimentConfiguration):
     
     time = datetime.now().strftime("%d-%m-%y--%H:%M")
 
-    filename = f"{time}_{experimentConfig.contribution_score_strategy}-{extra}.csv"
+    filename = f"{experimentConfig.contribution_score_strategy}-{experimentConfig.freerider_start_round}-{experimentConfig.freerider_noise_scale}.csv"
 
-    path = Path(RESULTDATAFOLDER).joinpath(filename)
+    path = Path(RESULTDATAFOLDER).joinpath(time).joinpath(filename)
 
     return path
-
-def print_config(cfg):
-    fields = [
-        ("good_contributors", cfg.number_of_good_contributors, "honest participants"),
-        ("bad_contributors", cfg.number_of_bad_contributors, "malicious participants"),
-        ("freeriders", cfg.number_of_freerider_contributors, "contribute 0"),
-        ("inactive", cfg.number_of_inactive_contributors, "never join"),
-        ("reward", cfg.reward, "total reward pool"),
-        ("minimum_rounds", cfg.minimum_rounds, "rounds to simulate"),
-        ("min_buy_in", cfg.min_buy_in, "lower buy-in bound"),
-        ("max_buy_in", cfg.max_buy_in, "upper buy-in bound"),
-        ("standard_buy_in", cfg.standard_buy_in, "default buy-in"),
-        ("epochs", cfg.epochs, "local epochs per round"),
-        ("batch_size", cfg.batch_size, "training batch size"),
-        ("punish_factor", cfg.punish_factor, "penalty multiplier"),
-        ("first_round_fee", cfg.first_round_fee, "fee for first round"),
-        ("fork", cfg.fork, "True=local fork, False=real net"),
-        ("contribution_score_strategy", cfg.contribution_score_strategy, "scoring method"),
-    ]
-    for name, value, desc in fields:
-        print(f"{name}: {value} ({desc})")
 
 
 if __name__ == "__main__":
