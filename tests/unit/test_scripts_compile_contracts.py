@@ -2,7 +2,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-
+# Vi må lige overveje om denne test er relevant, maybe delete
 def test_compile_contracts_runs_with_stubs(tmp_path, monkeypatch):
     # Prepare fake solcx module
     class FakeSolcx:
