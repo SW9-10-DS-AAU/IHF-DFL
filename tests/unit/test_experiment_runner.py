@@ -94,7 +94,7 @@ def test_run_experiment_with_mocks(monkeypatch):
         reward=1,
         punish_factor=1,
         first_round_fee=1,
-        contribution_score_strategy="mad",
+        contribution_score_strategy="accuracy",
         freerider_noise_scale=0.01,
         freerider_start_round=3,
     )
