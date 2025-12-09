@@ -6,11 +6,11 @@ import threading
 from queue import Queue, Full
 from typing import List
 
-def time_handler():
+def _time_handler():
     return datetime.now().strftime("%H:%M:%S.%f")[:-3]
 
 SPECIAL = {
-    "time": time_handler,
+    "time": _time_handler,
     "special": lambda: "special",   # example of another override
 }
 
@@ -24,7 +24,7 @@ class AsyncWriter:
     self.author = author
     self.config = config
 
-    self.thread = threading.Thread(target=self.writer, daemon=True)
+    self.thread = threading.Thread(target=self._writer, daemon=True)
     self.thread.start()
 
   # def writer(self):
@@ -44,8 +44,8 @@ class AsyncWriter:
   #             w.writerow(row)
   #             self.queue.task_done()
 
-  def writer(self):
-    self.writeMetaAndHeaderIfEmpty()
+  def _writer(self):
+    self._writeMetaAndHeaderIfEmpty()
     with open(self.csv_path, "a", newline="") as f:
         w = csv.writer(f)
 
@@ -67,12 +67,12 @@ class AsyncWriter:
                 f.flush()
                 os.fsync(f.fileno())
 
-  def writeMetaAndHeaderIfEmpty(self):
+  def _writeMetaAndHeaderIfEmpty(self):
       empty = (not os.path.exists(self.csv_path)) or os.path.getsize(self.csv_path) == 0
       if (empty):
         with open(self.csv_path, "w", newline="") as f:
             f.write(f"# Author {self.author}\n")
-            self.write_config(f)
+            self._write_config(f)
             w = csv.writer(f)
             w.writerow(self.header)
 
@@ -90,7 +90,7 @@ class AsyncWriter:
       # Wait until thread exits
       self.thread.join()
 
-  def write_config(self, file: TextIOWrapper):
+  def _write_config(self, file: TextIOWrapper):
       cfg = self.config
       fields = [
           ("good_contributors", cfg.number_of_good_contributors, "honest participants"),
@@ -113,3 +113,7 @@ class AsyncWriter:
         f"# {name}: {value} ({desc})\n"
         for (name, value, desc) in fields
       ])
+
+class NullWriter:
+    def submitResult(self, *args, **kwargs):
+        pass

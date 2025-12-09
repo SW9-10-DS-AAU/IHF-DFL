@@ -11,7 +11,7 @@ class ExperimentConfiguration:
                  standard_buy_in=int(1e18),
                  epochs=1,
                  batch_size=32,
-                 punish_factor=2,
+                 punish_factor=3,
                  first_round_fee=50,
                  fork=True,
                  contribution_score_strategy="mad"): # Options: mad, legacy, None (defaults to MAD)

@@ -18,7 +18,7 @@ from openfl.contracts import FLManager
 from openfl.ml.pytorch_model import gb, rb, b, green, red
 from openfl.utils import printer, config
 from openfl.api.connection_helper import ConnectionHelper
-from openfl.utils.async_writer import AsyncWriter
+from openfl.utils.async_writer import AsyncWriter, NullWriter
 import openfl.utils.config
 
 # Smart-contract–backed federated learning simulation.
@@ -31,7 +31,7 @@ import openfl.utils.config
 
 
 class FLChallenge(FLManager):
-    def __init__(self, manager, configs, pyTorchModel, writer: AsyncWriter):
+    def __init__(self, manager, configs, pyTorchModel, writer: AsyncWriter=None):
         self.manager = manager
         self.w3 = manager.w3
 
@@ -66,7 +66,7 @@ class FLChallenge(FLManager):
         self._reward_balance = [self.REWARD]
         self._punishments = []
         self.config = config.get_contracts_config()
-        self.writer = writer
+        self.writer = writer or NullWriter()
 
         self._extra_contract_config = extra_config
         self._contribution_score_strategy = self._determine_contribution_score_strategy()
@@ -157,7 +157,6 @@ class FLChallenge(FLManager):
     def get_reward_left(self):
         return self.model.functions.rewardLeft().call({"to": self.modelAddress})
 
-    
     def users_provide_hashed_weights(self):
 
         txs = []
@@ -626,6 +625,7 @@ class FLChallenge(FLManager):
                     results[name].append(decoded)
 
         return results
+    
     def print_round_summary(self, receipt):
 
         events = self.get_events(
@@ -667,7 +667,11 @@ class FLChallenge(FLManager):
             print(b("PUNISHED USERS"))
             for ev in punish_events:
                 args = ev["args"]
-                self._punishments.append((self.pytorch_model.round - 1, args["loss"]))
+                self._punishments.append((
+                    self.pytorch_model.round - 1, 
+                    args["loss"],
+                    next((i + 1 for i, x in enumerate(self.pytorch_model.participants) if x.address == args["victim"]), 0),
+                    ))
                 print(red(f"USER @ {args['victim']}"))
                 print(red(f"ROUND SCORE:      {args['roundScore']:,}"))
                 print(red(f"TOTAL LOSS:       {args['loss']:,}"))
@@ -679,7 +683,11 @@ class FLChallenge(FLManager):
             print(b("DISQUALIFIED USERS"))
             for ev in disqualify_events:
                 args = ev["args"]
-                self._punishments.append((self.pytorch_model.round - 1, args["loss"]))
+                self._punishments.append((
+                    self.pytorch_model.round - 1,
+                    args["loss"],
+                    next((i + 1 for i, x in enumerate(self.pytorch_model.participants) if x.address == args["victim"]), 0)),
+                    )
 
                 # Mark and remove disqualified users
                 for user in list(self.pytorch_model.participants):  # safe remove
@@ -824,6 +832,16 @@ class FLChallenge(FLManager):
         num_mergers = len(users)
         return [calc_contribution_score_naive(num_mergers) for _ in users]
 
+    def get_round_rewards(self, receipt):
+        events = self.get_events(
+            w3=self.w3,
+            contract=self.model,
+            receipt=receipt,
+            event_names=["EndRound", "Reward", "Punishment", "Disqualification"]
+        )
+        reward_events = events["Reward"]
+        print(reward_events)
+
     def simulate(self, rounds):
         """
         Run a full FL simulation for a given number of rounds.
@@ -882,8 +900,17 @@ class FLChallenge(FLManager):
             self.print_round_summary(receipt)
 
             grs = [user._globalrep[-1] for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
-            self.writer.submitResult({"round": self.pytorch_model.round - 1, "GRS": grs})
-
+            round_punishment = [(punishment[2], punishment[1]) for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]
+            self.writer.submitResult({
+                "round": self.pytorch_model.round - 1,
+                "GRS": grs,
+                "globalAcc": self.pytorch_model.accuracy[-1] or 0, #Check
+                "conctractBalanceRewards": self._reward_balance[-1],
+                "punishments": round_punishment,
+                "rewards": self.get_round_rewards(receipt),
+                "accAvgPerUser": prev_accs,
+                "lossAvgPerUser": prev_losses
+                })
         self.exit_system()
             
             
@@ -941,7 +968,7 @@ class FLChallenge(FLManager):
 
 
         pun = {}
-        for i, j in self._punishments:
+        for i, j, y in self._punishments:
             if i in pun.keys():
                 pun[i] += j
             else:

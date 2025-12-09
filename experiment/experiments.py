@@ -24,14 +24,18 @@ free_rider_noise_options = [0.1]
 OUTPUTHEADERS = [
     "time",
     "round",
+    "accAvgPerUser",
     "globalAcc",
-    "globalLoss",
     "GRS",
+    "conctractBalanceRewards",
+    "rewards"
+    "punishments",
+    "lossAvgPerUser"
     ]
 WRITERBUFFERSIZE = 200
 
-def main():
-    author = input("Author?\n")
+def main(author):
+    
 
     for strategy, outlier_detection, free_rider_activation_round, free_rider_noise in product(strategy_options, outlier_detection_options, free_rider_activation_round_options, free_rider_noise_options):
         # Set up configuration for the experiment run
@@ -90,5 +94,6 @@ def print_config(cfg):
 
 
 if __name__ == "__main__":
+    author = input("Author?\n")
     mp.freeze_support()
-    main()
+    main(author)
