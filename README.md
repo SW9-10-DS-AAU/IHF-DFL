@@ -32,7 +32,7 @@ PRIVATE_KEYS="<Private keys from your accounts colon separated (for non-locally 
 - Run ``pip install -e .[dev]``
 
 Build the abi and bytecode files from the smart contracts
-``python scripts/compile_contracts.py``
+``python3 scripts/compile_contracts.py``
 
 ## 4. Running an Experiment
 The Experiment folder contains files for running experiments on different datasets.
