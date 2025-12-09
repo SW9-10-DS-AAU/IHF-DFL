@@ -11,10 +11,12 @@ class ExperimentConfiguration:
                  standard_buy_in=int(1e18),
                  epochs=1,
                  batch_size=32,
-                 punish_factor=2,
+                 punish_factor=3,
                  first_round_fee=50,
                  fork=True,
-                 contribution_score_strategy="mad"): # Options: mad, legacy, None (defaults to MAD)
+                 contribution_score_strategy="naive", # naive, dotproduct, accuracy
+                 use_outlier_detection = True,
+                 ):
 
         # Store the fork mode
         self.fork = fork
@@ -43,6 +45,7 @@ class ExperimentConfiguration:
         self.punish_factor = punish_factor
         self.first_round_fee = first_round_fee
         self.contribution_score_strategy = contribution_score_strategy
+        self.use_outlier_detection = use_outlier_detection
 
     @property
     def number_of_contributors(self):
