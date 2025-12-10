@@ -732,6 +732,13 @@ class FLChallenge(FLManager):
           - naive: equal-share (1 / num_mergers)
         """
 
+        # Guard: no users → nothing to score
+        if not _users:
+            print("-----------------------------------------------------------------------------------")
+            print("No users passed to contribution_score – skipping.")
+            print("-----------------------------------------------------------------------------------")
+            return
+
         print("START CONTRIBUTION SCORE\n")
         voters, accs, losses = self.model.functions.getAllAccuraciesAbout(_users[0].address).call()
         for v, a, l in zip(voters, accs, losses):
@@ -996,14 +1003,26 @@ class FLChallenge(FLManager):
 
             self.quick_feedback_round(fbm = self.feedback_matrix, feedback_type="feedbackBytesAndAccuracy", am=accuracy_matrix, lm=loss_matrix, prev_accs=prev_accs, prev_losses=prev_losses)
 
-            self.pytorch_model.the_merge([user for user in self.pytorch_model.participants if user._roundrep[-1] > 0])
+            # A roundRep of 0, does not nec. mean mal.
+            contributers = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0]
+            if not contributers:
+                contributers = [u for u in self.pytorch_model.participants if not getattr(u, "disqualified", False)]
+
+            self.pytorch_model.the_merge(contributers)
             
             print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
 
             #contributionScoreTask = asyncio.create_task(self.contribution_score([user for user in self.pytorch_model.participants if user.roundRep > 0]))
-            self.contribution_score([user for user in self.pytorch_model.participants if user._roundrep[-1] > 0])
-            receipt = self.close_round()
-            #contributionScoreTask
+
+            if contributers:
+                self.contribution_score(contributers)
+                receipt = self.close_round()
+                #contributionScoreTask
+            else:
+                print("-----------------------------------------------------------------------------------")
+                print(red("No eligible users for contribution scoring – skipping settle for this round"))
+                print("-----------------------------------------------------------------------------------")
+
 
             print(b(f"Round {self.pytorch_model.round - 1} actually completed:"))
             for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
@@ -1011,7 +1030,9 @@ class FLChallenge(FLManager):
                 i, j = user._globalrep[-2:]
                 print(b("{}  {:>25,.0f} -> {:>25,.0f}".format(user.address[0:16] + "...", i, j)))
 
-            self.print_round_summary(receipt)
+            # self.print_round_summary(receipt)
+            if receipt is not None:
+                self.print_round_summary(receipt)
 
             grs = [user._globalrep[-1] for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
             round_punishment = [(punishment[2], punishment[1]) for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]

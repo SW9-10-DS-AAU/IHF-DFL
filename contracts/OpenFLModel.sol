@@ -39,6 +39,7 @@ contract OpenFLModel {
     address[] public participants;
     address[] punishedAddresses;
 
+    mapping(address => bool) public isPunished;
     mapping(address => bool) public isRegistered;
     mapping(address => uint) public GlobalReputationOf;
     mapping(address => int) public RoundReputationOf;
@@ -344,7 +345,7 @@ contract OpenFLModel {
 
     function settle() public {
         uint totalPunishment;
-        uint freeriderLock;
+        uint freeriderLock; // A global total of sum of freerider penalties
 
         // First round users pay their anti-freerider fee
         for (uint i = 0; i < participants.length; i++) {
@@ -361,19 +362,26 @@ contract OpenFLModel {
             if (isRegistered[participants[i]]) {
                 if (RoundReputationOf[participants[i]] < 0) {
                     votesPerRound -= nrOfVotesOfUser[participants[i]];
+
+                    uint punishment = uint(
+                            GlobalReputationOf[participants[i]] / punishfactor
+                        );
+
                     if (
                         GlobalReputationOf[participants[i]] >
                         min_collateral / punishfactor
                     ) {
+                        isPunished[participants[i]] = true;
                         punishedAddresses.push(participants[i]);
                         whitelistedForRewards[participants[i]] = false;
-                        uint punishment = uint(
-                            GlobalReputationOf[participants[i]] / punishfactor
-                        );
+
                         GlobalReputationOf[participants[i]] =
                             GlobalReputationOf[participants[i]] -
                             punishment;
-                        totalPunishment += punishment;
+                        RoundReputationOf[participants[i]] =
+                            RoundReputationOf[participants[i]] -
+                            int(punishment);
+//                        totalPunishment += punishment;
                         emit Punishment(
                             participants[i],
                             RoundReputationOf[participants[i]],
@@ -382,9 +390,12 @@ contract OpenFLModel {
                         );
                     } else {
                         isRegistered[participants[i]] = false;
+                        isPunished[participants[i]] = true;
                         punishedAddresses.push(participants[i]);
                         whitelistedForRewards[participants[i]] = false;
+
                         totalPunishment += GlobalReputationOf[participants[i]];
+
                         emit Disqualification(
                             participants[i],
                             RoundReputationOf[participants[i]],
@@ -458,7 +469,7 @@ contract OpenFLModel {
             for (uint i = 0; i < participants.length; i++) {
                 address user = participants[i];
 
-                if (isRegistered[user] && whitelistedForRewards[user]) {
+                if (isRegistered[user] && whitelistedForRewards[user] && !isPunished[user]) {
                     uint weight = nrOfVotesOfUser[user] *
                         contributionScore[round][user];
                     personalWeight[user] = weight;
@@ -471,11 +482,12 @@ contract OpenFLModel {
                 }
             }
             boundedSumOfWeights = sumOfWeights < 0 ? 0 : uint(sumOfWeights);
+
             // Give rewards
             for (uint i = 0; i < participants.length; i++) {
                 address user = participants[i];
 
-                if (isRegistered[user] && whitelistedForRewards[user]) {
+                if (isRegistered[user] && whitelistedForRewards[user] && !isPunished[user]) {
                     uint personalReward = (reward * personalWeight[user]) /
                         boundedSumOfWeights;
 

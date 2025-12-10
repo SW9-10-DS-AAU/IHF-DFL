@@ -11,8 +11,8 @@ class ExperimentConfiguration:
                  standard_buy_in=int(1e18),
                  epochs=1,
                  batch_size=32,
-                 punish_factor=2,
-                 first_round_fee=50,
+                 punish_factor=3,
+                 first_round_fee=50, # Percentage of buy-in to charge as fee in first round
                  fork=True,
                  use_outlier_detection = True,
                  contribution_score_strategy="accuracy", # Options: mad, legacy, accuracy, None (defaults to MAD)

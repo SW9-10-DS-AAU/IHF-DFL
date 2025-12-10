@@ -474,6 +474,13 @@ class PytorchModel:
 
 
     def the_merge(self, _users):
+        # No qualified users → skip merge this round
+        if not _users:
+            print("-----------------------------------------------------------------------------------")
+            print(red("No participants qualified for merge this round – skipping aggregation"))
+            print("-----------------------------------------------------------------------------------\n")
+            return
+
         ids, client_models = [], []
         for u in _users:
             ids.append(u.id)
