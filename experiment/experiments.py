@@ -9,7 +9,7 @@ from openfl.utils.async_writer import AsyncWriter
 
 #DATASET = "cifar-10"
 DATASET = "mnist"
-RESULTDATAFOLDER = "/home/wired/dev/openFL-2.0/experiment/data"
+RESULTDATAFOLDER = Path.home() / "openfl_results"
 
 #strategy_options = ["accuracy", "legacy", "None"]
 #outlier_detection_options = ["mad"]
@@ -66,7 +66,7 @@ def main(author):
 
 def getPath(experimentConfig: ExperimentConfiguration):
     
-    time = datetime.now().strftime("%d-%m-%y--%H:%M:%S")
+    time = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
 
     filename = f"{experimentConfig.contribution_score_strategy}-{experimentConfig.freerider_start_round}-{experimentConfig.freerider_noise_scale}-{experimentConfig.use_outlier_detection}.csv"
 

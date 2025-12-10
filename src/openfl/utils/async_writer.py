@@ -20,7 +20,8 @@ SPECIAL = {
 class AsyncWriter:
     # Remember to call finish on writer object
     def __init__(self, path: Path, header: List[str], queue_size, config, author):
-        path.parent.mkdir()
+        # path.parent.mkdir()
+        path.parent.mkdir(parents=True, exist_ok=True)
         print(f"Writing to {path}")
         self.csv_path = path
         self.header = header
@@ -50,7 +51,8 @@ class AsyncWriter:
                     self.queue.task_done()
                     continue
 
-                row = [SPECIAL[key](item.get(key, "")) if key in SPECIAL else item.get(key, "") for key in self.header]
+                row = [SPECIAL[key](item) if key in SPECIAL else item.get(key, "") for key in self.header]
+                # SPECIAL needs entire item dict, not item.get(key)
                 w.writerow(row)
                 self.queue.task_done()
 
@@ -73,8 +75,9 @@ class AsyncWriter:
             self.queue.put((item, False), block=False)
         except Full:
             raise RuntimeError("writer queue overflow")
-    def writeComment(self, str: str):
-        self.queue.put((str, False), block=False)
+
+    def writeComment(self, comment: str):
+        self.queue.put((comment, True), block=False)
 
     def finish(self):
         # Wait until writer has processed every queued item
