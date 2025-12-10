@@ -82,6 +82,7 @@ def run_experiment(dataset_name, experiment_config, writer: AsyncWriter=None):
   model = Challenge.FLChallenge(manager, 
                       configs,
                       pytorch_model,
+                      experiment_config,
                       writer)
 
 
@@ -91,6 +92,7 @@ def run_experiment(dataset_name, experiment_config, writer: AsyncWriter=None):
 
   print("\n" + "="*75)
   print(f"TOTAL EXPERIMENT TIME: {total_experiment_time:.2f} seconds")
+  writer.writeComment(f"TOTAL EXPERIMENT TIME: {total_experiment_time:.2f} seconds")
   print("="*75 + "\n")
 
   return Experiment(model, manager)

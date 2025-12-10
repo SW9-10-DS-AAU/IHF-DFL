@@ -12,13 +12,13 @@ RESULTDATAFOLDER = "/home/wired/dev/openFL-2.0/experiment/data"
 DATASET = "mnist"
 
 OUTPUTHEADERS = [
-    "time",
     "round",
+    "time",
     "accAvgPerUser",
     "globalAcc",
     "GRS",
     "conctractBalanceRewards",
-    "rewards"
+    "rewards",
     "punishments",
     "lossAvgPerUser"
     ]

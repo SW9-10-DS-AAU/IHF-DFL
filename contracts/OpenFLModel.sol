@@ -53,7 +53,8 @@ contract OpenFLModel {
     mapping(uint8 => mapping(address => uint256)) public contributionScore; // round => user => score
     mapping(uint8 => mapping(address => bool)) public isContribScoreNegative;
     mapping(uint8 => uint256) public nrOfContributionScores; // round => number of submissions
-    mapping(uint8 => mapping(address => mapping(address => int8))) public feedbackOf; // round → voter → target → score
+    mapping(uint8 => mapping(address => mapping(address => int8)))
+        public feedbackOf; // round → voter → target → score
     struct AccuracySubmission {
         address[] adrs;
         uint8[] acc;
@@ -63,8 +64,8 @@ contract OpenFLModel {
     mapping(uint8 => mapping(address => uint256)) public prev_losses;
 
     // Mapping from sender to all their submissions
-    mapping(uint8 => mapping(address => AccuracySubmission[])) private accuracySubmissions;
-
+    mapping(uint8 => mapping(address => AccuracySubmission[]))
+        private accuracySubmissions;
 
     modifier onlyRegisteredUsers() {
         require(isRegistered[msg.sender], "SNR");
@@ -198,7 +199,7 @@ contract OpenFLModel {
     }
 
     function setTesting(bool _testing) external {
-    testing = _testing;
+        testing = _testing;
     }
 
     // Register participants
@@ -258,8 +259,16 @@ contract OpenFLModel {
         nrOfProvidedHashedWeights += 1;
     }
 
-
-    function feedback(address target, int score) public virtual onlyRegisteredUsers onlyValidTargets(target) feedbackRoundOpened {
+    function feedback(
+        address target,
+        int score
+    )
+        public
+        virtual
+        onlyRegisteredUsers
+        onlyValidTargets(target)
+        feedbackRoundOpened
+    {
         //(address target, int score) = abi.decode(data, (address, int));
         hasVoted[msg.sender][target] = true;
         nrOfVotesOfUser[msg.sender] += 1;
@@ -435,7 +444,8 @@ contract OpenFLModel {
         // Devide reward between every user who provided (non-malicious) feedback
         // Pay back freeriderLock funds to good users
         // First round users pay their anti-freerider fee
-        uint sumOfWeights = 0;
+        int sumOfWeights = 0;
+        uint boundedSumOfWeights = 0;
         if (votesPerRound > 0 && rewardLeft >= rewardPerRound) {
             rewardLeft -= rewardPerRound;
 
@@ -449,24 +459,25 @@ contract OpenFLModel {
                 address user = participants[i];
 
                 if (isRegistered[user] && whitelistedForRewards[user]) {
-                    uint256 weight = nrOfVotesOfUser[user] *
+                    uint weight = nrOfVotesOfUser[user] *
                         contributionScore[round][user];
                     personalWeight[user] = weight;
 
                     if (isContribScoreNegative[round][user]) {
-                        sumOfWeights -= weight;
+                        sumOfWeights -= int(weight);
                     } else {
-                        sumOfWeights += weight;
+                        sumOfWeights += int(weight);
                     }
                 }
             }
+            boundedSumOfWeights = sumOfWeights < 0 ? 0 : uint(sumOfWeights);
             // Give rewards
             for (uint i = 0; i < participants.length; i++) {
                 address user = participants[i];
 
                 if (isRegistered[user] && whitelistedForRewards[user]) {
                     uint personalReward = (reward * personalWeight[user]) /
-                        sumOfWeights;
+                        boundedSumOfWeights;
 
                     delete whitelistedForRewards[user];
                     delete personalWeight[user];
@@ -486,7 +497,12 @@ contract OpenFLModel {
                 }
             }
         }
-        emit EndRound(round, votesPerRound, sumOfWeights, totalPunishment);
+        emit EndRound(
+            round,
+            votesPerRound,
+            boundedSumOfWeights,
+            totalPunishment
+        );
 
         // Reset variables
         for (uint i = 0; i < participants.length; i++) {
@@ -518,7 +534,6 @@ contract OpenFLModel {
         }
         isRegistered[msg.sender] = false;
         payable(address(msg.sender)).transfer(val);
-
     }
 
     function submitFeedbackBytes(bytes calldata raw) external {
@@ -531,7 +546,6 @@ contract OpenFLModel {
 
             // offset inside `raw` starts at raw.offset
             let offset := raw.offset
-
             // adsCount = calldatasize / 0x34
             let adsCount := div(raw.length, 0x34)
 
@@ -541,7 +555,11 @@ contract OpenFLModel {
             mstore(ads, adsCount)
 
             // load addresses (20 bytes each)
-            for { let i := 0 } lt(i, adsCount) { i := add(i, 1) } {
+            for {
+                let i := 0
+            } lt(i, adsCount) {
+                i := add(i, 1)
+            } {
                 tmp := calldataload(offset)
                 tmp := shr(96, tmp)
                 mstore(add(add(ads, 0x20), mul(i, 0x20)), tmp)
@@ -554,7 +572,11 @@ contract OpenFLModel {
             mstore(ints, adsCount)
 
             // load int256 values (32 bytes each)
-            for { let i := 0 } lt(i, adsCount) { i := add(i, 1) } {
+            for {
+                let i := 0
+            } lt(i, adsCount) {
+                i := add(i, 1)
+            } {
                 tmp2 := calldataload(offset)
                 mstore(add(add(ints, 0x20), mul(i, 0x20)), tmp2)
                 offset := add(offset, 0x20)
@@ -569,8 +591,13 @@ contract OpenFLModel {
         }
     }
 
-
-    function submitFeedbackBytesAndAccuracies(bytes calldata raw, uint8[] calldata accuracies, uint256[] calldata losses, uint8 prev_acc, uint256 prev_loss) external {
+    function submitFeedbackBytesAndAccuracies(
+        bytes calldata raw,
+        uint8[] calldata accuracies,
+        uint256[] calldata losses,
+        uint8 prev_acc,
+        uint256 prev_loss
+    ) external {
         address[] memory ads;
         int256[] memory ints;
 
@@ -580,7 +607,6 @@ contract OpenFLModel {
 
             // offset inside `raw` starts at raw.offset
             let offset := raw.offset
-
             // adsCount = calldatasize / 0x34
             let adsCount := div(raw.length, 0x34)
 
@@ -590,7 +616,11 @@ contract OpenFLModel {
             mstore(ads, adsCount)
 
             // load addresses (20 bytes each)
-            for { let i := 0 } lt(i, adsCount) { i := add(i, 1) } {
+            for {
+                let i := 0
+            } lt(i, adsCount) {
+                i := add(i, 1)
+            } {
                 tmp := calldataload(offset)
                 tmp := shr(96, tmp)
                 mstore(add(add(ads, 0x20), mul(i, 0x20)), tmp)
@@ -603,23 +633,29 @@ contract OpenFLModel {
             mstore(ints, adsCount)
 
             // load int256 values (32 bytes each)
-            for { let i := 0 } lt(i, adsCount) { i := add(i, 1) } {
+            for {
+                let i := 0
+            } lt(i, adsCount) {
+                i := add(i, 1)
+            } {
                 tmp2 := calldataload(offset)
                 mstore(add(add(ints, 0x20), mul(i, 0x20)), tmp2)
                 offset := add(offset, 0x20)
             }
         }
 
-        require(accuracies.length == ads.length, "INVALID_LENGTH OF ACCURACY ARRAY");
+        require(
+            accuracies.length == ads.length,
+            "INVALID_LENGTH OF ACCURACY ARRAY"
+        );
         require(losses.length == ads.length, "INVALID_LENGTH OF LOSS ARRAY");
         accuracySubmissions[round][msg.sender].push(
-            AccuracySubmission({
-                adrs: ads,
-                acc: accuracies,
-                loss: losses
-            })
+            AccuracySubmission({adrs: ads, acc: accuracies, loss: losses})
         );
-        require(prev_acc >= 0 && prev_acc <= 100, "PREVIOUS ACCURACY NOT BETWEEN 0 AND 100");
+        require(
+            prev_acc >= 0 && prev_acc <= 100,
+            "PREVIOUS ACCURACY NOT BETWEEN 0 AND 100"
+        );
         prev_accs[round][msg.sender] = prev_acc;
         prev_losses[round][msg.sender] = prev_loss;
 
@@ -630,14 +666,20 @@ contract OpenFLModel {
             }
         }
     }
-    function getAllPreviousAccuraciesAndLosses() external view returns (uint8[] memory previous_accuracies, uint256[] memory previous_losses) {
+    function getAllPreviousAccuraciesAndLosses()
+        external
+        view
+        returns (
+            uint8[] memory previous_accuracies,
+            uint256[] memory previous_losses
+        )
+    {
         uint8 count_merged_participants = 0;
         for (uint i = 0; i < participants.length; i++) {
             if (RoundReputationOf[participants[i]] >= 0) {
                 count_merged_participants += 1;
             }
         }
-
 
         previous_accuracies = new uint8[](count_merged_participants);
         previous_losses = new uint256[](count_merged_participants);
@@ -651,11 +693,16 @@ contract OpenFLModel {
         }
     }
 
-
-    function getAllAccuraciesAbout(address target)
-    external
-    view
-    returns (address[] memory voters, uint8[] memory accuracies, uint256[] memory losses)
+    function getAllAccuraciesAbout(
+        address target
+    )
+        external
+        view
+        returns (
+            address[] memory voters,
+            uint8[] memory accuracies,
+            uint256[] memory losses
+        )
     {
         uint totalCount = 0;
 
@@ -665,7 +712,9 @@ contract OpenFLModel {
             uint subCount = accuracySubmissions[round][sender].length;
 
             for (uint j = 0; j < subCount; j++) {
-                AccuracySubmission storage sub = accuracySubmissions[round][sender][j];
+                AccuracySubmission storage sub = accuracySubmissions[round][
+                    sender
+                ][j];
 
                 for (uint k = 0; k < sub.adrs.length; k++) {
                     if (sub.adrs[k] == target) {
@@ -691,7 +740,9 @@ contract OpenFLModel {
             uint subCount = accuracySubmissions[round][sender].length;
 
             for (uint j = 0; j < subCount; j++) {
-                AccuracySubmission storage sub = accuracySubmissions[round][sender][j];
+                AccuracySubmission storage sub = accuracySubmissions[round][
+                    sender
+                ][j];
 
                 for (uint k = 0; k < sub.adrs.length; k++) {
                     if (sub.adrs[k] == target) {
@@ -705,9 +756,7 @@ contract OpenFLModel {
                 }
             }
         }
-
     }
-
 
     // Fallback function parses dynamic size feedback arrays
     // @dev This allows the contract to have an arbitrary number of participants
@@ -772,7 +821,7 @@ contract OpenFLModel {
             }
         }
 
-        for (uint i=0; i<ads.length; i++) {
+        for (uint i = 0; i < ads.length; i++) {
             if (!testing) {
                 feedback(ads[i], ints[i]);
             }

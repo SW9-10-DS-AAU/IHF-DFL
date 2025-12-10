@@ -1,4 +1,5 @@
 import copy
+import sys
 import torch
 import random
 import numpy as np
@@ -702,6 +703,9 @@ def test(
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
     accuracy = correct / total
+    
+    loss = min(sys.float_info.max, loss)
+
     return loss, accuracy
 
     

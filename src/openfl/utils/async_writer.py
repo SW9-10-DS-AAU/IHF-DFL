@@ -9,13 +9,12 @@ from typing import List
 import platform
 import psutil
 
-
-def _time_handler():
+def _time_handler(item):
     return datetime.now().strftime("%H:%M:%S.%f")[:-3]
 
 SPECIAL = {
     "time": _time_handler,
-    "special": lambda: "special",   # example of another override
+    "special": lambda item: "special",   # example of another override
 }
 
 class AsyncWriter:
@@ -32,39 +31,26 @@ class AsyncWriter:
         self.thread = threading.Thread(target=self._writer, daemon=True)
         self.thread.start()
 
-    # def writer(self):
-    #     self.writeMetaAndHeaderIfEmpty()
-    #     with open(self.csv_path, "a", newline="") as f:
-    #         w = csv.writer(f)
-    #         while True:
-    #             item = self.queue.get()
-    #             if item is None:  # poison pill
-    #                 print("Empty Queue, breaking")
-    #                 break
-
-    #             row = [ SPECIAL[key]() if key in SPECIAL else item.get(key, "") for key in self.header ]
-
-    #             print(f"Row {row}")
-
-    #             w.writerow(row)
-    #             self.queue.task_done()
-
     def _writer(self):
         self._writeMetaAndHeaderIfEmpty()
         with open(self.csv_path, "a", newline="") as f:
             w = csv.writer(f)
 
             while True:
-                item = self.queue.get()
-            
-                if item is None: # stop signal
+                item, isComment = self.queue.get()
+
+                if item is None:  # stop signal
                     f.flush()
                     os.fsync(f.fileno())
+                    self.queue.task_done()
                     break
 
-                row = [SPECIAL[key]() if key in SPECIAL else item.get(key, "") for key in self.header]
-                print(f"Row {row}")
+                if isComment:
+                    f.write(f"# {item}\n")
+                    self.queue.task_done()
+                    continue
 
+                row = [SPECIAL[key](item.get(key, "")) if key in SPECIAL else item.get(key, "") for key in self.header]
                 w.writerow(row)
                 self.queue.task_done()
 
@@ -82,17 +68,19 @@ class AsyncWriter:
                 w = csv.writer(f)
                 w.writerow(self.header)
 
-    def submitResult(self, item):
+    def writeResult(self, item):
         try:
-            self.queue.put(item, block=False)
+            self.queue.put((item, False), block=False)
         except Full:
             raise RuntimeError("writer queue overflow")
+    def writeComment(self, str: str):
+        self.queue.put((str, False), block=False)
 
     def finish(self):
         # Wait until writer has processed every queued item
         self.queue.join()
         # Tell the writer thread to stop
-        self.queue.put(None)
+        self.queue.put((None, False))
         # Wait until thread exits
         self.thread.join()
 
@@ -114,6 +102,9 @@ class AsyncWriter:
           ("first_round_fee", cfg.first_round_fee, "fee for first round"),
           ("fork", cfg.fork, "True=local fork, False=real net"),
           ("contribution_score_strategy", cfg.contribution_score_strategy, "scoring method"),
+          ("use_outlier_detection", cfg.use_outlier_detection, "Whether to use outlier detection"),
+          ("freerider_start_round", cfg.freerider_start_round, "When freeriders should start freeriding"),
+          ("freerider_noise_scale", cfg.freerider_noise_scale, "How much noise a freeder should add"),
       ]
       file.write("# ------Config--------")
       file.writelines([

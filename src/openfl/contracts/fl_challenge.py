@@ -31,7 +31,7 @@ import openfl.utils.config
 
 
 class FLChallenge(FLManager):
-    def __init__(self, manager, configs, pyTorchModel, writer: AsyncWriter=None, experiment_config):
+    def __init__(self, manager, configs, pyTorchModel, experiment_config, writer: AsyncWriter=None):
         self.manager = manager
         self.w3 = manager.w3
 
@@ -743,13 +743,14 @@ class FLChallenge(FLManager):
 
         # Choose scoring algorithm based on configured strategy
         calculator = self._get_contribution_score_calculator()
-        scores = calculator(_users)
+        self.scores = calculator(_users)
+        
 
 
 
 
         txs = []
-        for u, score in zip(_users, scores):
+        for u, score in zip(_users, self.scores):
             u.is_contrib_score_negative = True if score < 0 else False
             u.contribution_score = score
 
@@ -784,17 +785,6 @@ class FLChallenge(FLManager):
             self.log_receipt(i, txHash, len(txs), "contrib")
 
         print("-----------------------------------------------------------------------------------\n")
-
-
-    def _calculate_scores_dotproduct_old(self, users):
-        """
-        Legacy scoring: for each user, use dot-product–based contribution score.
-        """
-        merged_model = users[0].model
-        num_mergers = len(users)
-        return [
-            calc_contribution_score_dotproduct_rune(u.previousModel, merged_model, num_mergers) for u in users
-        ]
 
     def _calculate_scores_dotproduct(self, users):
         """
@@ -948,10 +938,23 @@ class FLChallenge(FLManager):
             w3=self.w3,
             contract=self.model,
             receipt=receipt,
-            event_names=["EndRound", "Reward", "Punishment", "Disqualification"]
+            event_names=["Reward"]
         )
         reward_events = events["Reward"]
-        print(reward_events)
+        
+        result = []
+        for ev in reward_events:
+            args = ev["args"]
+            if args["roundScore"] > 0:
+                result.append(
+                    (
+                        args["user"],
+                        args["roundScore"],
+                        args["win"],
+                        args["newReputation"],
+                    )
+                )
+        return result
 
     def simulate(self, rounds):
         """
@@ -989,9 +992,9 @@ class FLChallenge(FLManager):
             
             self.pytorch_model.verify_models({u.id: self.get_hashed_weights_of(u) for u in self.pytorch_model.participants})
 
-            feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses = self.pytorch_model.evaluation()
+            self.feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses = self.pytorch_model.evaluation()
 
-            self.quick_feedback_round(fbm = feedback_matrix, feedback_type="feedbackBytesAndAccuracy", am=accuracy_matrix, lm=loss_matrix, prev_accs=prev_accs, prev_losses=prev_losses)
+            self.quick_feedback_round(fbm = self.feedback_matrix, feedback_type="feedbackBytesAndAccuracy", am=accuracy_matrix, lm=loss_matrix, prev_accs=prev_accs, prev_losses=prev_losses)
 
             self.pytorch_model.the_merge([user for user in self.pytorch_model.participants if user._roundrep[-1] > 0])
             
@@ -1012,7 +1015,10 @@ class FLChallenge(FLManager):
 
             grs = [user._globalrep[-1] for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
             round_punishment = [(punishment[2], punishment[1]) for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]
-            self.writer.submitResult({
+            print("round_punishment")
+            print(self._punishments)
+            round_kicked = [punishment[2] for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]
+            self.writer.writeResult({
                 "round": self.pytorch_model.round - 1,
                 "GRS": grs,
                 "globalAcc": self.pytorch_model.accuracy[-1] or 0, #Check
@@ -1020,7 +1026,10 @@ class FLChallenge(FLManager):
                 "punishments": round_punishment,
                 "rewards": self.get_round_rewards(receipt),
                 "accAvgPerUser": prev_accs,
-                "lossAvgPerUser": prev_losses
+                "lossAvgPerUser": prev_losses,
+                "feedbackMatrix": self.feedback_matrix.tolist(),
+                "disqualifiedUsers": round_kicked,
+                "contributionScores": self.scores
                 })
         self.exit_system()
             
