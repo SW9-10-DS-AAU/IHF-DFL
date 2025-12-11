@@ -1,5 +1,6 @@
 import os
 import sys
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 import pytest
 import types
@@ -81,7 +82,7 @@ def mock_participants():
 
 
 @pytest.fixture
-def fl_challenge(mock_w3, mock_contract, mock_participants):
+def fl_challenge(request, mock_w3, mock_contract, mock_participants):
     """Create an instance of FLChallenge with injected mocks."""
     manager = MagicMock()
     manager.w3 = mock_w3
@@ -102,6 +103,13 @@ def fl_challenge(mock_w3, mock_contract, mock_participants):
     pytorch_model.participants = mock_participants
     pytorch_model.round = 1
 
+    experiment_config = getattr(
+        request, "param", SimpleNamespace(
+            contribution_score_strategy="dotproduct",
+            use_outlier_detection=False,
+        )
+    )
+
     with patch("openfl.contracts.fl_challenge.FLManager.build_tx") as mock_build_tx:
         mock_build_tx.return_value = {"gas": 100000, "gasPrice": 1, "nonce": 1}
 
@@ -110,6 +118,6 @@ def fl_challenge(mock_w3, mock_contract, mock_participants):
         ) as mock_build_nf_tx:
             mock_build_nf_tx.return_value = {"gas": 100000, "nonce": 1}
 
-            challenge = FLChallenge(manager, configs, pytorch_model)
+            challenge = FLChallenge(manager, configs, pytorch_model, experiment_config)
             challenge.get_global_reputation_of_user = MagicMock(return_value=1000)
             yield challenge
