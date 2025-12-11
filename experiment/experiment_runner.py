@@ -7,12 +7,14 @@ from openfl.utils import require_env_var
 from types import SimpleNamespace
 from web3 import Web3, Account
 
+from openfl.utils.async_writer import AsyncWriter
 
-def run_experiment(dataset_name, experiment_config):
+
+def run_experiment(dataset_name, experiment_config, writer: AsyncWriter=None):
+
   experiment_start = time.perf_counter()
   RPC_ENDPOINT = require_env_var("RPC_URL")
     
-
 # Only for the real-net simulation
 # In order to use a non-locally forked blockchain, 
 # private keys are required to unlock accounts
@@ -80,7 +82,8 @@ def run_experiment(dataset_name, experiment_config):
   model = Challenge.FLChallenge(manager, 
                       configs,
                       pytorch_model,
-                      experiment_config)
+                      experiment_config,
+                      writer)
 
 
   model.simulate(rounds=experiment_config.minimum_rounds)
@@ -89,13 +92,14 @@ def run_experiment(dataset_name, experiment_config):
 
   print("\n" + "="*75)
   print(f"TOTAL EXPERIMENT TIME: {total_experiment_time:.2f} seconds")
+  writer.writeComment(f"TOTAL EXPERIMENT TIME: {total_experiment_time:.2f} seconds")
   print("="*75 + "\n")
 
   return Experiment(model, manager)
 
 
 def visualizeModel(model):
-  model.visualize_simulation("experiment/figures")
+  model.visualize_simulation("figures")
 
 
 

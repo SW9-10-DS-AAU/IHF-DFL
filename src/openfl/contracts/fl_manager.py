@@ -1,7 +1,6 @@
 from web3 import Web3
 from openfl.ml.pytorch_model import gb, rb, b, green, red
 from openfl.api import ConnectionHelper
-from artifacts.bytecode.abi_model import OPEN_FL_MODEL_ABI  # import the ABI directly
 
 class FLManager(ConnectionHelper):
     
@@ -151,10 +150,7 @@ class FLManager(ConnectionHelper):
         deployed_address = self.get_model_of(self.pytorch_model.participants[0], c)
         deployed_address = Web3.to_checksum_address(deployed_address)
 
-        self.challenge_contract = self.w3.eth.contract(
-            address=deployed_address,
-            abi=OPEN_FL_MODEL_ABI
-        )
+        self.challenge_contract = super().initialize_model(deployed_address)
         print("\n{:<17} {} | {}\n".format("Model deployed", 
                                           "@ Address " + self.challenge_contract.address, 
                                           txHash.hex()[0:6]+"..."))

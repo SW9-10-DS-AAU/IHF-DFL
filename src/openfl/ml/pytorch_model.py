@@ -1,4 +1,5 @@
 import copy
+import sys
 import torch
 import random
 import numpy as np
@@ -473,6 +474,13 @@ class PytorchModel:
 
 
     def the_merge(self, _users):
+        # No qualified users → skip merge this round
+        if not _users:
+            print("-----------------------------------------------------------------------------------")
+            print(red("No participants qualified for merge this round – skipping aggregation"))
+            print("-----------------------------------------------------------------------------------\n")
+            return
+
         ids, client_models = [], []
         for u in _users:
             ids.append(u.id)
@@ -702,6 +710,9 @@ def test(
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
     accuracy = correct / total
+    
+    loss = min(sys.float_info.max, loss)
+
     return loss, accuracy
 
     
