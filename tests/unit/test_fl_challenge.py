@@ -1,11 +1,19 @@
 import pytest
 import torch
 import torch.nn as nn
+import numpy as np
 from decimal import Decimal
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, call
 from web3.exceptions import ContractLogicError
 
-from openfl.contracts.fl_challenge import FLChallenge, calc_contribution_score, calc_contribution_scores_mad
+from openfl.contracts.fl_challenge import (
+    FLChallenge,
+    calc_contribution_score,
+    calc_contribution_scores_dotproduct,
+    calc_contribution_scores_accuracy,
+    remove_outliers_mad,
+)
 
 
 class DummyModel(nn.Module):
@@ -18,6 +26,15 @@ class DummyModel(nn.Module):
 
     def parameters(self):
         return super().parameters()
+
+
+class TensorModel(nn.Module):
+    def __init__(self, values):
+        super().__init__()
+        self.params = nn.Parameter(torch.tensor(values, dtype=torch.float32))
+
+    def parameters(self):
+        return [self.params]
 
 
 class TestCalcContributionScore:
@@ -91,14 +108,16 @@ class TestCalcContributionScore:
 
 
 class TestCalcContributionScoresMAD:
-    # Basic test case with no outliers
-    def test_basic_no_outliers(self):
+    @pytest.mark.parametrize(
+        "fl_challenge",
+        [SimpleNamespace(contribution_score_strategy="dotproduct", use_outlier_detection=True)],
+        indirect=True,
+    )
+    def test_basic_no_outliers(self, fl_challenge):
         """
-        Scenario: 3 users with updates that are close to each other.
-        No values should be filtered out.
+        When outlier detection is enabled, _calculate_scores_dotproduct should
+        still match the plain dot-product results if nothing is trimmed.
         """
-        num_mergers = 3
-
         local_updates = torch.tensor([
             [1.0, 2.0],
             [1.1, 2.1],
@@ -106,110 +125,250 @@ class TestCalcContributionScoresMAD:
         ])
         global_update = torch.tensor([1.0, 2.0])
 
-        scores = calc_contribution_scores_mad(local_updates, global_update, mad_thresh=3.5)
+        merged_model = TensorModel(global_update)
 
-        # Manual Calculation for verification
-        norm_U_sq = torch.dot(global_update, global_update)
+        participants = []
+        for update in local_updates:
+            user = MagicMock()
+            user.previousModel = TensorModel(update)
+            user.model = merged_model
+            participants.append(user)
 
-        expected_scores = []
-        for i in range(num_mergers):
-            # Standard logic: dot(u, U) / (N * ||U||^2)
-            dot = torch.dot(local_updates[i], global_update)
-            score_float = dot / (num_mergers * norm_U_sq)
-            expected_scores.append(int(Decimal(score_float.item()) * Decimal('1e18')))
+        scores = fl_challenge._calculate_scores_dotproduct(participants)
+
+        expected_scores = calc_contribution_scores_dotproduct(local_updates, global_update)
 
         assert scores == expected_scores
 
-    # Test case with an outlier
-    def test_with_outliers(self):
+    @pytest.mark.parametrize(
+        "fl_challenge",
+        [SimpleNamespace(contribution_score_strategy="dotproduct", use_outlier_detection=True)],
+        indirect=True,
+    )
+    def test_trimmed_global_update_used(self, fl_challenge):
         """
-        Scenario: User 2 has a massive weight that deviates significantly from the median.
-        The MAD logic should zero out that specific weight for User 2.
-        """
-
-        local_updates = torch.tensor([
-            [1.0],
-            [2.0],
-            [100.0]
-        ])
-        global_update = torch.tensor([1.0])
-
-        scores = calc_contribution_scores_mad(local_updates, global_update, mad_thresh=3.5)
-
-        norm_U_sq = torch.dot(global_update, global_update)
-
-        assert scores[2] == 0
-
-        expected_u1 = 2.0 / (3 * norm_U_sq)
-        expected_u1_int = int(Decimal(expected_u1.item()) * Decimal('1e18'))
-        assert scores[1] == expected_u1_int
-
-    # Edge case: Global update is zero vector
-    def test_zero_global_update(self):
-        """
-        Edge case: Global update vector is zero (or very close to zero).
-        Everyone should receive equal contribution scores (1/N).
-        """
-        num_mergers = 4
-        local_updates = torch.randn(num_mergers, 10)
-        global_update = torch.zeros(10)
-
-        scores = calc_contribution_scores_mad(local_updates, global_update)
-
-        # Expectation: 1/4 * 1e18
-        expected_val = int((Decimal(1) / Decimal(num_mergers)) * Decimal('1e18'))
-
-        for score in scores:
-            assert score == expected_val
-
-    # Edge case: All users submit identical models
-    def test_identical_inputs(self):
-        """
-        Edge case: All users submit identical models.
-        MAD will be 0. Ensure eps prevents division by zero and logic holds.
-        """
-        num_mergers = 2
-        # Both users submit [2.0, 2.0]
-        local_updates = torch.tensor([[2.0, 2.0], [2.0, 2.0]])
-        global_update = torch.tensor([2.0, 2.0])
-
-        scores = calc_contribution_scores_mad(local_updates, global_update)
-
-        # If identical, deviation is 0. Z-score is 0. Mask is True
-        norm_U_sq = 8.0  # 2*2 + 2*2
-        dot = 8.0  # 2*2 + 2*2
-
-        expected_float = dot / (num_mergers * norm_U_sq)
-        expected_int = int(Decimal(expected_float) * Decimal('1e18'))
-
-        assert scores[0] == expected_int
-        assert scores[1] == expected_int
-
-    # Test case with partial filtering
-    def test_partial_filtering(self):
-        """
-        Converted manual calculation to use PyTorch Tensors to match precision.
+        Ensure MAD-enabled scoring feeds the filtered global update into the
+        dot-product calculation.
         """
         local_updates = torch.tensor([
             [1.0, 1.0],
             [2.0, 1.0],
             [100.0, 1.0]
         ])
-        global_update = torch.tensor([1.0, 1.0])
+        merged_model = TensorModel([1.0, 1.0])
 
-        scores = calc_contribution_scores_mad(local_updates, global_update)
+        participants = []
+        for update in local_updates:
+            user = MagicMock()
+            user.previousModel = TensorModel(update)
+            user.model = merged_model
+            participants.append(user)
 
-        effective_u2_filtered = torch.tensor([0.0, 1.0])
-        norm_U_sq = torch.dot(global_update, global_update)
+        filtered_global_update = torch.tensor([0.0, 1.0])
 
-        effective_dot = torch.dot(effective_u2_filtered, global_update)
+        with patch.object(fl_challenge, 'trim_global_update_using_mad', return_value=filtered_global_update) as mock_trim:
+            with patch('openfl.contracts.fl_challenge.calc_contribution_scores_dotproduct', return_value=[10, 20, 30]) as mock_math:
+                scores = fl_challenge._calculate_scores_dotproduct(participants)
 
-        expected_u2_float = effective_dot / (3 * norm_U_sq)
+        assert scores == [10, 20, 30]
 
-        expected_u2_int = int(Decimal(expected_u2_float.item()) * Decimal('1e18'))
+        mock_trim.assert_called_once()
+        args, _ = mock_math.call_args
+        local_updates_arg, global_update_arg = args
 
-        assert scores[2] == expected_u2_int
+        assert torch.equal(local_updates_arg, local_updates)
+        assert torch.equal(global_update_arg, filtered_global_update)
 
+    @pytest.mark.parametrize(
+        "fl_challenge",
+        [SimpleNamespace(contribution_score_strategy="dotproduct", use_outlier_detection=False)],
+        indirect=True,
+    )
+    def test_outlier_detection_disabled(self, fl_challenge):
+        """
+        When the flag is false, the original global update should be used and
+        MAD trimming should not run.
+        """
+        local_updates = torch.tensor([
+            [1.0, 1.0],
+            [2.0, 1.0],
+            [3.0, 1.0]
+        ])
+        merged_model = TensorModel([1.0, 1.0])
+
+        participants = []
+        for update in local_updates:
+            user = MagicMock()
+            user.previousModel = TensorModel(update)
+            user.model = merged_model
+            participants.append(user)
+
+        with patch.object(fl_challenge, 'trim_global_update_using_mad') as mock_trim:
+            with patch('openfl.contracts.fl_challenge.calc_contribution_scores_dotproduct', return_value=[1, 2, 3]) as mock_math:
+                scores = fl_challenge._calculate_scores_dotproduct(participants)
+
+        assert scores == [1, 2, 3]
+        mock_trim.assert_not_called()
+
+        args, _ = mock_math.call_args
+        local_updates_arg, global_update_arg = args
+
+        assert torch.equal(local_updates_arg, local_updates)
+        assert torch.equal(global_update_arg, torch.tensor([1.0, 1.0]))
+
+class TestCalcContributionScoresAccuracy:
+    @pytest.mark.parametrize(
+        "fl_challenge",
+        [SimpleNamespace(contribution_score_strategy="accuracy", use_outlier_detection=True)],
+        indirect=True,
+    )
+    def test_accuracy_scores_combines_accuracy_and_loss(self, fl_challenge, mock_participants):
+        """
+        Accuracy scoring should normalize both accuracy and loss inputs and
+        combine them into integer scores.
+        """
+        fl_challenge.model.functions.getAllPreviousAccuraciesAndLosses.call.return_value = (
+            [50, 60], # Global Accuracy
+            [5, 4], # Global loss
+        )
+
+        user_metrics = [
+            ([], [70, 80], [3, 4]), # Individual user accuracy and loss, over two rounds.
+            ([], [60, 70], [5, 6]),
+            ([], [90, 90], [1, 2]),
+        ]
+
+        fl_challenge.model.functions.getAllAccuraciesAbout.return_value.call.side_effect = user_metrics
+
+        with patch(
+            "openfl.contracts.fl_challenge.calc_contribution_scores_accuracy",
+            side_effect=[[0.6, 0.3, 0.1], [0.2, 0.5, 0.3]], # Mock normalized accuracy and loss returned from function, per user
+        ) as mock_normalize, patch(
+            "openfl.contracts.fl_challenge.remove_outliers_mad", # Outlier removal is mocked to do nothing
+            side_effect=lambda arr, _: arr,
+        ):
+            scores = fl_challenge._calculate_scores_accuracy(mock_participants)
+
+        expected = [
+            int(Decimal(x) * Decimal("1e18"))
+            for x in (
+                (0.6 + 0.8) / 3, # Accuracy + inverted loss / amount of users
+                (0.3 + 0.5) / 3,
+                (0.1 + 0.7) / 3,
+            )
+        ]
+
+        assert scores == expected
+
+        # Both accuracies and losses should be normalized independently
+        calls = mock_normalize.call_args_list
+
+        assert len(calls) == 2
+        acc_args, acc_mean = calls[0].args
+        loss_args, loss_mean = calls[1].args
+
+        # Each user contributes their averaged accuracy across rounds
+        # (e.g., mean([70, 80]) == 75). We normalize those averages against the
+        # averaged historical accuracy.
+        assert acc_args == pytest.approx([75.0, 65.0, 90.0])
+        assert acc_mean == pytest.approx(55.0)
+        assert loss_args == pytest.approx([3.5, 5.5, 1.5])
+        assert loss_mean == pytest.approx(4.5)
+
+    def test_accuracy_scores_uniform_when_no_change(self, fl_challenge, mock_participants):
+        """
+        When users match the historical averages, scores should split evenly
+        after normalization and loss inversion.
+        Check that there is no relative improvement or decline for any user
+        """
+
+        fl_challenge.model.functions.getAllPreviousAccuraciesAndLosses.call.return_value = (
+            [10, 10],
+            [2, 2],
+        )
+
+        fl_challenge.model.functions.getAllAccuraciesAbout.return_value.call.return_value = (
+            [],
+            [10, 10, 10],
+            [2, 2, 2],
+        )
+
+        with patch(
+            "openfl.contracts.fl_challenge.remove_outliers_mad",
+            side_effect=lambda arr, _: arr,
+        ):
+            scores = fl_challenge._calculate_scores_accuracy(mock_participants[:2])
+
+        expected_val = int(Decimal("0.5") * Decimal("1e18"))
+        assert scores == [expected_val, expected_val]
+
+    def test_accuracy_scores_handles_negative_trend(self, fl_challenge, mock_participants):
+        """
+        Declining accuracies relative to history should still normalize
+        correctly and reflect higher losses.
+        """
+
+        fl_challenge.model.functions.getAllPreviousAccuraciesAndLosses.call.return_value = (
+            [60, 60],
+            [1, 1],
+        )
+
+        user_metrics = [ # Both users have worse accuracy than global
+            ([], [55, 50], [3, 4]),
+            ([], [45, 40], [4, 5]),
+        ]
+        fl_challenge.model.functions.getAllAccuraciesAbout.return_value.call.side_effect = user_metrics
+
+        with patch(
+            "openfl.contracts.fl_challenge.remove_outliers_mad",
+            side_effect=lambda arr, _: arr,
+        ):
+            scores = fl_challenge._calculate_scores_accuracy(mock_participants[:2])
+
+        # Calculate expected normalization manually
+        norm_acc = [(52.5 - 60) / ((52.5 - 60) + (42.5 - 60)), (42.5 - 60) / ((52.5 - 60) + (42.5 - 60))]
+        norm_loss = [(3.5 - 1) / ((3.5 - 1) + (4.5 - 1)), (4.5 - 1) / ((3.5 - 1) + (4.5 - 1))]
+        inv_loss = [1 - x for x in norm_loss]
+        score0 = (norm_acc[0] + inv_loss[0]) / (sum(norm_acc) + sum(inv_loss))
+        score1 = (norm_acc[1] + inv_loss[1]) / (sum(norm_acc) + sum(inv_loss))
+
+        expected = [
+            int(Decimal(score0) * Decimal("1e18")),
+            int(Decimal(score1) * Decimal("1e18")),
+        ]
+
+        assert scores == expected
+
+
+class TestCalcContributionScoresAccuracyFn:
+    def test_accuracy_function_normalizes_positive_deltas(self):
+        scores = calc_contribution_scores_accuracy([6, 8], 4)
+        assert scores == [pytest.approx(2 / 6), pytest.approx(4 / 6)] # Check that scores are normalized correctly so they sum to 1
+
+    def test_accuracy_function_returns_uniform_when_sum_zero(self):
+        scores = calc_contribution_scores_accuracy([5, 5, 5], 5)
+        assert scores == [pytest.approx(1 / 3)] * 3
+
+    def test_accuracy_function_raises_on_empty(self):
+        with pytest.raises(Exception, match="No values to normalize"):
+            calc_contribution_scores_accuracy([], 0)
+
+
+class TestRemoveOutliersMAD:
+    def test_returns_original_when_zero_std(self):
+        arr = [5, 5, 5]
+
+        result = remove_outliers_mad(arr, 1.0)
+
+        assert isinstance(result, np.ndarray)
+        np.testing.assert_array_equal(result, np.asarray(arr))
+
+    def test_filters_values_outside_threshold(self):
+        arr = [1, 1, 1, 10]
+
+        result = remove_outliers_mad(arr, 1.0)
+
+        np.testing.assert_array_equal(result, np.asarray([1, 1, 1]))
 
 class TestFLChallengeFeatures:
     # Test user registration process
@@ -273,21 +432,26 @@ class TestFLChallengeFeatures:
         assert len(res) > 0
 
     # Test the MAD score calculation wrapper
+    @pytest.mark.parametrize(
+        "fl_challenge",
+        [SimpleNamespace(contribution_score_strategy="dotproduct", use_outlier_detection=True)],
+        indirect=True,
+    )
     def test_calculate_scores_mad_wrapper(self, fl_challenge, mock_participants):
         """
-        Test that _calculate_scores_mad correctly flattens parameters from
-        user models and the global model, stacks them, and passes them
-        to the underlying math function.
+        Ensure _calculate_scores_dotproduct flattens models and feeds them to
+        the dot-product scorer when MAD mode is enabled.
         """
         merged_model = DummyModel(10.0)
 
         for i, user in enumerate(mock_participants):
             user.previousModel = DummyModel(float(i + 1))
+            user.model = merged_model
 
-        with patch('openfl.contracts.fl_challenge.calc_contribution_scores_mad') as mock_math:
+        with patch('openfl.contracts.fl_challenge.calc_contribution_scores_dotproduct') as mock_math:
             mock_math.return_value = [1000, 2000, 3000]
 
-            scores = fl_challenge._calculate_scores_mad(mock_participants, merged_model)
+            scores = fl_challenge._calculate_scores_dotproduct(mock_participants)
 
             assert scores == [1000, 2000, 3000]
 
@@ -306,38 +470,48 @@ class TestFLChallengeFeatures:
 
 
 class TestFLChallengeWorkflow:
-    # Test legacy strategy selection
-    def test_strategy_selection_legacy(self, mock_w3, mock_contract):
+    # Test strategy selection for dot-product with MAD enabled
+    def test_strategy_selection_dotproduct(self, mock_w3, mock_contract):
         manager = MagicMock(w3=mock_w3, fork=True)
-        extra_config = {'contribution_score_strategy': 'legacy'}
-        configs = [mock_contract, "0xModel", 100, 1000, 500, 3, 0.5, 0.1, extra_config]
+        experiment_config = SimpleNamespace(
+            contribution_score_strategy='dotproduct',
+            use_outlier_detection=True,
+        )
+        configs = [mock_contract, "0xModel", 100, 1000, 500, 3, 0.5, 0.1]
         pytorch_model = MagicMock()
 
-        challenge = FLChallenge(manager, configs, pytorch_model)
+        challenge = FLChallenge(manager, configs, pytorch_model, experiment_config)
 
-        assert challenge._contribution_score_strategy == 'legacy'
-        assert challenge._get_contribution_score_calculator() == challenge._calculate_scores_legacy
+        assert challenge._contribution_score_strategy == 'dotproduct'
+        assert challenge.experiment_config.use_outlier_detection is True
+        assert challenge._get_contribution_score_calculator() == challenge._calculate_scores_dotproduct
 
-    # Test MAD strategy selection
-    def test_strategy_selection_mad(self, mock_w3, mock_contract):
+    # Test strategy selection for naive mode
+    def test_strategy_selection_naive(self, mock_w3, mock_contract):
         manager = MagicMock(w3=mock_w3)
-        extra_config = {'contribution_score_strategy': 'mad'}
-        configs = [mock_contract, "0xModel", 100, 1000, 500, 3, 0.5, 0.1, extra_config]
+        experiment_config = SimpleNamespace(
+            contribution_score_strategy='naive',
+            use_outlier_detection=False,
+        )
+        configs = [mock_contract, "0xModel", 100, 1000, 500, 3, 0.5, 0.1]
         pytorch_model = MagicMock()
 
-        challenge = FLChallenge(manager, configs, pytorch_model)
+        challenge = FLChallenge(manager, configs, pytorch_model, experiment_config)
 
-        assert challenge._contribution_score_strategy == 'mad'
-        assert challenge._get_contribution_score_calculator() == challenge._calculate_scores_mad
+        assert challenge._contribution_score_strategy == 'naive'
+        assert challenge._get_contribution_score_calculator() == challenge._calculate_scores_naive
 
     # Test invalid strategy selection
     def test_strategy_selection_invalid(self, mock_w3, mock_contract):
         manager = MagicMock(w3=mock_w3)
-        extra_config = {'contribution_score_strategy': 'invalid_strategy'}
-        configs = [mock_contract, "0xModel", 100, 1000, 500, 3, 0.5, 0.1, extra_config]
+        experiment_config = SimpleNamespace(
+            contribution_score_strategy='invalid_strategy',
+            use_outlier_detection=False,
+        )
+        configs = [mock_contract, "0xModel", 100, 1000, 500, 3, 0.5, 0.1]
         pytorch_model = MagicMock()
 
-        challenge = FLChallenge(manager, configs, pytorch_model)
+        challenge = FLChallenge(manager, configs, pytorch_model, experiment_config)
 
         with pytest.raises(ValueError) as excinfo:
             challenge._get_contribution_score_calculator()
@@ -385,6 +559,20 @@ class TestFLChallengeWorkflow:
 
         fl_challenge._get_contribution_score_calculator = MagicMock(return_value=mock_strategy_fn)
 
+        # Mock model / contract calls:
+        # getAllAccuraciesAbout(address).call() -> (voters, accuracies, losses)
+        fl_challenge.model.functions.getAllAccuraciesAbout.return_value.call.return_value = (
+            ["0xvoter1", "0xvoter2"],  # voters
+            [90, 95],  # accuracies
+            [1, 2],  # losses
+        )
+
+        # getAllPreviousAccuraciesAndLosses().call() -> (prev_accs, prev_losses)
+        fl_challenge.model.functions.getAllPreviousAccuraciesAndLosses.call.return_value = (
+            [],  # prev_accs
+            [],  # prev_losses
+        )
+
         for u in mock_participants:
             u.model = DummyModel(1.0)
             u.previousModel = DummyModel(1.0)
@@ -398,16 +586,11 @@ class TestFLChallengeWorkflow:
         assert mock_participants[0].contribution_score == 100
         assert mock_participants[2].contribution_score == 300
 
-    # Test legacy score calculation wrapper
-    def test_calculate_scores_legacy_helper(self, fl_challenge, mock_participants):
-        merged_model = DummyModel(10.0)
-        for i, user in enumerate(mock_participants):
-            user.previousModel = DummyModel(float(i + 1))
-
-        with patch('openfl.contracts.fl_challenge.calc_contribution_score') as mock_calc:
-            mock_calc.side_effect = [10, 20, 30]
-            scores = fl_challenge._calculate_scores_legacy(mock_participants, merged_model)
-            assert scores == [10, 20, 30]
+    # Test naive score calculation wrapper
+    def test_calculate_scores_naive_helper(self, fl_challenge, mock_participants):
+        scores = fl_challenge._calculate_scores_naive(mock_participants)
+        expected_val = int((Decimal(1) / Decimal(len(mock_participants))) * Decimal('1e18'))
+        assert scores == [expected_val] * len(mock_participants)
 
     @patch('time.sleep', return_value=None)
     # Test close_round where everything goes exactly as planned
@@ -453,20 +636,24 @@ class TestNonForkInteractions:
         configs = [mock_contract, "0xModel", 100, 1000, 500, 3, 0.5, 0.1]
         pytorch_model = MagicMock()
         pytorch_model.participants = mock_participants
+        experiment_config = SimpleNamespace(
+            contribution_score_strategy='dotproduct',
+            use_outlier_detection=False,
+        )
 
         mock_signed_tx = MagicMock()
         mock_signed_tx.rawTransaction = b'raw_tx_bytes'
-        mock_w3.eth.account.signTransaction.return_value = mock_signed_tx
-        mock_w3.eth.sendRawTransaction.return_value = b'\x09' * 32
+        mock_w3.eth.account.sign_transaction.return_value = mock_signed_tx
+        mock_w3.eth.send_raw_transaction.return_value = b'\x09' * 32
 
         with patch('openfl.contracts.fl_challenge.FLManager.build_non_fork_tx') as mock_build_nf:
             mock_build_nf.return_value = {'gas': 100000, 'nonce': 1}
 
-            challenge = FLChallenge(manager, configs, pytorch_model)
+            challenge = FLChallenge(manager, configs, pytorch_model, experiment_config)
             challenge.register_all_users()
 
-            assert mock_w3.eth.account.signTransaction.call_count == 3
-            assert mock_w3.eth.sendRawTransaction.call_count == 3
+            assert mock_w3.eth.account.sign_transaction.call_count == 3
+            assert mock_w3.eth.send_raw_transaction.call_count == 3
 
 
 class TestErrorHandling:
