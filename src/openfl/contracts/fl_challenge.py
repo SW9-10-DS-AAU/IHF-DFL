@@ -917,9 +917,9 @@ class FLChallenge(FLManager):
         outliers_accuracies, mask_accuracies = remove_outliers_mad(avg_accuracies, mad_treshold, True)
         outliers_losses, mask_losses = remove_outliers_mad(avg_losses, mad_treshold, True)
 
-        norm_accuracies = calc_contribution_scores_accuracy(outliers_accuracies, mask_accuracies, avg_prev_acc)
+        norm_accuracies = calc_contribution_scores_accuracy(outliers_accuracies, avg_prev_acc)
 
-        norm_losses = calc_contribution_scores_accuracy(outliers_losses, mask_losses, avg_prev_loss)
+        norm_losses = calc_contribution_scores_accuracy(outliers_losses, avg_prev_loss)
 
         inverted_losses = [1 - x for x in norm_losses]
 
@@ -1292,7 +1292,7 @@ def calc_contribution_scores_dotproduct(local_updates: torch.Tensor,
 # def flatten_model_params(model: torch.nn.Module) -> torch.Tensor:
 #     return torch.cat([p.data.view(-1) for p in model.parameters()])
 
-def calc_contribution_scores_accuracy(arr, mask, prev_val):
+def calc_contribution_scores_accuracy(arr, prev_val):
     # This method takes a 1d array of an array (accuracy or loss), a scalar of previous accuracy or loss
     # Output is an array of normalized input array values
     norm_arr = []
