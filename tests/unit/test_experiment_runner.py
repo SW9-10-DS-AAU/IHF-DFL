@@ -42,10 +42,11 @@ class DummyFLManager:
 
 
 class DummyChallenge:
-    def __init__(self, manager, configs, pytorch_model):
+    def __init__(self, manager, configs, pytorch_model, experiment_config=None):
         self.manager = manager
         self.configs = configs
         self.pytorch_model = pytorch_model
+        self.experiment_config = experiment_config
         self.simulated = False
         self.gas_register = [1]
         self.gas_feedback = [2]
@@ -68,7 +69,7 @@ class DummyChallenge:
 
 class DummyExperiment:
     def __init__(self):
-        self.model = DummyChallenge(None, None, None)
+        self.model = DummyChallenge(None, None, None, None)
         self.manager = SimpleNamespace(manager=SimpleNamespace(address="0xmanager"))
 
 
