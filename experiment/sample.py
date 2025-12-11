@@ -30,7 +30,7 @@ def main():
 
     experiment = ExperimentRunner.run_experiment(DATASET, config, writer)
 
-    experiment.model.visualize_simulation("experiment/figures")
+    experiment.model.visualize_simulation("figures")
 
     ExperimentRunner.print_transactions(experiment)
 
