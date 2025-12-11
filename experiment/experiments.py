@@ -9,8 +9,8 @@ from itertools import product
 
 from openfl.utils.async_writer import AsyncWriter 
 
-#DATASET = "cifar-10"
-DATASET = "mnist"
+DATASET = "cifar-10"
+#DATASET = "mnist"
 RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData")
 
 #strategy_options = ["accuracy", "naive", "dotproduct"]
