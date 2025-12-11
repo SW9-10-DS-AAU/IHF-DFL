@@ -18,7 +18,7 @@ RESULTDATAFOLDER = Path.home() / "openfl_results"
 #free_rider_noise_options = [0.0, 0.1, 0.5, 1.0]
 
 strategy_options = ["accuracy"]
-outlier_detection_options = ["mad", "None"]
+outlier_detection_options = [True, False]
 free_rider_activation_round_options = [1]
 free_rider_noise_options = [0.1]
 
