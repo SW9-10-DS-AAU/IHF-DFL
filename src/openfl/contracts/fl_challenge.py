@@ -926,16 +926,6 @@ class FLChallenge(FLManager):
 
         inverted_losses = [1 - x for x in norm_losses]
 
-
-
-        # elif arr[i] < prev_val and mask[arr[i]] == True: # A worse score than previous
-        #     norm_arr[i] = 0.0
-        # else:
-
-        # for each norm_accuract and norm_losses.
-        # if we hit a neg. value that is not from an outlier, set to 0.0.
-        # same for loss.
-
         filtered_accuracies = [0 if val < 0 and mask_accuracies[i] else val for i,val in enumerate(norm_accuracies)]
         filtered_inverted_losses = [ 0 if val < 0 and mask_losses[i] else val for i, val in enumerate(inverted_losses)]
 
@@ -1326,11 +1316,7 @@ def calc_contribution_scores_accuracy(arr, mask, prev_val):
     for i in range(len(norm_arr)):
         if sum_val == 0.0:
             return [1.0 / len(norm_arr)] * len(norm_arr)
-        #
-        # elif arr[i] < prev_val and mask[arr[i]] == True: # A worse score than previous
-        #     norm_arr[i] = 0.0
-        # else:
-            norm_arr[i] /= sum_val
+        norm_arr[i] /= sum_val
     return norm_arr
 
 
