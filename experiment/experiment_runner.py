@@ -35,7 +35,7 @@ def run_experiment(dataset_name, experiment_config, writer: AsyncWriter=None):
 
     print(f"Loaded {len(PRIVKEYS)} private keys.")
   else:
-      PRIVKEYS = None
+    PRIVKEYS = None
 
   pytorch_model = PM.PytorchModel(dataset_name, 
                               experiment_config.number_of_good_contributors, 
@@ -56,6 +56,7 @@ def run_experiment(dataset_name, experiment_config, writer: AsyncWriter=None):
   for i in range(experiment_config.number_of_inactive_contributors):
       pytorch_model.add_participant("inactive",1)
 
+
   manager = Manager.FLManager(pytorch_model, True).init(experiment_config.number_of_good_contributors, 
                                               experiment_config.number_of_bad_contributors,
                                               experiment_config.number_of_freerider_contributors,
@@ -72,6 +73,7 @@ def run_experiment(dataset_name, experiment_config, writer: AsyncWriter=None):
                                           experiment_config.minimum_rounds,
                                           experiment_config.punish_factor,
                                           experiment_config.first_round_fee)
+  writer.writeComment(f"$startingUserConfig${[p.getStatus() for p in pytorch_model.participants]}")
 
   extra_configs = {}
   if experiment_config.contribution_score_strategy is not None:
