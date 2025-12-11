@@ -2,6 +2,7 @@ from types import SimpleNamespace
 
 import experiment.experiment_runner as runner
 
+# Maybe delete these tests
 
 class DummyModel:
     def __init__(self):
@@ -41,10 +42,11 @@ class DummyFLManager:
 
 
 class DummyChallenge:
-    def __init__(self, manager, configs, pytorch_model):
+    def __init__(self, manager, configs, pytorch_model, experiment_config=None):
         self.manager = manager
         self.configs = configs
         self.pytorch_model = pytorch_model
+        self.experiment_config = experiment_config
         self.simulated = False
         self.gas_register = [1]
         self.gas_feedback = [2]
@@ -67,7 +69,7 @@ class DummyChallenge:
 
 class DummyExperiment:
     def __init__(self):
-        self.model = DummyChallenge(None, None, None)
+        self.model = DummyChallenge(None, None, None, None)
         self.manager = SimpleNamespace(manager=SimpleNamespace(address="0xmanager"))
 
 
@@ -93,7 +95,9 @@ def test_run_experiment_with_mocks(monkeypatch):
         reward=1,
         punish_factor=1,
         first_round_fee=1,
-        contribution_score_strategy=None,
+        contribution_score_strategy="accuracy",
+        freerider_noise_scale=0.01,
+        freerider_start_round=3,
     )
 
     experiment = runner.run_experiment("dataset", config)

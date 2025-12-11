@@ -422,25 +422,26 @@ class FLChallenge(FLManager):
                 raise
         return tx_hash
 
-    def call_close_feedback_round(self, force):
-        if self.fork:
-            tx = super().build_tx(self.w3.eth.default_account, self.modelAddress, 0)
-            txHash = self.model.functions.closeFeedBackRound(force).transact(tx)
-
-        else:
-            nonce = self.w3.eth.get_transaction_count(self.pytorch_model.participants[0].address)
-            cl = super().build_non_fork_tx(self.pytorch_model.participants[0].address,
-                                        nonce,
-                                        self.modelAddress,
-                                        0)
-            cl =  self.model.functions.closeFeedBackRound(force).buildTransaction(cl)
-            pk = self.pytorch_model.participants[0].privateKey
-            signed = self.w3.eth.account.signTransaction(cl, private_key=pk)
-            txHash = self.w3.eth.sendRawTransaction(signed.rawTransaction)
-
-        return self.w3.eth.wait_for_transaction_receipt(txHash,
-                                                        timeout=600,
-                                                        poll_latency=1)
+    # Not used
+    # def call_close_feedback_round(self, force):
+    #     if self.fork:
+    #         tx = super().build_tx(self.w3.eth.default_account, self.modelAddress, 0)
+    #         txHash = self.model.functions.closeFeedBackRound(force).transact(tx)
+    #
+    #     else:
+    #         nonce = self.w3.eth.get_transaction_count(self.pytorch_model.participants[0].address)
+    #         cl = super().build_non_fork_tx(self.pytorch_model.participants[0].address,
+    #                                     nonce,
+    #                                     self.modelAddress,
+    #                                     0)
+    #         cl =  self.model.functions.closeFeedBackRound(force).buildTransaction(cl)
+    #         pk = self.pytorch_model.participants[0].privateKey
+    #         signed = self.w3.eth.account.signTransaction(cl, private_key=pk)
+    #         txHash = self.w3.eth.sendRawTransaction(signed.rawTransaction)
+    #
+    #     return self.w3.eth.wait_for_transaction_receipt(txHash,
+    #                                                     timeout=600,
+    #                                                     poll_latency=1)
 
     def close_round(self):
         if "inactive" in [acc.attitude for acc in self.pytorch_model.participants]:
