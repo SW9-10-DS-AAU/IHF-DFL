@@ -28,7 +28,7 @@ import openfl.utils.config
 #   - Feedback exchange (reputation updates)
 #   - Contribution score calculation (dot-product & MAD-based)
 #   - Round settlement and visualization
-
+UINT256_MAX = 2**256 - 1
 
 class FLChallenge(FLManager):
     def __init__(self, manager, configs, pyTorchModel, experiment_config, writer: AsyncWriter=None):
@@ -321,7 +321,7 @@ class FLChallenge(FLManager):
                 votee.roundRep = votee.roundRep + self.get_global_reputation_of_user(user.address) * int(vote) # TODO: fix?
                 votee._roundrep.append(self.get_global_reputation_of_user(user.address) * int(vote))
                 filtered_accs.append(accs[ix])
-                filtered_losses.append(losses[ix])
+                filtered_losses.append(min(UINT256_MAX, losses[ix]))
 
 
 
