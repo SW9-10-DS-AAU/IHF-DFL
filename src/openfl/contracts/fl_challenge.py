@@ -751,10 +751,6 @@ class FLChallenge(FLManager):
         # Choose scoring algorithm based on configured strategy
         calculator = self._get_contribution_score_calculator()
         self.scores = calculator(_users)
-        
-
-
-
 
         txs = []
         for u, score in zip(_users, self.scores):
@@ -882,7 +878,7 @@ class FLChallenge(FLManager):
         prev_accuracies, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses.call()
 
         # use mad on these and average them
-        mad_treshold = 10
+        mad_treshold = 3
 
         mad_prev_accuracies = remove_outliers_mad(prev_accuracies, mad_treshold)
         mad_prev_losses = remove_outliers_mad(prev_losses, mad_treshold)
@@ -932,15 +928,21 @@ class FLChallenge(FLManager):
         # Normalize inverted losses
         filtered_normalized_accuracies = [x / sum(filtered_accuracies) for x in filtered_accuracies]
         filtered_inverted_normalized_losses = [x /sum(filtered_inverted_losses) for x in filtered_inverted_losses]
+        print(f"filtered normalized accuracies: {filtered_normalized_accuracies}")
+        print(f"filtered inverted normalized losses: {filtered_inverted_normalized_losses}")
+
 
         sum_na = sum(filtered_normalized_accuracies)
-        sum_nl = sum(filtered_inverted_losses)
+        sum_nl = sum(filtered_inverted_normalized_losses)
+
+        print(f"sum_na: {sum_na}")
+        print(f"sum_nl: {sum_nl}")
 
         for i in range(len(filtered_normalized_accuracies)):
             res = (filtered_normalized_accuracies[i] + filtered_inverted_normalized_losses[i]) / (sum_na + sum_nl)
             score = int(Decimal(res) * Decimal('1e18'))
             scores.append(score)
-
+        print(f"scores = {scores}")
         return scores
 
 
@@ -1016,23 +1018,12 @@ class FLChallenge(FLManager):
 
             # A roundRep of 0, does not nec. mean mal.
             contributers = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0]
-            if not contributers:
-                contributers = [u for u in self.pytorch_model.participants if not getattr(u, "disqualified", False)]
-
             self.pytorch_model.the_merge(contributers)
-            
+
             print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
+            self.contribution_score(contributers)
+            receipt = self.close_round()
 
-            #contributionScoreTask = asyncio.create_task(self.contribution_score([user for user in self.pytorch_model.participants if user.roundRep > 0]))
-
-            if contributers:
-                self.contribution_score(contributers)
-                receipt = self.close_round()
-                #contributionScoreTask
-            else:
-                print("-----------------------------------------------------------------------------------")
-                print(red("No eligible users for contribution scoring – skipping settle for this round"))
-                print("-----------------------------------------------------------------------------------")
 
 
             print(b(f"Round {self.pytorch_model.round - 1} actually completed:"))

@@ -16,8 +16,8 @@ class ExperimentConfiguration:
                  fork=True,
                  use_outlier_detection = True,
                  contribution_score_strategy="naive", # Options: mad, legacy, accuracy, None (defaults to MAD)
-                 freerider_noise_scale=0,
-                 freerider_start_round=4):
+                 freerider_noise_scale=1,
+                 freerider_start_round=3):
 
         # Store the fork mode
         self.fork = fork
