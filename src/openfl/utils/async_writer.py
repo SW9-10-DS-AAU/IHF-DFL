@@ -9,6 +9,8 @@ from typing import List
 import platform
 import psutil
 
+from openfl.ml.pytorch_model import Participant
+
 def _time_handler(item):
     return datetime.now().strftime("%H:%M:%S.%f")[:-3]
 
@@ -22,7 +24,7 @@ class AsyncWriter:
     def __init__(self, path: Path, header: List[str], queue_size, config, author):
         # path.parent.mkdir()
         path.parent.mkdir(parents=True, exist_ok=True)
-        print(f"Writing to {path}")
+        print(f"Writing to {path.absolute()}")
         self.csv_path = path
         self.header = header
         self.queue = Queue(maxsize=queue_size)
@@ -44,21 +46,21 @@ class AsyncWriter:
                     f.flush()
                     os.fsync(f.fileno())
                     self.queue.task_done()
+                    print("stopping write queue")
                     break
 
                 if isComment:
                     f.write(f"# {item}\n")
-                    self.queue.task_done()
-                    continue
-
-                row = [SPECIAL[key](item) if key in SPECIAL else item.get(key, "") for key in self.header]
-                # SPECIAL needs entire item dict, not item.get(key)
-                w.writerow(row)
+                else:
+                    row = [SPECIAL[key](item) if key in SPECIAL else item.get(key, "") for key in self.header]
+                    w.writerow(row)
+                
                 self.queue.task_done()
 
                 if self.queue.empty():
                     f.flush()
                     os.fsync(f.fileno())
+        print("Stopping Writer")
 
     def _writeMetaAndHeaderIfEmpty(self):
         empty = (not os.path.exists(self.csv_path)) or os.path.getsize(self.csv_path) == 0
@@ -80,12 +82,16 @@ class AsyncWriter:
         self.queue.put((comment, True), block=False)
 
     def finish(self):
-        # Wait until writer has processed every queued item
-        self.queue.join()
+        print("finish1")
         # Tell the writer thread to stop
-        self.queue.put((None, False))
-        # Wait until thread exits
+        self.queue.put((None, False)) 
+        print("finish2")
+        # Wait for all queued tasks (including stop) to be marked done
+        self.queue.join()
+        print("finish3")
+        # Now wait for the thread to exit
         self.thread.join()
+        print("finish4")
 
     def _write_config(self, file: TextIOWrapper):
       cfg = self.config

@@ -98,7 +98,10 @@ class Participant:
         self._loss = []
         self._globalrep = [self.collateral]
         self._roundrep = []
-        
+    
+    def getStatus(self):
+        user = f"$user${self.id}, {self.currentAcc}, {self.attitude}, {self.futureAttitude}, {self.attitudeSwitch}, {self.address}"
+        return user
           
 class Net_CIFAR(nn.Module):
     def __init__(self):
@@ -800,6 +803,9 @@ def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, d
 
         train(model, train_loader, epochs, device)
         loss, acc = test(model, val_loader, device)
+
+        del train_loader
+        del val_loader
 
         print(f"[{device_label(device, device_id)}] User {user_id} done | Acc: {acc:.3f}, Loss: {loss:.3f}")
         
