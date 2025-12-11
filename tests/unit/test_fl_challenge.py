@@ -1,6 +1,7 @@
 import pytest
 import torch
 import torch.nn as nn
+import numpy as np
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, call
@@ -10,6 +11,8 @@ from openfl.contracts.fl_challenge import (
     FLChallenge,
     calc_contribution_score,
     calc_contribution_scores_dotproduct,
+    calc_contribution_scores_accuracy,
+    remove_outliers_mad,
 )
 
 
@@ -213,6 +216,173 @@ class TestCalcContributionScoresMAD:
         assert torch.equal(local_updates_arg, local_updates)
         assert torch.equal(global_update_arg, torch.tensor([1.0, 1.0]))
 
+class TestCalcContributionScoresAccuracy:
+    @pytest.mark.parametrize(
+        "fl_challenge",
+        [SimpleNamespace(contribution_score_strategy="accuracy", use_outlier_detection=True)],
+        indirect=True,
+    )
+    def test_accuracy_scores_combines_accuracy_and_loss(self, fl_challenge, mock_participants):
+        """
+        Accuracy scoring should normalize both accuracy and loss inputs and
+        combine them into integer scores.
+        """
+        fl_challenge.model.functions.getAllPreviousAccuraciesAndLosses.call.return_value = (
+            [50, 60],
+            [5, 4],
+        )
+
+        user_metrics = [
+            ([], [70, 80], [3, 4]),
+            ([], [60, 70], [5, 6]),
+            ([], [90, 90], [1, 2]),
+        ]
+
+        fl_challenge.model.functions.getAllAccuraciesAbout.return_value.call.side_effect = user_metrics
+
+        with patch(
+            "openfl.contracts.fl_challenge.calc_contribution_scores_accuracy",
+            side_effect=[[0.6, 0.3, 0.1], [0.2, 0.5, 0.3]],
+        ) as mock_normalize, patch(
+            "openfl.contracts.fl_challenge.remove_outliers_mad",
+            side_effect=lambda arr, _: arr,
+        ):
+            scores = fl_challenge._calculate_scores_accuracy(mock_participants)
+
+        expected = [
+            int(Decimal(x) * Decimal("1e18"))
+            for x in (
+                (0.6 + 0.8) / 3,
+                (0.3 + 0.5) / 3,
+                (0.1 + 0.7) / 3,
+            )
+        ]
+
+        assert scores == expected
+
+        # Both accuracies and losses should be normalized independently
+        calls = mock_normalize.call_args_list
+
+        assert len(calls) == 2
+        acc_args, acc_mean = calls[0].args
+        loss_args, loss_mean = calls[1].args
+
+        # Each user contributes their averaged accuracy across rounds
+        # (e.g., mean([70, 80]) == 75). We normalize those averages against the
+        # averaged historical accuracy.
+        assert acc_args == pytest.approx([75.0, 65.0, 90.0])
+        assert acc_mean == pytest.approx(55.0)
+        assert loss_args == pytest.approx([3.5, 5.5, 1.5])
+        assert loss_mean == pytest.approx(4.5)
+
+    def test_accuracy_scores_uniform_when_no_change(self, fl_challenge, mock_participants):
+        """
+        When users match the historical averages, scores should split evenly
+        after normalization and loss inversion.
+        """
+
+        fl_challenge.model.functions.getAllPreviousAccuraciesAndLosses.call.return_value = (
+            [10, 10],
+            [2, 2],
+        )
+
+        fl_challenge.model.functions.getAllAccuraciesAbout.return_value.call.return_value = (
+            [],
+            [10, 10, 10],
+            [2, 2, 2],
+        )
+
+        with patch(
+            "openfl.contracts.fl_challenge.remove_outliers_mad",
+            side_effect=lambda arr, _: arr,
+        ):
+            scores = fl_challenge._calculate_scores_accuracy(mock_participants[:2])
+
+        expected_val = int(Decimal("0.5") * Decimal("1e18"))
+        assert scores == [expected_val, expected_val]
+
+    def test_accuracy_scores_handles_negative_trend(self, fl_challenge, mock_participants):
+        """
+        Declining accuracies relative to history should still normalize
+        correctly and reflect higher losses.
+        """
+
+        fl_challenge.model.functions.getAllPreviousAccuraciesAndLosses.call.return_value = (
+            [60, 60],
+            [1, 1],
+        )
+
+        user_metrics = [
+            ([], [55, 50], [3, 4]),
+            ([], [45, 40], [4, 5]),
+        ]
+        fl_challenge.model.functions.getAllAccuraciesAbout.return_value.call.side_effect = user_metrics
+
+        with patch(
+            "openfl.contracts.fl_challenge.remove_outliers_mad",
+            side_effect=lambda arr, _: arr,
+        ):
+            scores = fl_challenge._calculate_scores_accuracy(mock_participants[:2])
+
+        # Calculate expected normalization manually
+        norm_acc = [(52.5 - 60) / ((52.5 - 60) + (42.5 - 60)), (42.5 - 60) / ((52.5 - 60) + (42.5 - 60))]
+        norm_loss = [(3.5 - 1) / ((3.5 - 1) + (4.5 - 1)), (4.5 - 1) / ((3.5 - 1) + (4.5 - 1))]
+        inv_loss = [1 - x for x in norm_loss]
+        score0 = (norm_acc[0] + inv_loss[0]) / (sum(norm_acc) + sum(inv_loss))
+        score1 = (norm_acc[1] + inv_loss[1]) / (sum(norm_acc) + sum(inv_loss))
+
+        expected = [
+            int(Decimal(score0) * Decimal("1e18")),
+            int(Decimal(score1) * Decimal("1e18")),
+        ]
+
+        assert scores == expected
+
+
+class TestCalcContributionScoresAccuracyFn:
+    def test_accuracy_function_normalizes_positive_deltas(self):
+        scores = calc_contribution_scores_accuracy([6, 8], 4)
+        assert scores == [pytest.approx(2 / 6), pytest.approx(4 / 6)]
+
+    def test_accuracy_function_returns_uniform_when_sum_zero(self):
+        scores = calc_contribution_scores_accuracy([5, 5, 5], 5)
+        assert scores == [pytest.approx(1 / 3)] * 3
+
+    def test_accuracy_function_raises_on_empty(self):
+        with pytest.raises(Exception, match="No values to normalize"):
+            calc_contribution_scores_accuracy([], 0)
+
+    @pytest.mark.parametrize(
+        "fl_challenge",
+        [
+            SimpleNamespace(contribution_score_strategy="accuracy", use_outlier_detection=True),
+            SimpleNamespace(contribution_score_strategy="accuracy", use_outlier_detection=False),
+        ],
+        indirect=True,
+    )
+    def test_accuracy_strategy_selection_ignores_outlier_flag(self, fl_challenge):
+        """
+        The accuracy strategy should always select the accuracy calculator,
+        regardless of outlier detection settings.
+        """
+        assert fl_challenge._get_contribution_score_calculator() == fl_challenge._calculate_scores_accuracy
+
+
+class TestRemoveOutliersMAD:
+    def test_returns_original_when_zero_std(self):
+        arr = [5, 5, 5]
+
+        result = remove_outliers_mad(arr, 3.0)
+
+        assert isinstance(result, np.ndarray)
+        np.testing.assert_array_equal(result, np.asarray(arr))
+
+    def test_filters_values_outside_threshold(self):
+        arr = [1, 1, 1, 10]
+
+        result = remove_outliers_mad(arr, 1.0)
+
+        np.testing.assert_array_equal(result, np.asarray([1, 1, 1]))
 
 class TestFLChallengeFeatures:
     # Test user registration process
