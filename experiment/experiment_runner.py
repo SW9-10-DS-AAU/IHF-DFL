@@ -101,7 +101,7 @@ def run_experiment(dataset_name, experiment_config, writer: AsyncWriter=None):
 
 
 def visualizeModel(model):
-  model.visualize_simulation("experiment/figures")
+  model.visualize_simulation("figures")
 
 
 

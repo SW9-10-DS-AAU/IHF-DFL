@@ -3,6 +3,7 @@ from types import SimpleNamespace
 import openfl.contracts.fl_manager as fl_manager
 
 
+# Maybe delete these tests
 class DummyHelper:
     def __init__(self):
         self.called_with = None

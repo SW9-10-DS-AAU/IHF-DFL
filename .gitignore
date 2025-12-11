@@ -160,6 +160,7 @@ artifacts/bytecode/**
 data/**
 experiment/data/**
 experiment/figures/**
+experiment/experiment/figures/**
 
 # Spyder project settings
 .spyderproject

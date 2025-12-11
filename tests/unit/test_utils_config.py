@@ -28,8 +28,8 @@ def test_to_namespace_handles_nested_structures():
 
     ns = config._to_namespace(nested)
 
-    assert isinstance(ns.outer, SimpleNamespace)
+    assert isinstance(ns.outer, SimpleNamespace) # Check that dictionaries are converted into SimpleNamespace
     assert ns.outer.inner == 1
     assert isinstance(ns.list[0], SimpleNamespace)
-    assert ns.list[0].value == 2
+    assert ns.list[0].value == 2 # Check that nested dictionaries are also processed
     assert ns.list[1] == 3

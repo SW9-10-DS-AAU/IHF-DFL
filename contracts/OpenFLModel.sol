@@ -325,7 +325,6 @@ contract OpenFLModel {
                 }
             }
         }
-
         return true;
     }
 
@@ -381,7 +380,7 @@ contract OpenFLModel {
                         RoundReputationOf[participants[i]] =
                             RoundReputationOf[participants[i]] -
                             int(punishment);
-//                        totalPunishment += punishment;
+                            totalPunishment += punishment;
                         emit Punishment(
                             participants[i],
                             RoundReputationOf[participants[i]],

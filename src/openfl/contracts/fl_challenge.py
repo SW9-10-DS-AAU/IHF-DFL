@@ -423,25 +423,26 @@ class FLChallenge(FLManager):
                 raise
         return tx_hash
 
-    def call_close_feedback_round(self, force):
-        if self.fork:
-            tx = super().build_tx(self.w3.eth.default_account, self.modelAddress, 0)
-            txHash = self.model.functions.closeFeedBackRound(force).transact(tx)
-
-        else:
-            nonce = self.w3.eth.get_transaction_count(self.pytorch_model.participants[0].address)
-            cl = super().build_non_fork_tx(self.pytorch_model.participants[0].address,
-                                        nonce,
-                                        self.modelAddress,
-                                        0)
-            cl =  self.model.functions.closeFeedBackRound(force).buildTransaction(cl)
-            pk = self.pytorch_model.participants[0].privateKey
-            signed = self.w3.eth.account.signTransaction(cl, private_key=pk)
-            txHash = self.w3.eth.sendRawTransaction(signed.rawTransaction)
-
-        return self.w3.eth.wait_for_transaction_receipt(txHash,
-                                                        timeout=600,
-                                                        poll_latency=1)
+    # Not used
+    # def call_close_feedback_round(self, force):
+    #     if self.fork:
+    #         tx = super().build_tx(self.w3.eth.default_account, self.modelAddress, 0)
+    #         txHash = self.model.functions.closeFeedBackRound(force).transact(tx)
+    #
+    #     else:
+    #         nonce = self.w3.eth.get_transaction_count(self.pytorch_model.participants[0].address)
+    #         cl = super().build_non_fork_tx(self.pytorch_model.participants[0].address,
+    #                                     nonce,
+    #                                     self.modelAddress,
+    #                                     0)
+    #         cl =  self.model.functions.closeFeedBackRound(force).buildTransaction(cl)
+    #         pk = self.pytorch_model.participants[0].privateKey
+    #         signed = self.w3.eth.account.signTransaction(cl, private_key=pk)
+    #         txHash = self.w3.eth.sendRawTransaction(signed.rawTransaction)
+    #
+    #     return self.w3.eth.wait_for_transaction_receipt(txHash,
+    #                                                     timeout=600,
+    #                                                     poll_latency=1)
 
     def close_round(self):
         if "inactive" in [acc.attitude for acc in self.pytorch_model.participants]:
@@ -751,10 +752,6 @@ class FLChallenge(FLManager):
         # Choose scoring algorithm based on configured strategy
         calculator = self._get_contribution_score_calculator()
         self.scores = calculator(_users)
-        
-
-
-
 
         txs = []
         for u, score in zip(_users, self.scores):
@@ -882,7 +879,7 @@ class FLChallenge(FLManager):
         prev_accuracies, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses.call()
 
         # use mad on these and average them
-        mad_treshold = 10
+        mad_treshold = 3
 
         mad_prev_accuracies = remove_outliers_mad(prev_accuracies, mad_treshold)
         mad_prev_losses = remove_outliers_mad(prev_losses, mad_treshold)
@@ -916,20 +913,37 @@ class FLChallenge(FLManager):
 
         scores = []
 
-        norm_accuracies = calc_contribution_scores_accuracy(avg_accuracies, avg_prev_acc)
 
-        norm_losses = calc_contribution_scores_accuracy(avg_losses, avg_prev_loss)
+        outliers_accuracies, mask_accuracies = remove_outliers_mad(avg_accuracies, mad_treshold, True)
+        outliers_losses, mask_losses = remove_outliers_mad(avg_losses, mad_treshold, True)
+
+        norm_accuracies = calc_contribution_scores_accuracy(outliers_accuracies, avg_prev_acc)
+
+        norm_losses = calc_contribution_scores_accuracy(outliers_losses, avg_prev_loss)
 
         inverted_losses = [1 - x for x in norm_losses]
 
-        sum_na = sum(norm_accuracies)
-        sum_nl = sum(inverted_losses)
+        filtered_accuracies = [0 if val < 0 and mask_accuracies[i] else val for i,val in enumerate(norm_accuracies)]
+        filtered_inverted_losses = [ 0 if val < 0 and mask_losses[i] else val for i, val in enumerate(inverted_losses)]
 
-        for i in range(len(norm_accuracies)):
-            res = (norm_accuracies[i] + inverted_losses[i]) / (sum_na + sum_nl)
+        # Normalize inverted losses
+        filtered_normalized_accuracies = [x / sum(filtered_accuracies) for x in filtered_accuracies]
+        filtered_inverted_normalized_losses = [x /sum(filtered_inverted_losses) for x in filtered_inverted_losses]
+        print(f"filtered normalized accuracies: {filtered_normalized_accuracies}")
+        print(f"filtered inverted normalized losses: {filtered_inverted_normalized_losses}")
+
+
+        sum_na = sum(filtered_normalized_accuracies)
+        sum_nl = sum(filtered_inverted_normalized_losses)
+
+        print(f"sum_na: {sum_na}")
+        print(f"sum_nl: {sum_nl}")
+
+        for i in range(len(filtered_normalized_accuracies)):
+            res = (filtered_normalized_accuracies[i] + filtered_inverted_normalized_losses[i]) / (sum_na + sum_nl)
             score = int(Decimal(res) * Decimal('1e18'))
             scores.append(score)
-
+        print(f"scores = {scores}")
         return scores
 
 
@@ -1023,23 +1037,12 @@ class FLChallenge(FLManager):
 
             # A roundRep of 0, does not nec. mean mal.
             contributers = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0]
-            if not contributers:
-                contributers = [u for u in self.pytorch_model.participants if not getattr(u, "disqualified", False)]
-
             self.pytorch_model.the_merge(contributers)
-            
+
             print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
+            self.contribution_score(contributers)
+            receipt = self.close_round()
 
-            #contributionScoreTask = asyncio.create_task(self.contribution_score([user for user in self.pytorch_model.participants if user.roundRep > 0]))
-
-            if contributers:
-                self.contribution_score(contributers)
-                receipt = self.close_round()
-                #contributionScoreTask
-            else:
-                print("-----------------------------------------------------------------------------------")
-                print(red("No eligible users for contribution scoring – skipping settle for this round"))
-                print("-----------------------------------------------------------------------------------")
 
 
             print(b(f"Round {self.pytorch_model.round - 1} actually completed:"))
@@ -1309,7 +1312,7 @@ def calc_contribution_scores_dotproduct(local_updates: torch.Tensor,
 #     return torch.cat([p.data.view(-1) for p in model.parameters()])
 
 def calc_contribution_scores_accuracy(arr, prev_val):
-    # This method takes a 1d array of an array (accuracy or loss) a scalar of previous accuracy or loss
+    # This method takes a 1d array of an array (accuracy or loss), a scalar of previous accuracy or loss
     # Output is an array of normalized input array values
     norm_arr = []
     sum_val = 0.0
@@ -1328,7 +1331,8 @@ def calc_contribution_scores_accuracy(arr, prev_val):
     return norm_arr
 
 
-def remove_outliers_mad(arr, z_threshold):
+def remove_outliers_mad(arr, z_threshold, return_mask = False):
+    # If return mask is true, outliers is not removed
     arr = np.asarray(arr)
     mean = np.mean(arr)
     std = np.std(arr)
@@ -1340,5 +1344,7 @@ def remove_outliers_mad(arr, z_threshold):
     zscores = (arr - mean) / std
     # Keep values with |z| <= threshold
     mask = np.abs(zscores) <= z_threshold
-
+    if return_mask:
+        return arr, mask
     return arr[mask]
+
