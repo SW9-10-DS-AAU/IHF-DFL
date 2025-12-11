@@ -5,7 +5,7 @@ import experiment_runner as ExperimentRunner
 from experiment_configuration import ExperimentConfiguration
 from openfl.utils.async_writer import AsyncWriter
 
-config = ExperimentConfiguration() # OVERSKRIV variabler her for testing. eksempel: config = ExperimentConfiguration(minimum_rounds=1), hvis du kun vil køre een round
+config = ExperimentConfiguration(contribution_score_strategy="accuracy") # OVERSKRIV variabler her for testing. eksempel: config = ExperimentConfiguration(minimum_rounds=1), hvis du kun vil køre een round
 
 #DATASET = "cifar-10"
 RESULTDATAFOLDER = Path.home() / "openfl_results"
