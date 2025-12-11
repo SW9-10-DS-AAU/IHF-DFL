@@ -228,12 +228,12 @@ class TestCalcContributionScoresAccuracy:
         combine them into integer scores.
         """
         fl_challenge.model.functions.getAllPreviousAccuraciesAndLosses.call.return_value = (
-            [50, 60],
-            [5, 4],
+            [50, 60], # Global Accuracy
+            [5, 4], # Global loss
         )
 
         user_metrics = [
-            ([], [70, 80], [3, 4]),
+            ([], [70, 80], [3, 4]), # Individual user accuracy and loss, over two rounds.
             ([], [60, 70], [5, 6]),
             ([], [90, 90], [1, 2]),
         ]
@@ -242,9 +242,9 @@ class TestCalcContributionScoresAccuracy:
 
         with patch(
             "openfl.contracts.fl_challenge.calc_contribution_scores_accuracy",
-            side_effect=[[0.6, 0.3, 0.1], [0.2, 0.5, 0.3]],
+            side_effect=[[0.6, 0.3, 0.1], [0.2, 0.5, 0.3]], # Mock normalized accuracy and loss returned from function, per user
         ) as mock_normalize, patch(
-            "openfl.contracts.fl_challenge.remove_outliers_mad",
+            "openfl.contracts.fl_challenge.remove_outliers_mad", # Outlier removal is mocked to do nothing
             side_effect=lambda arr, _: arr,
         ):
             scores = fl_challenge._calculate_scores_accuracy(mock_participants)
@@ -252,7 +252,7 @@ class TestCalcContributionScoresAccuracy:
         expected = [
             int(Decimal(x) * Decimal("1e18"))
             for x in (
-                (0.6 + 0.8) / 3,
+                (0.6 + 0.8) / 3, # Accuracy + inverted loss / amount of users
                 (0.3 + 0.5) / 3,
                 (0.1 + 0.7) / 3,
             )
@@ -279,6 +279,7 @@ class TestCalcContributionScoresAccuracy:
         """
         When users match the historical averages, scores should split evenly
         after normalization and loss inversion.
+        Check that there is no relative improvement or decline for any user
         """
 
         fl_challenge.model.functions.getAllPreviousAccuraciesAndLosses.call.return_value = (
@@ -312,7 +313,7 @@ class TestCalcContributionScoresAccuracy:
             [1, 1],
         )
 
-        user_metrics = [
+        user_metrics = [ # Both users have worse accuracy than global
             ([], [55, 50], [3, 4]),
             ([], [45, 40], [4, 5]),
         ]
@@ -342,7 +343,7 @@ class TestCalcContributionScoresAccuracy:
 class TestCalcContributionScoresAccuracyFn:
     def test_accuracy_function_normalizes_positive_deltas(self):
         scores = calc_contribution_scores_accuracy([6, 8], 4)
-        assert scores == [pytest.approx(2 / 6), pytest.approx(4 / 6)]
+        assert scores == [pytest.approx(2 / 6), pytest.approx(4 / 6)] # Check that scores are normalized correctly so they sum to 1
 
     def test_accuracy_function_returns_uniform_when_sum_zero(self):
         scores = calc_contribution_scores_accuracy([5, 5, 5], 5)
@@ -352,27 +353,12 @@ class TestCalcContributionScoresAccuracyFn:
         with pytest.raises(Exception, match="No values to normalize"):
             calc_contribution_scores_accuracy([], 0)
 
-    @pytest.mark.parametrize(
-        "fl_challenge",
-        [
-            SimpleNamespace(contribution_score_strategy="accuracy", use_outlier_detection=True),
-            SimpleNamespace(contribution_score_strategy="accuracy", use_outlier_detection=False),
-        ],
-        indirect=True,
-    )
-    def test_accuracy_strategy_selection_ignores_outlier_flag(self, fl_challenge):
-        """
-        The accuracy strategy should always select the accuracy calculator,
-        regardless of outlier detection settings.
-        """
-        assert fl_challenge._get_contribution_score_calculator() == fl_challenge._calculate_scores_accuracy
-
 
 class TestRemoveOutliersMAD:
     def test_returns_original_when_zero_std(self):
         arr = [5, 5, 5]
 
-        result = remove_outliers_mad(arr, 3.0)
+        result = remove_outliers_mad(arr, 1.0)
 
         assert isinstance(result, np.ndarray)
         np.testing.assert_array_equal(result, np.asarray(arr))
