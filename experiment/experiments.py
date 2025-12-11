@@ -49,8 +49,9 @@ def main(author):
     startTime = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
     for strategy, outlier_detection, free_rider_activation_round, free_rider_noise in product(strategy_options, outlier_detection_options, free_rider_activation_round_options, free_rider_noise_options):
         # Set up configuration for the experiment run
-        if (strategy == "accuracy" and outlier_detection == True or strategy == "naive" and outlier_detection == True):
+        if (strategy == "accuracy" and outlier_detection == True or (strategy == "naive" and outlier_detection == True)):
             continue #As accuracy mode always uses making having both on redundent
+        
         config = ExperimentConfiguration(
             fork=True,
             min_buy_in=int(1e18),
