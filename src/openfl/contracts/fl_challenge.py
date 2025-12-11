@@ -916,17 +916,38 @@ class FLChallenge(FLManager):
 
         scores = []
 
-        norm_accuracies = calc_contribution_scores_accuracy(avg_accuracies, avg_prev_acc)
 
-        norm_losses = calc_contribution_scores_accuracy(avg_losses, avg_prev_loss)
+        outliers_accuracies, mask_accuracies = remove_outliers_mad(avg_accuracies, mad_treshold, True)
+        outliers_losses, mask_losses = remove_outliers_mad(avg_losses, mad_treshold, True)
+
+        norm_accuracies = calc_contribution_scores_accuracy(outliers_accuracies, mask_accuracies, avg_prev_acc)
+
+        norm_losses = calc_contribution_scores_accuracy(outliers_losses, mask_losses, avg_prev_loss)
 
         inverted_losses = [1 - x for x in norm_losses]
 
-        sum_na = sum(norm_accuracies)
-        sum_nl = sum(inverted_losses)
 
-        for i in range(len(norm_accuracies)):
-            res = (norm_accuracies[i] + inverted_losses[i]) / (sum_na + sum_nl)
+
+        # elif arr[i] < prev_val and mask[arr[i]] == True: # A worse score than previous
+        #     norm_arr[i] = 0.0
+        # else:
+
+        # for each norm_accuract and norm_losses.
+        # if we hit a neg. value that is not from an outlier, set to 0.0.
+        # same for loss.
+
+        filtered_accuracies = [0 if val < 0 and mask_accuracies[i] else val for i,val in enumerate(norm_accuracies)]
+        filtered_inverted_losses = [ 0 if val < 0 and mask_losses[i] else val for i, val in enumerate(inverted_losses)]
+
+        # Normalize inverted losses
+        filtered_normalized_accuracies = [x / sum(filtered_accuracies) for x in filtered_accuracies]
+        filtered_inverted_normalized_losses = [x /sum(filtered_inverted_losses) for x in filtered_inverted_losses]
+
+        sum_na = sum(filtered_normalized_accuracies)
+        sum_nl = sum(filtered_inverted_losses)
+
+        for i in range(len(filtered_normalized_accuracies)):
+            res = (filtered_normalized_accuracies[i] + filtered_inverted_normalized_losses[i]) / (sum_na + sum_nl)
             score = int(Decimal(res) * Decimal('1e18'))
             scores.append(score)
 
@@ -1289,8 +1310,8 @@ def calc_contribution_scores_dotproduct(local_updates: torch.Tensor,
 # def flatten_model_params(model: torch.nn.Module) -> torch.Tensor:
 #     return torch.cat([p.data.view(-1) for p in model.parameters()])
 
-def calc_contribution_scores_accuracy(arr, prev_val):
-    # This method takes a 1d array of an array (accuracy or loss) a scalar of previous accuracy or loss
+def calc_contribution_scores_accuracy(arr, mask, prev_val):
+    # This method takes a 1d array of an array (accuracy or loss), a scalar of previous accuracy or loss
     # Output is an array of normalized input array values
     norm_arr = []
     sum_val = 0.0
@@ -1305,11 +1326,16 @@ def calc_contribution_scores_accuracy(arr, prev_val):
     for i in range(len(norm_arr)):
         if sum_val == 0.0:
             return [1.0 / len(norm_arr)] * len(norm_arr)
-        norm_arr[i] /= sum_val
+        #
+        # elif arr[i] < prev_val and mask[arr[i]] == True: # A worse score than previous
+        #     norm_arr[i] = 0.0
+        # else:
+            norm_arr[i] /= sum_val
     return norm_arr
 
 
-def remove_outliers_mad(arr, z_threshold):
+def remove_outliers_mad(arr, z_threshold, return_mask = False):
+    # If return mask is true, outliers is not removed
     arr = np.asarray(arr)
     mean = np.mean(arr)
     std = np.std(arr)
@@ -1321,5 +1347,7 @@ def remove_outliers_mad(arr, z_threshold):
     zscores = (arr - mean) / std
     # Keep values with |z| <= threshold
     mask = np.abs(zscores) <= z_threshold
-
+    if return_mask:
+        return arr, mask
     return arr[mask]
+
