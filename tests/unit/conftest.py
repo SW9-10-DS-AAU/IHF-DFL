@@ -5,25 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import types
 
-# Provide a lightweight yaml stub to avoid external dependency during tests
-if "yaml" not in sys.modules:
-    yaml_stub = types.ModuleType("yaml")
 
-    def _safe_load(_stream):
-        return {
-            "printing": {"ONLY_PRINT_ROUND_SUMMARY": False},
-            "contracts": {
-                "WAIT_DELAY": 172800,
-                "FEEDBACK_ROUND_TIMEOUT": 30,
-                "CONTRIBUTION_ROUND_TIMEOUT": 30,
-            },
-        }
-
-    yaml_stub.safe_load = _safe_load
-    sys.modules["yaml"] = yaml_stub
-
-# Add src folder to path for imports
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../src")))
 
 from openfl.contracts.fl_challenge import FLChallenge
 
