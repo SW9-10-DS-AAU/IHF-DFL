@@ -995,6 +995,24 @@ class FLChallenge(FLManager):
         print(self.modelAddress)
         self.register_all_users()
         
+        grs = [user._globalrep[-1] for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
+
+        self.writer.writeResult({
+                "round": 0,
+                "GRS": grs,
+                "globalAcc": 0,
+                "globalLoss": self.pytorch_model.loss[-1] or 0,
+                "conctractBalanceRewards": self._reward_balance[-1],
+                "punishments": [],
+                "rewards": [],
+                "accAvgPerUser": [],
+                "lossAvgPerUser": [],
+                "feedbackMatrix": None,
+                "disqualifiedUsers": [],
+                "contributionScores": [],
+                "userStatuses": [user.getStatus() for user in self.pytorch_model.participants],
+            })
+
         for i in range(rounds):
             print(b(f"Round {self.pytorch_model.round} starts..."))
             self.pytorch_model.update_users_attitude()
@@ -1037,14 +1055,13 @@ class FLChallenge(FLManager):
                 self.print_round_summary(receipt)
 
             grs = [user._globalrep[-1] for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
-            round_punishment = [(punishment[2], punishment[1]) for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]
-            print("round_punishment")
-            print(self._punishments)
+            round_punishment = [(punishment[0], punishment[1]) for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]
             round_kicked = [punishment[2] for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]
             self.writer.writeResult({
                 "round": self.pytorch_model.round - 1,
                 "GRS": grs,
                 "globalAcc": self.pytorch_model.accuracy[-1] or 0, #Check
+                "globalLoss": self.pytorch_model.loss[-1] or 0,
                 "conctractBalanceRewards": self._reward_balance[-1],
                 "punishments": round_punishment,
                 "rewards": self.get_round_rewards(receipt),
@@ -1052,8 +1069,10 @@ class FLChallenge(FLManager):
                 "lossAvgPerUser": prev_losses,
                 "feedbackMatrix": self.feedback_matrix.tolist(),
                 "disqualifiedUsers": round_kicked,
-                "contributionScores": self.scores
+                "contributionScores": self.scores,
+                "userStatuses": [user.getStatus() for user in self.pytorch_model.participants],
                 })
+        self.writer.writeComment(f"$gasCosts${self.gas_feedback},{self.gas_register},{self.gas_slot},{self.gas_weights},{self.gas_close},{self.gas_deploy},{self.gas_exit}")
         self.exit_system()
             
             
