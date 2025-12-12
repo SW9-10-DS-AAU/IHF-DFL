@@ -355,10 +355,17 @@ class TestCalcContributionScoresAccuracyFn:
 
 
 class TestRemoveOutliersMAD:
-    def test_returns_original_when_zero_std(self):
-        arr = [5, 5, 5]
+    threshold = 1.1
+    def test_returns_original_when_zero_or_small_std(self):
+        arr = [5,5,5]
 
-        result = remove_outliers_mad(arr, 1.0)
+        result = remove_outliers_mad(arr, self.threshold)
+        assert isinstance(result, np.ndarray)
+        np.testing.assert_array_equal(result, np.asarray(arr))
+
+        arr = [4.5, 5, 5.5]
+
+        result = remove_outliers_mad(arr, self.threshold)
 
         assert isinstance(result, np.ndarray)
         np.testing.assert_array_equal(result, np.asarray(arr))
@@ -366,9 +373,41 @@ class TestRemoveOutliersMAD:
     def test_filters_values_outside_threshold(self):
         arr = [1, 1, 1, 10]
 
-        result = remove_outliers_mad(arr, 1.0)
+        result = remove_outliers_mad(arr, self.threshold)
 
         np.testing.assert_array_equal(result, np.asarray([1, 1, 1]))
+
+
+    def test_filters_values_outside_threshold_prev_accuracies(self):
+        arr = [50, 52, 48, 10]
+        result = remove_outliers_mad(arr, self.threshold)
+        np.testing.assert_array_equal(result, np.asarray([50, 52, 48]))
+
+        arr = [40,41,50,59,60]
+        result = remove_outliers_mad(arr, self.threshold)
+        np.testing.assert_array_equal(result, np.asarray([40, 41,50,59,60]))
+
+        arr = [40, 41, 50, 59, 60, 90] # high value
+        result = remove_outliers_mad(arr, self.threshold)
+        np.testing.assert_array_equal(result, np.asarray([40, 41, 50, 59, 60]))
+
+        arr = [5, 40, 41, 50, 59, 60, 90] # low value
+        result = remove_outliers_mad(arr, self.threshold)
+        np.testing.assert_array_equal(result, np.asarray([40, 41, 50, 59, 60]))
+
+    def test_filters_values_outside_threshold_prev_losses(self):
+        arr = [43.76, 34.9, 34.9, 48.16, 40.57, 37.24]
+        result = remove_outliers_mad(arr, self.threshold)
+        np.testing.assert_array_equal(result, np.asarray([43.76, 34.9, 34.9, 40.57, 37.24]))
+
+        arr = [60, 61, 61, 61, 61, 61, 61]
+        result = remove_outliers_mad(arr, self.threshold)
+        np.testing.assert_array_equal(result, np.asarray([60, 61, 61, 61, 61, 61, 61]))
+
+
+
+
+
 
 class TestFLChallengeFeatures:
     # Test user registration process
