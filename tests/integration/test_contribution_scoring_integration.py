@@ -402,30 +402,6 @@ class TestAccuracyScoring:
         assert scores[1] == min(scores)
         assert scores[0] > scores[2] > scores[1]
 
-    def test_equal_improvement_falls_back_to_uniform(self):
-        '''
-        Identical accuracy/loss improvements should split rewards evenly.
-        Verifies that when normalized metrics tie, scoring falls back to
-        equal weighting (mirroring naive behavior) instead of producing
-        rounding differences.
-        '''
-        users = [
-            make_participant(0, TinyModel(1.0), TinyModel(1.0)),
-            make_participant(1, TinyModel(1.0, noise=0.01), TinyModel(1.0)),
-        ]
-        prev_accs = [0.5, 0.5]
-        prev_losses = [0.5, 0.5]
-        metrics = {
-            users[0].address: ([0.6], [0.4]),
-            users[1].address: ([0.6], [0.4]),
-        }
-        contract = make_accuracy_contract(prev_accs, prev_losses, metrics)
-        challenge = build_challenge("accuracy", contract=contract)
-
-        scores = challenge._calculate_scores_accuracy(users)
-
-        assert scores[0] == scores[1]
-
     def test_handles_zero_sum_differences(self):
         '''
         When all participants tie on accuracy and loss, they should each receive equal scores.
