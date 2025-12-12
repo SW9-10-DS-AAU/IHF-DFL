@@ -866,7 +866,7 @@ class FLChallenge(FLManager):
 
         return filtered_global_update
 
-    def _calculate_scores_accuracy(self, users):
+    def _calculate_scores_accuracy(self, users, mad_threshold = 1.1):
         """
         Accuracy-based scoring: use accuracy directly as contribution score.
         """
@@ -879,10 +879,9 @@ class FLChallenge(FLManager):
         prev_accuracies, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses.call()
 
         # use mad on these and average them
-        mad_treshold = 3
 
-        mad_prev_accuracies = remove_outliers_mad(prev_accuracies, mad_treshold)
-        mad_prev_losses = remove_outliers_mad(prev_losses, mad_treshold)
+        mad_prev_accuracies = remove_outliers_mad(prev_accuracies, mad_threshold)
+        mad_prev_losses = remove_outliers_mad(prev_losses, mad_threshold)
 
         avg_prev_acc = np.mean(mad_prev_accuracies)
         avg_prev_loss = np.mean(mad_prev_losses)
@@ -899,8 +898,8 @@ class FLChallenge(FLManager):
 
             try:
                 # Multiple accuracies and losses per user
-                mad_accuracies = remove_outliers_mad(accuracies,mad_treshold)
-                mad_losses = remove_outliers_mad(losses, mad_treshold)
+                mad_accuracies = remove_outliers_mad(accuracies, mad_threshold)
+                mad_losses = remove_outliers_mad(losses, mad_threshold)
 
                 # One average accuracy and loss per user
                 avg_acc = np.mean(mad_accuracies)
@@ -914,8 +913,8 @@ class FLChallenge(FLManager):
         scores = []
 
 
-        outliers_accuracies, mask_accuracies = remove_outliers_mad(avg_accuracies, mad_treshold, True)
-        outliers_losses, mask_losses = remove_outliers_mad(avg_losses, mad_treshold, True)
+        outliers_accuracies, mask_accuracies = remove_outliers_mad(avg_accuracies, mad_threshold, True)
+        outliers_losses, mask_losses = remove_outliers_mad(avg_losses, mad_threshold, True)
 
         norm_accuracies = calc_contribution_scores_accuracy(outliers_accuracies, avg_prev_acc)
 
@@ -1291,25 +1290,6 @@ def calc_contribution_scores_dotproduct(local_updates: torch.Tensor,
         for score in scores
     ]
 
-    # norm_U_sq = torch.dot(global_update, global_update)
-    #
-    # if norm_U_sq.abs() < eps:
-    #     # Global update is basically zero => everyone gets 0
-    #     return [0 for _ in range(num_mergers)]
-    #
-    # # For each user i: score_i = (u_i_filtered · U) / (num_mergers * ||U||^2)
-    # dots = torch.mv(filtered_local_updates, global_update)  # (num_mergers,)
-    # scores = dots / (num_mergers * norm_U_sq)
-    #
-    # # Convert to your integer fixed-point format (×1e18)
-    # int_scores = [
-    #     int(Decimal(score.item()) * Decimal('1e18'))
-    #     for score in scores
-    # ]
-    # return int_scores
-
-# def flatten_model_params(model: torch.nn.Module) -> torch.Tensor:
-#     return torch.cat([p.data.view(-1) for p in model.parameters()])
 
 def calc_contribution_scores_accuracy(arr, prev_val):
     # This method takes a 1d array of an array (accuracy or loss), a scalar of previous accuracy or loss
@@ -1331,20 +1311,31 @@ def calc_contribution_scores_accuracy(arr, prev_val):
     return norm_arr
 
 
-def remove_outliers_mad(arr, z_threshold, return_mask = False):
-    # If return mask is true, outliers is not removed
-    arr = np.asarray(arr)
-    mean = np.mean(arr)
-    std = np.std(arr)
+def remove_outliers_mad(arr, threshold=0.70, return_mask=False):
+    arr = np.asarray(arr, dtype=float)   # force float
 
-    if std == 0:
-        return arr
+    # always flatten
+    flat = arr.ravel()
 
-    # Compute z-scores
-    zscores = (arr - mean) / std
-    # Keep values with |z| <= threshold
-    mask = np.abs(zscores) <= z_threshold
+    median = np.median(flat)
+    abs_dev = np.abs(flat - median)
+    mad = np.median(abs_dev)
+
+    # SPECIAL CASE: MAD == 0
+    if mad == 0:
+        mask = abs_dev <= threshold
+        if return_mask:
+            return arr, mask
+        return flat[mask]
+
+    # proper modified z-score
+    modified_z = 0.6745 * (flat - median) / mad
+
+    mask = np.abs(modified_z) <= threshold
+
     if return_mask:
         return arr, mask
-    return arr[mask]
+    return flat[mask]
+
+
 
