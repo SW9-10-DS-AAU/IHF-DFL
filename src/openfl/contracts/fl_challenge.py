@@ -741,13 +741,6 @@ class FLChallenge(FLManager):
             return
 
         print("START CONTRIBUTION SCORE\n")
-        voters, accs, losses = self.model.functions.getAllAccuraciesAbout(_users[0].address).call()
-        for v, a, l in zip(voters, accs, losses):
-            print(f"{v} gave accuracy {a} and loss {l} for target {_users[0].address}")
-        prev_accs, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses.call()
-        print(f"previous accuracies: {prev_accs}")
-        print(f"previous losses: {prev_losses}")
-
 
         # Choose scoring algorithm based on configured strategy
         calculator = self._get_contribution_score_calculator()
@@ -912,34 +905,21 @@ class FLChallenge(FLManager):
 
         scores = []
 
+        norm_accuracies = calc_contribution_scores_accuracy(avg_accuracies, avg_prev_acc)
+        print(f"normalized accuracies: {norm_accuracies}")
 
-        outliers_accuracies, mask_accuracies = remove_outliers_mad(avg_accuracies, mad_threshold, True)
-        outliers_losses, mask_losses = remove_outliers_mad(avg_losses, mad_threshold, True)
-
-        norm_accuracies = calc_contribution_scores_accuracy(outliers_accuracies, avg_prev_acc)
-
-        norm_losses = calc_contribution_scores_accuracy(outliers_losses, avg_prev_loss)
-
-        inverted_losses = [1 - x for x in norm_losses]
-
-        filtered_accuracies = [0 if val < 0 and mask_accuracies[i] else val for i,val in enumerate(norm_accuracies)]
-        filtered_inverted_losses = [ 0 if val < 0 and mask_losses[i] else val for i, val in enumerate(inverted_losses)]
-
-        # Normalize inverted losses
-        filtered_normalized_accuracies = [x / sum(filtered_accuracies) for x in filtered_accuracies]
-        filtered_inverted_normalized_losses = [x /sum(filtered_inverted_losses) for x in filtered_inverted_losses]
-        print(f"filtered normalized accuracies: {filtered_normalized_accuracies}")
-        print(f"filtered inverted normalized losses: {filtered_inverted_normalized_losses}")
+        norm_losses = calc_contribution_scores_accuracy(avg_losses, avg_prev_loss)
+        print(f"normalized losses: {norm_losses}")
 
 
-        sum_na = sum(filtered_normalized_accuracies)
-        sum_nl = sum(filtered_inverted_normalized_losses)
+        sum_na = sum(norm_accuracies)
+        sum_nl = sum(norm_losses)
 
         print(f"sum_na: {sum_na}")
         print(f"sum_nl: {sum_nl}")
 
-        for i in range(len(filtered_normalized_accuracies)):
-            res = (filtered_normalized_accuracies[i] + filtered_inverted_normalized_losses[i]) / (sum_na + sum_nl)
+        for i in range(len(norm_accuracies)):
+            res = (norm_accuracies[i] + norm_losses[i]) / (sum_na + sum_nl)
             score = int(Decimal(res) * Decimal('1e18'))
             scores.append(score)
         print(f"scores = {scores}")

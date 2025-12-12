@@ -517,12 +517,14 @@ contract OpenFLModel {
 
         // Reset variables
         for (uint i = 0; i < participants.length; i++) {
-            if (isRegistered[participants[i]]) {
-                nrOfVotesOfUser[participants[i]] = 0;
-                RoundReputationOf[participants[i]] = 0;
-                roundOfUser[participants[i]] += 1;
+            address user = participants[i];
+            if (isRegistered[user]) {
+                nrOfVotesOfUser[user] = 0;
+                RoundReputationOf[user] = 0;
+                roundOfUser[user] += 1;
+                isPunished[user] = false;
                 for (uint j = 0; j < participants.length; j++) {
-                    delete hasVoted[participants[i]][participants[j]];
+                    delete hasVoted[user][participants[j]];
                 }
             }
         }
