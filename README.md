@@ -52,3 +52,7 @@ The file experiments.py runs one such experiment and can be run with:
 - To Test:
   - `forge build` 
   - `forge test`
+
+# 6. Test Coverage
+To get test coverage, run the following command: \
+`pytest --cov=openfl tests/`

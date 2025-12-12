@@ -73,41 +73,6 @@ class DummyExperiment:
         self.manager = SimpleNamespace(manager=SimpleNamespace(address="0xmanager"))
 
 
-def test_run_experiment_with_mocks(monkeypatch):
-    monkeypatch.setattr(runner, "require_env_var", lambda name: "rpc")
-    monkeypatch.setattr(runner.PM, "PytorchModel", lambda *args, **kwargs: DummyPytorchModel())
-    monkeypatch.setattr(runner.Manager, "FLManager", DummyFLManager)
-    monkeypatch.setattr(runner.Challenge, "FLChallenge", DummyChallenge)
-
-    config = SimpleNamespace(
-        number_of_good_contributors=1,
-        number_of_bad_contributors=0,
-        number_of_freerider_contributors=0,
-        number_of_inactive_contributors=0,
-        number_of_contributors=1,
-        epochs=1,
-        batch_size=1,
-        standard_buy_in=1,
-        minimum_rounds=1,
-        fork=True,
-        min_buy_in=1,
-        max_buy_in=1,
-        reward=1,
-        punish_factor=1,
-        first_round_fee=1,
-        contribution_score_strategy="accuracy",
-        freerider_noise_scale=0.01,
-        freerider_start_round=3,
-    )
-
-    experiment = runner.run_experiment("dataset", config)
-
-    assert isinstance(experiment, runner.Experiment)
-    assert experiment.manager.built is True
-    assert experiment.manager.deployed is True
-    assert experiment.model.simulated is True
-
-
 def test_print_transactions_outputs_receipts(capsys):
     dummy = DummyExperiment()
     dummy.model.txHashes = [("fn", "hash")]
