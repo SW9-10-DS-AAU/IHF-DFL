@@ -406,6 +406,10 @@ class TestRemoveOutliersMAD:
         result = remove_outliers_mad(arr, self.threshold)
         np.testing.assert_array_equal(result, np.asarray([60, 61, 61, 61, 61, 61, 61]))
 
+        arr = [60, 61, 61, 61, 61, 61, 61]
+        result = remove_outliers_mad(arr, self.threshold)
+        np.testing.assert_array_equal(result, np.asarray([60, 61, 61, 61, 61, 61, 61]))
+
 
 
 
