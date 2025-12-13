@@ -18,20 +18,12 @@ DATASETSLOW = "cifar.10"
 DATASETFAST = "mnist"
 RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData")
 
-datasets = [ DATASETSLOW ]
+datasets = [ DATASETSLOW, DATASETFAST ]
 #strategy_options = ["accuracy", "naive", "dotproduct"]
-strategy_options = ["naive" ]
-outlier_detection_options = [ False ]
-free_rider_activation_round_options = [1]
-free_rider_noise_options = [0.0]
-
-
-#datasets = [ DATASETSLOW, DATASETFAST ]
-##strategy_options = ["accuracy", "naive", "dotproduct"]
-#strategy_options = ["naive", "dotproduct"]
-#outlier_detection_options = [ True, False ]
-#free_rider_activation_round_options = [1, 3, 5]
-#free_rider_noise_options = [0.0, 0.1, 0.5, 1.0]
+strategy_options = ["naive", "dotproduct"]
+outlier_detection_options = [ True, False ]
+free_rider_activation_round_options = [1, 3, 5]
+free_rider_noise_options = [0.0, 0.01, 0.1, 0.5, 1.0]
 
 #strategy_options = ["accuracy"]
 #free_rider_activation_round_options = [1]
