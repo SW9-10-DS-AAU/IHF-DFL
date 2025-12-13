@@ -29,7 +29,7 @@ PRIVATE_KEYS="<Private keys from your accounts colon separated (for non-locally 
 
 ## 3. Requirements
 - Only tested with Python3.10
-- Run ``pip install -e .[dev]``
+- Run ``pip install -e ".[dev]"``
 
 Build the abi and bytecode files from the smart contracts
 ``python3 scripts/compile_contracts.py``

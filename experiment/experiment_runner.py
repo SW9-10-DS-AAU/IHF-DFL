@@ -10,7 +10,9 @@ from web3 import Web3, Account
 from openfl.utils.async_writer import AsyncWriter
 
 
-def run_experiment(dataset_name, experiment_config, writer: AsyncWriter=None):
+def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=None):
+
+  dataset_name = dataset_name.replace(".", "-")
 
   experiment_start = time.perf_counter()
   RPC_ENDPOINT = require_env_var("RPC_URL")

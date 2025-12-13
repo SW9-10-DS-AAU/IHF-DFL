@@ -1,6 +1,8 @@
-from solcx import install_solc, set_solc_version, compile_standard
+from solcx import install_solc, set_solc_version, compile_standard, get_installed_solc_versions
 from pathlib import Path
 import json
+
+print(get_installed_solc_versions())
 
 # 1) Ensure exact compiler
 install_solc("0.8.9")

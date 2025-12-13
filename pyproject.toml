@@ -16,7 +16,7 @@ dependencies = [
   "matplotlib==3.10.7",
   "eth-abi==5.2.0",
   "pandas==2.3.3",
-  "py-solc-x==2.0.4",
+  "py-solc-x >= 2.0.5",
   "python-dotenv==1.2.1",
   "pytest==9.0.1",
   "psutil== 6.1.0",
