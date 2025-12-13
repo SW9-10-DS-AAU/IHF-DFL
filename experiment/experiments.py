@@ -55,14 +55,16 @@ WRITERBUFFERSIZE = 200
 
 def main(author):
     startTime = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
+
+    if (args.skipFolder is not None):
+        parseSkips()
+
     for strategy, outlier_detection, free_rider_activation_round, free_rider_noise, dataset in product(strategy_options, outlier_detection_options, free_rider_activation_round_options, free_rider_noise_options, datasets):
         # Set up configuration for the experiment run
         if (strategy == "accuracy" and outlier_detection == True or (strategy == "naive" and outlier_detection == True)):
             continue #As accuracy mode always uses making having both on redundent
         
         # Auto skips
-        if (args.skipFolder is not None):
-            parseSkips()
         if (shouldSkip(Skip(strategy, outlier_detection, free_rider_activation_round, free_rider_noise, dataset))):
             print(f"Skipping: {strategy} {outlier_detection} {free_rider_activation_round} {free_rider_activation_round} {dataset}")
             continue
@@ -130,7 +132,7 @@ def parseSkips():
         return
 
     dirs = sorted([d for d in RESULTDATAFOLDER.iterdir() if d.is_dir()])
-    chosenDirs =choose_from_list(dirs, "IDK man", False)
+    chosenDirs = choose_from_list(dirs, "IDK man", False)
 
     files: list[Path] = []
     for dir in chosenDirs:
