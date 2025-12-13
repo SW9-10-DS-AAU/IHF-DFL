@@ -132,7 +132,7 @@ def parseSkips():
         return
 
     dirs = sorted([d for d in RESULTDATAFOLDER.iterdir() if d.is_dir()])
-    chosenDirs = choose_from_list(dirs, "IDK man", False)
+    chosenDirs = choose_from_list(dirs, "Select directories to scan for configs to skip", False)
 
     files: list[Path] = []
     for dir in chosenDirs:
@@ -155,7 +155,6 @@ def parseSkips():
             print("Did not match")
             continue
         
-        print("FoundSkip")
         skips.append(
             Skip(
                 strategy=groups.group("strategy"),
@@ -167,14 +166,11 @@ def parseSkips():
         )
 
 def shouldSkip(config: Skip):
-    print(len(skips))
     for skip in skips:
         if skip == config:
             print("Skipping")
             return True
     print("not skipping")
-    print(skip)
-    print(config)
     return False
 
 if __name__ == "__main__":
