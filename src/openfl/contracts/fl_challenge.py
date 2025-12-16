@@ -887,8 +887,16 @@ class FLChallenge(FLManager):
         accuracy = [0] + self.pytorch_model.accuracy
         loss = [self.pytorch_model.loss[0]] + self.pytorch_model.loss
 
-        f, axs = plt.subplots(1, 4,figsize=(16, 3),  gridspec_kw={'width_ratios': [0.8,2,2,2],
-                                                                      'height_ratios': [1]})
+        f, axs = plt.subplots(
+            1,
+            4,
+            figsize=(20, 4),
+            gridspec_kw={
+                "width_ratios": [1.0, 3.2, 3, 3],
+                "height_ratios": [1],
+                "wspace": 0.25,
+            },
+        )
         colors = ["#00629b", "#629b00", "#000000", "#d93e6a"]
 
         participants =self.pytorch_model.participants + self.pytorch_model.disqualified
@@ -910,27 +918,41 @@ class FLChallenge(FLManager):
 
 
         grs_rounds = list(range(len(participants[0]._globalrep)))
+        grs_lines = []
         if use_step_grs:
             grs_x = [item for sublist in zip(grs_rounds, (np.array(grs_rounds) + 1).tolist()) for item in sublist]
             grs_ticks = grs_rounds
             for i, user in enumerate(participants):
                 grs_y = [item for sublist in zip(user._globalrep, user._globalrep) for item in sublist]
-                axs[2].plot(grs_x, grs_y, linewidth=2.5, color=user.color)
+                line = axs[2].plot(
+                    grs_x,
+                    grs_y,
+                    linewidth=2.0,
+                    color=user.color,
+                    alpha=0.7,
+                    marker="o",
+                    markersize=4,
+                    markevery=2,
+                    label=f"User {user.id} ({user.attitude})",
+                )[0]
+                grs_lines.append(line)
         else:
             grs_x = grs_rounds
             grs_ticks = grs_rounds
-            # plotting the points
+            # plotting the points  
             for i, user in enumerate(participants):
-                axs[2].plot(
+                line = axs[2].plot(
                     grs_x,
                     user._globalrep,
-                    linewidth=2.5,
+                    linewidth=2.0,
                     color=user.color,
-                    alpha=0.9,
+                    alpha=0.7,
                     marker="o",
                     markersize=4,
                     markevery=1,
-                )
+                    label=f"User {user.id} ({user.attitude})",
+                )[0]
+                grs_lines.append(line)
 
 
 
@@ -959,12 +981,26 @@ class FLChallenge(FLManager):
         axs[3].fill_between(x_reward,y_reward, y2_reward, alpha=0.2, hatch=r"//", color = colors[1])
 
 
-        axs[0].text(0, 0.1, f'dataset={self.pytorch_model.DATASET}\n'\
-                                 + f'epochs={self.pytorch_model.EPOCHS}\n' \
-                                 + f'rounds={self.pytorch_model.round-1}\n' \
-                                 + f'users={self.pytorch_model.NUMBER_OF_CONTRIBUTERS}\n' \
-                                 + f'malicious={self.pytorch_model.NUMBER_OF_BAD_CONTRIBUTORS}\n'\
-                                 + f'copycat={self.pytorch_model.NUMBER_OF_FREERIDER_CONTRIBUTORS}', fontsize=15)
+        strategy = self._contribution_score_strategy
+        ods_label = {
+            "mad": "MAD",
+            "legacy": "None",
+            "naive": "None",
+        }.get(strategy, strategy)
+
+        axs[0].text(
+            0,
+            0.1,
+            f'dataset={self.pytorch_model.DATASET}\n'
+            + f'CSS={self._contribution_score_strategy}\n'
+            + f'ODS={ods_label}\n'
+            + f'epochs={self.pytorch_model.EPOCHS}\n'
+            + f'rounds={self.pytorch_model.round-1}\n'
+            + f'users={self.pytorch_model.NUMBER_OF_CONTRIBUTERS}\n'
+            + f'malicious={self.pytorch_model.NUMBER_OF_BAD_CONTRIBUTORS}\n'
+            + f'copycat={self.pytorch_model.NUMBER_OF_FREERIDER_CONTRIBUTORS}',
+            fontsize=15,
+        )
         axs[0].set_axis_off()
         
         axs[1].set_xlabel('rounds\n(a)', fontsize=14)
@@ -997,31 +1033,52 @@ class FLChallenge(FLManager):
             axs[3].set_xticks([i for i in x_reward])
     
         axs[1].set_xlim(0, max(rounds) if rounds else 0)
+
+        if grs_lines:
+            axs[2].legend(
+                grs_lines,
+                [l.get_label() for l in grs_lines],
+                loc="center left",
+                bbox_to_anchor=(1.05, 0.5),
+                borderaxespad=0.0,
+                fontsize=10,
+                frameon=False,
+                labelspacing=0.4,
+            )
         
         axs[2].yaxis.get_offset_text().set_fontsize(14)
         axs[3].yaxis.get_offset_text().set_fontsize(14)
         
-        axs[1].grid()
-        axs[2].grid()
-        axs[3].grid()
+        axs[1].grid(alpha=0.3)
+        axs[2].grid(alpha=0.3)
+        axs[3].grid(alpha=0.3)
 
         # Legend for the dual-axis accuracy/loss plot
         twin_lines = [acc_line, loss_line]
         axs[1].legend(
             twin_lines,
             [l.get_label() for l in twin_lines],
-            loc="center right",
+            loc="center left",
+            bbox_to_anchor=(1.18, 0.5),
+            borderaxespad=0.0,
             fontsize=10,
+            frameon=False,
         )
 
-        lgnd = axs[3].legend(fontsize=10)
+        lgnd = axs[3].legend(
+            loc="center left",
+            bbox_to_anchor=(1.05, 0.5),
+            borderaxespad=0.0,
+            fontsize=10,
+            frameon=False,
+        )
 
         # giving a title to my graph 
         #axs[1].set_title(f'users={participants}; malicious={malicious_users}; copycat={sneaky_freerider}', fontsize=10) 
 
         # function to show the plot
         print(output_folder_path)
-        plt.tight_layout(pad=1)
+        plt.tight_layout(pad=1, rect=(0, 0, 0.88, 1))
         plt.savefig(os.path.join(output_folder_path, f"{self.pytorch_model.DATASET}_simulation.pdf"), bbox_inches='tight')
         #plt.show()
         return plt
