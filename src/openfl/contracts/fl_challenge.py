@@ -295,7 +295,7 @@ class FLChallenge(FLManager):
 
                 
     
-    def quick_feedback_round(self, fbm, feedback_type, am = None, lm = None, prev_accs = None, prev_losses = None):
+    def quick_feedback_round(self, fbm, am = None, lm = None, prev_accs = None, prev_losses = None):
         print("Users exchanging feedback...")
         txs = []
         for idx, user in enumerate(self.pytorch_model.participants):
@@ -326,10 +326,8 @@ class FLChallenge(FLManager):
 
 
             fbb = self.build_feedback_bytes(addrs, votes)
-            if feedback_type == "fallback":
-                txs.append(self.send_fallback_transaction_onchain(_to=self.modelAddress, _from=user.address, data=fbb,
-                                                              private_key=user.privateKey))
-            elif feedback_type == "feedbackBytes":
+
+            if self.experiment_config.contribution_score_strategy in [ "naive", "dotproduct" ]:
                 if self.fork:
                     tx = super().build_tx(user.address, self.modelAddress)
                     tx_hash = self.model.functions.submitFeedbackBytes(Web3.to_bytes(hexstr="0x" + fbb)).transact(tx)
@@ -343,7 +341,7 @@ class FLChallenge(FLManager):
                     signed = self.w3.eth.account.sign_transaction(cl, private_key=pk)
                     tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
                 txs.append(tx_hash)
-            elif feedback_type == "feedbackBytesAndAccuracy":
+            elif self.experiment_config.contribution_score_strategy == "accuracy":
                 if self.fork:
                     tx = super().build_tx(user.address, self.modelAddress)
                     row_am = am[idx]
@@ -1012,7 +1010,7 @@ class FLChallenge(FLManager):
 
             self.feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses = self.pytorch_model.evaluation()
 
-            self.quick_feedback_round(fbm = self.feedback_matrix, feedback_type="feedbackBytesAndAccuracy", am=accuracy_matrix, lm=loss_matrix, prev_accs=prev_accs, prev_losses=prev_losses)
+            self.quick_feedback_round(fbm = self.feedback_matrix, am=accuracy_matrix, lm=loss_matrix, prev_accs=prev_accs, prev_losses=prev_losses)
 
             # A roundRep of 0, does not nec. mean mal.
             contributers = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0]

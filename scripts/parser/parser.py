@@ -4,6 +4,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterator, Tuple
 
+from .experiment_specs import parse_experiment_spec
+
 from .gasCosts import GasStats
 
 from .participant import Participant, ParticipantState, parse_attitude
@@ -76,8 +78,9 @@ def load_data(path: str):
     
     
   gasStats = parse_gas_stats(next((s.replace("# $gasCosts$", "") for s in leftOver if s.startswith("# $gasCosts$")), None))
-  
-  return rounds, participants, gasStats
+  experimentConfig = parse_experiment_spec(leftOver)
+
+  return rounds, participants, gasStats, experimentConfig
 
 def parse_user_status(entry: str):
     parts = [p.strip() for p in entry.split(",")]
