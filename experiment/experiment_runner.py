@@ -111,7 +111,7 @@ def print_transactions(experiment):
   model = experiment.model
   print("{:<10} - {:^64} -    Gas Used - {}".format("Function", "Transaction Hash", "Success"))
   print("------------------------------------------------------------------------------------------")
-  for f, txhash in model.txHashes:
+  for f, txhash, gasUsed in model.txHashes:
       r = model.w3.eth.wait_for_transaction_receipt(txhash)
       if r["status"] == 1:
           success = "✅"

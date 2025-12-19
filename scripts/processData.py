@@ -10,7 +10,8 @@ from parser.dataProcessors.plotter import plotData
 from parser.dataProcessors.gasCostExtractor import print_gas, get_totals
 from parser.dataProcessors.findInavlidExperiments import save_experiment_name_if_invalid, get_invalid_experiments
 
-RESULTDATAFOLDER = Path(__file__).resolve().parents[1].joinpath("experiment/data/experimentData")
+#RESULTDATAFOLDER = Path(__file__).resolve().parents[1].joinpath("experiment/data/experimentData")
+RESULTDATAFOLDER = Path(__file__).resolve().parents[1].joinpath("experiment/data/sample")
 
 print(RESULTDATAFOLDER)
 

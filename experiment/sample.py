@@ -5,23 +5,30 @@ import experiment_runner as ExperimentRunner
 from experiment_configuration import ExperimentConfiguration
 from openfl.utils.async_writer import AsyncWriter
 
-config = ExperimentConfiguration(contribution_score_strategy="accuracy") # OVERSKRIV variabler her for testing. eksempel: config = ExperimentConfiguration(minimum_rounds=1), hvis du kun vil køre een round
+config = ExperimentConfiguration(contribution_score_strategy="accuracy", minimum_rounds=2) # OVERSKRIV variabler her for testing. eksempel: config = ExperimentConfiguration(minimum_rounds=1), hvis du kun vil køre een round
 
 #DATASET = "cifar-10"
-RESULTDATAFOLDER = Path.home() / "openfl_results"
+RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/sample")
 DATASET = "mnist"
 
 OUTPUTHEADERS = [
     "round",
     "time",
-    "accAvgPerUser",
     "globalAcc",
+    "globalLoss",
     "GRS",
-    "conctractBalanceRewards",
+    "accAvgPerUser",
+    "lossAvgPerUser",
     "rewards",
+    "conctractBalanceRewards",
     "punishments",
-    "lossAvgPerUser"
+    "contributionScores",
+    "feedbackMatrix",
+    "disqualifiedUsers",
+    "userStatuses",
+    "GasTransactions",
     ]
+
 WRITERBUFFERSIZE = 200
 
 def main():
@@ -49,3 +56,7 @@ def getPath(experimentConfig: ExperimentConfiguration):
 if __name__ == "__main__":
     mp.freeze_support()
     main()
+    for p in mp.active_children():
+        #print("Terminating:", p.pid)
+        p.terminate()
+    print("Done :)")
