@@ -17,7 +17,7 @@ def runProcessor(RESULTDATAFOLDER: Path, processor: Callable[[list[Round], list[
 
     files: list[Path] = []
     for d in chosenDirs:
-        files.extend([p for p in d.iterdir() if p.is_file()])
+        files.extend([p for p in d.iterdir() if p.is_file() and p.suffix == ".csv"])
 
     tests = sorted(files)
 
