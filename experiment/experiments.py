@@ -16,7 +16,7 @@ from selector import choose_from_list
 
 DATASETSLOW = "cifar.10"
 DATASETFAST = "mnist"
-RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData2")
+RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData")
 
 datasets = [ DATASETFAST ]
 strategy_options = ["accuracy", "naive", "dotproduct"]
