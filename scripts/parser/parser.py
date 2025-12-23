@@ -36,7 +36,6 @@ def load_data(path: str):
   for row in reader:
       nr = int(row["round"])
       time = datetime.strptime(row["time"], "%H:%M:%S.%f")
-
       def parse(x):
           try:
               return ast.literal_eval(x)
