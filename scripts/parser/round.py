@@ -36,7 +36,7 @@ class Round:
     self.punishments = _punishments
     self.contributionScores = _contributionScores
     self.feedbackMatrix = _feedbackMatrix
-    self.disqualifiedUsers = _disqualifiedUsers,
+    self.disqualifiedUsers = _disqualifiedUsers
     self.gasTransactions = [GasCostsFormatted(GasType[_gasTransaction[0]], _gasTransaction[1], _gasTransaction[2]) for _gasTransaction in _gasTransactions]
 
 class GasType(Enum):

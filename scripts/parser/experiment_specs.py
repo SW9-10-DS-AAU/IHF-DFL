@@ -43,7 +43,9 @@ class ExperimentSpec:
 def parse_experiment_spec(csv_text: list[str]) -> ExperimentSpec:
     data = {}
 
-    for line in csv_text:
+    actualLines = [x for sub in csv_text for x in sub.split("#")]
+
+    for line in actualLines:
         line = line.strip()
 
         if not line:

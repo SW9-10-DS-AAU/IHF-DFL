@@ -9,23 +9,26 @@ from parser import *
 from parser.dataProcessors.plotter import plotData
 from parser.dataProcessors.gasCostExtractor import print_gas, get_totals
 from parser.dataProcessors.findInavlidExperiments import save_experiment_name_if_invalid, get_invalid_experiments
+from parser.dataProcessors.kickedUsersExperiment import create_kicked_graph, get_round_kicked
 
 #RESULTDATAFOLDER = Path(__file__).resolve().parents[1].joinpath("experiment/data/experimentData")
-RESULTDATAFOLDER = Path(__file__).resolve().parents[1].joinpath("experiment/data/sample")
+RESULTDATAFOLDER = Path(__file__).resolve().parents[1].joinpath("experiment/data/experimentData")
 
 print(RESULTDATAFOLDER)
 
-runProcessor(RESULTDATAFOLDER, save_experiment_name_if_invalid)
+runProcessor(RESULTDATAFOLDER, create_kicked_graph)
 
-#totals = get_totals()
-#avg = sum(totals) / len(totals)
+print(get_round_kicked())
 
-#print(avg)
-invalid:list[Path] = get_invalid_experiments()
 
-print([i.name for i in invalid])
-invalidFiles = [RESULTDATAFOLDER / (str(Path(*i.parts[-2:])) + ".csv") for i in invalid]
-for p in invalidFiles:
-    if p.exists():
-        print(f"deleting: {str(p)}")
-        #p.unlink() ## DANGEROUS, DELETES A FILE
+
+
+## For deleting files with the 333 bug
+# invalid:list[Path] = get_invalid_experiments()
+#
+# print([i.name for i in invalid])
+# invalidFiles = [RESULTDATAFOLDER / (str(Path(*i.parts[-2:])) + ".csv") for i in invalid]
+# for p in invalidFiles:
+#     if p.exists():
+#         print(f"deleting: {str(p)}")
+#         #p.unlink() ## DANGEROUS, DELETES A FILE
