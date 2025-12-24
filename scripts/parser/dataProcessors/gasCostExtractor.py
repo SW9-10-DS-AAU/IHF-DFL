@@ -1,4 +1,5 @@
 from parser import *
+from parser.round import GasType
 
 totals = []
 
@@ -13,6 +14,10 @@ def print_gas(rounds: list[Round], participants: list[Participant], experiment_s
   print(f"gasweights {sum(gasStats.gas_weights)}")
   print(f"gasclose {sum(gasStats.gas_close)}")
   print(f"Total {total}")
+  
+  print(type(rounds[0].gasTransactions[0].type))
+  print(sum([transaction for transaction in rounds[1].gasTransactions if transaction.type == GasType.contrib]))
+  
   totals.append(total)
 
 def get_totals():

@@ -9,8 +9,8 @@ class ExperimentConfiguration:
                  min_buy_in=int(1e18),
                  max_buy_in=int(1e18),
                  standard_buy_in=int(1e18),
-                 epochs=25,
-                 batch_size=128,
+                 epochs=1,
+                 batch_size=32,
                  punish_factor=3,
                  first_round_fee=50, # Percentage of buy-in to charge as fee in first round
                  fork=True,

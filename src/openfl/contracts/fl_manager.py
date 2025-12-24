@@ -62,7 +62,7 @@ class FLManager(ConnectionHelper):
             )
 
         self.gas_deploy.append(receipt["gasUsed"])
-        self.txHashes.append(("buildManager", receipt["transactionHash"].hex()))
+        self.txHashes.append(("buildManager", receipt["transactionHash"].hex(), receipt["gasUsed"]))
 
         deployed_address = self.w3.to_checksum_address(receipt.contractAddress)
         self.manager = self.w3.eth.contract(address=deployed_address, abi=manager_abi)
@@ -145,7 +145,7 @@ class FLManager(ConnectionHelper):
             )
 
         self.gas_deploy.append(receipt["gasUsed"])
-        self.txHashes.append(("buildChallenge", receipt["transactionHash"].hex()))
+        self.txHashes.append(("buildChallenge", receipt["transactionHash"].hex(), receipt["gasUsed"]))
         c = self.get_model_count_of(self.pytorch_model.participants[0])
         deployed_address = self.get_model_of(self.pytorch_model.participants[0], c)
         deployed_address = Web3.to_checksum_address(deployed_address)

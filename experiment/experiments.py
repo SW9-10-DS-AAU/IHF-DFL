@@ -18,9 +18,9 @@ DATASETSLOW = "cifar.10"
 DATASETFAST = "mnist"
 RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData")
 
-datasets = [ DATASETSLOW, DATASETFAST ]
-#strategy_options = ["accuracy", "naive", "dotproduct"]
-strategy_options = ["naive", "dotproduct"]
+datasets = [ DATASETFAST ]
+strategy_options = ["accuracy", "naive", "dotproduct"]
+#strategy_options = ["naive", "dotproduct"]
 outlier_detection_options = [ True, False ]
 free_rider_activation_round_options = [1, 3, 5]
 free_rider_noise_options = [0.0, 0.01, 0.1, 0.5, 1.0]
@@ -44,6 +44,7 @@ OUTPUTHEADERS = [
     "feedbackMatrix",
     "disqualifiedUsers",
     "userStatuses",
+    "GasTransactions",
     ]
 
 
@@ -180,5 +181,5 @@ if __name__ == "__main__":
     for p in mp.active_children():
         print("Terminating:", p.pid)
         p.terminate()
-    print("main finished")
+    print("Done :)")
 

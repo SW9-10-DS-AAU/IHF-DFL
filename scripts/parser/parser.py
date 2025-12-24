@@ -58,6 +58,7 @@ def load_data(path: str):
           _contributionScores=parse(row["contributionScores"]),
           _feedbackMatrix=parse(row["feedbackMatrix"]),
           _disqualifiedUsers=parse(row["disqualifiedUsers"]),
+          _gasTransactions=parse(row["GasTransactions"]),
           _lastTime=last_time
       )
 

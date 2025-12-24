@@ -55,6 +55,7 @@ class FLChallenge(FLManager):
         self._punishments = []
         self.config = config.get_contracts_config()
         self.writer = writer or NullWriter()
+        self.writeTxProgress = 0
 
 
         self._contribution_score_strategy = experiment_config.contribution_score_strategy
@@ -117,7 +118,7 @@ class FLChallenge(FLManager):
                                                             poll_latency=1)
             
             self.gas_register.append(receipt["gasUsed"])
-            self.txHashes.append(("register",receipt["transactionHash"].hex()))
+            self.txHashes.append(("register",receipt["transactionHash"].hex(), receipt["gasUsed"]))
         printer._print("-----------------------------------------------------------------------------------", "\n")
         
     
@@ -171,7 +172,7 @@ class FLChallenge(FLManager):
                                                             poll_latency=1)
             
             self.gas_weights.append(receipt["gasUsed"])
-            self.txHashes.append(("weights", receipt["transactionHash"].hex()))
+            self.txHashes.append(("weights", receipt["transactionHash"].hex(), receipt["gasUsed"]))
         printer._print("-----------------------------------------------------------------------------------\n")
         
 
@@ -270,7 +271,7 @@ class FLChallenge(FLManager):
                                                             poll_latency=1)
             
             self.gas_feedback.append(receipt["gasUsed"])
-            self.txHashes.append(("feedback", receipt["transactionHash"].hex()))
+            self.txHashes.append(("feedback", receipt["transactionHash"].hex(), receipt["gasUsed"]))
         for user in self.pytorch_model.participants:
             user._roundrep.append(self.get_round_reputation_of_user(user.address))
 
@@ -392,7 +393,7 @@ class FLChallenge(FLManager):
                                                            poll_latency=1)
 
         self.gas_feedback.append(receipt["gasUsed"])
-        self.txHashes.append((receipt_type, receipt["transactionHash"].hex()))
+        self.txHashes.append((receipt_type, receipt["transactionHash"].hex(), receipt["gasUsed"]))
 
 
     def send_fallback_transaction_onchain(self, _to, _from, data, private_key=None):
@@ -490,7 +491,7 @@ class FLChallenge(FLManager):
                                                         poll_latency=1)
         print("settling round completed")
 
-        self.txHashes.append(("close", receipt["transactionHash"].hex()))
+        self.txHashes.append(("close", receipt["transactionHash"].hex(), receipt["gasUsed"]))
         self.gas_close.append(receipt["gasUsed"])
         if len(receipt.logs) == 0:
             print("Warning: closeFeedBackRound() emitted no logs")
@@ -538,7 +539,7 @@ class FLChallenge(FLManager):
                                                             poll_latency=1)
             
             self.gas_slot.append(receipt["gasUsed"])
-            self.txHashes.append(("slot", receipt["transactionHash"].hex()))
+            self.txHashes.append(("slot", receipt["transactionHash"].hex(), receipt["gasUsed"]))
         printer._print("-----------------------------------------------------------------------------------\n")
         return 
     
@@ -575,7 +576,7 @@ class FLChallenge(FLManager):
                                                             poll_latency=1)
             
             self.gas_exit.append(receipt["gasUsed"])
-            self.txHashes.append(("exit", receipt["transactionHash"].hex()))
+            self.txHashes.append(("exit", receipt["transactionHash"].hex(), receipt["gasUsed"]))
         printer._print("-----------------------------------------------------------------------------------\n")
 
     def get_events(self, w3, contract, receipt, event_names):
@@ -953,7 +954,6 @@ class FLChallenge(FLManager):
                     )
                 )
         return result
-
     def simulate(self, rounds):
         """
         Run a full FL simulation for a given number of rounds.
@@ -974,6 +974,9 @@ class FLChallenge(FLManager):
         self.register_all_users()
         
         grs = [user._globalrep[-1] for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
+        
+        roundTx = self.txHashes[self.writeTxProgress:]
+        self.writeTxProgress = len(self.txHashes)
 
         self.writer.writeResult({
                 "round": 0,
@@ -989,6 +992,7 @@ class FLChallenge(FLManager):
                 "disqualifiedUsers": [],
                 "contributionScores": [],
                 "userStatuses": [user.getStatus() for user in self.pytorch_model.participants],
+                "GasTransactions": roundTx
             })
 
         for i in range(rounds):
@@ -1035,6 +1039,11 @@ class FLChallenge(FLManager):
             grs = [user._globalrep[-1] for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
             round_punishment = [(punishment[0], punishment[1]) for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]
             round_kicked = [punishment[2] for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]
+            print("ASMKASDMKL")
+            print(len(self.txHashes))
+            print(self.writeTxProgress)
+            roundTx = self.txHashes[self.writeTxProgress:]
+            self.writeTxProgress = len(self.txHashes) - 1
             self.writer.writeResult({
                 "round": self.pytorch_model.round - 1,
                 "GRS": grs,
@@ -1049,6 +1058,7 @@ class FLChallenge(FLManager):
                 "disqualifiedUsers": round_kicked,
                 "contributionScores": self.scores,
                 "userStatuses": [user.getStatus() for user in self.pytorch_model.participants],
+                "GasTransactions": roundTx
                 })
         self.writer.writeComment(f"$gasCosts${self.gas_feedback},{self.gas_register},{self.gas_slot},{self.gas_weights},{self.gas_close},{self.gas_deploy},{self.gas_exit}")
         self.exit_system()
