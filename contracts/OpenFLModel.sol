@@ -480,7 +480,7 @@ contract OpenFLModel {
                     }
                 }
             }
-            boundedSumOfWeights = sumOfWeights < 0 ? 0 : uint(sumOfWeights);
+            boundedSumOfWeights = sumOfWeights <= 0 ? 1 : uint(sumOfWeights);
 
             // Give rewards
             for (uint i = 0; i < participants.length; i++) {
