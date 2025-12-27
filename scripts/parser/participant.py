@@ -1,10 +1,26 @@
-from enum import Enum
+from enum import IntEnum
 
 
-class Attitude(Enum):
+
+class Attitude(IntEnum):
     GOOD = 1
     FREERIDER = 2
     BAD = 3
+
+    @classmethod
+    def from_string(cls, name: str):
+        key = name.upper()
+
+        try:
+            return cls[key]
+        except KeyError:
+            raise ValueError(f"Invalid method: {name}")
+
+class MetaAttitude(IntEnum):
+    GOOD = 1
+    FREERIDER = 2
+    BAD = 3
+    BOTH = 4
 
 class Participant:
   def __init__(self, _id, _currentAcc, _attitude, _futureAttitude, _attitudeSwitch, _address):
@@ -34,3 +50,4 @@ def parse_attitude(s: str) -> Attitude:
     if s == "bad":
         return Attitude.BAD
     raise ValueError(f"Unknown attitude: {s}")
+

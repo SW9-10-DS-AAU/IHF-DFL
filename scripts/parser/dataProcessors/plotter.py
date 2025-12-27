@@ -14,6 +14,23 @@ def plotData(rounds: list[Round], participants: list[Participant], experiment_sp
   plot_from_parsed(rounds, participants, experiment_specs, outDir, "plot.pdf", "TestPlot")
 
 
+def line_graph(data, x_label, y_label, title, vline=None):
+    import matplotlib.pyplot as plt
+
+    for label, series in data.items():
+        xs = sorted(series.keys())
+        ys = [series[x] for x in xs]
+        plt.plot(xs, ys, label=label)
+
+    if vline is not None:
+        plt.axvline(vline, linestyle="--")
+
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.title(title)
+    plt.legend()
+    plt.show()
+
 def plot_from_parsed(
     rounds: list[Round],
     participants: dict[int, "Participant"],

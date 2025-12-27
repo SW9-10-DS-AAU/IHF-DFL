@@ -18,7 +18,7 @@ def grouped_bar_with_variance(
     """
 
     means = np.asarray(means)
-    variances = np.asarray(variances)
+    #variances = np.asarray(variances)
 
     n_groups, n_cats = means.shape
     x = np.arange(n_cats)
@@ -31,7 +31,7 @@ def grouped_bar_with_variance(
             x - 0.4 + i * width + width / 2,
             means[i],
             width,
-            yerr=variances[i],
+            yerr = list(zip(*variances[i])),
             capsize=4,
             edgecolor="black",
             linewidth=0.8,
@@ -67,5 +67,3 @@ variances = [
     [2, 1.5, 1, 0.5]
 ]
 group_names = ['Model A', 'Model B', 'Model B', 'Model B']
-
-grouped_bar_with_variance(labels, means, variances, group_names)

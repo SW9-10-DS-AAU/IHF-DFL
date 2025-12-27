@@ -11,8 +11,9 @@ class Method(Enum):
     @classmethod
     def from_string(cls, name: str, use_outlier: bool):
         key = name.upper()
+        
 
-        if key == "dotproduct":
+        if key == "DOTPRODUCT":
             return cls.DOTPRODUCTANDOUTLIER if use_outlier else cls.DOTPRODUCT
 
         try:

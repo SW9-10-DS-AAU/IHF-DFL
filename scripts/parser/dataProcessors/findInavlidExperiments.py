@@ -2,7 +2,7 @@ from parser import *
 
 invalidExperiments = []
 
-def save_experiment_name_if_invalid(rounds: list[Round], participants: list[Participant], experiment_specs: ExperimentSpec, gasStats: GasStats, outDir):
+def save_experiment_name_if_invalid(rounds: list[Round], participants: dict[int, Participant], experiment_specs: ExperimentSpec, gasStats: GasStats, outDir):
   lastround = []
   for i, round in enumerate(rounds):
     if (i == 0):

@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
 
+from openfl.ml.pytorch_model import Participant
+
 class Round:
   def __init__(
     self,
@@ -36,8 +38,12 @@ class Round:
     self.punishments = _punishments
     self.contributionScores = _contributionScores
     self.feedbackMatrix = _feedbackMatrix
-    self.disqualifiedUsers = _disqualifiedUsers
+    self.disqualifiedUsers: list[Participant] = []
     self.gasTransactions = [GasCostsFormatted(GasType[_gasTransaction[0]], _gasTransaction[1], _gasTransaction[2]) for _gasTransaction in _gasTransactions]
+
+  def addDisqualifiedUser(self, disqualifiedUser: Participant):
+    self.disqualifiedUsers.append(disqualifiedUser)
+
 
 class GasType(Enum):
     register = 0

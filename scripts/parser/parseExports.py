@@ -32,5 +32,33 @@ def runProcessor(RESULTDATAFOLDER: Path, processor: Callable[[list[Round], list[
         )
 
         rounds, participants, gasCosts, experimentConfig = load_data(test)
+
+        disqualifiedUsers = _detect_disqualifications(rounds, participants)
+
+        for roundNr, participantIndex, in disqualifiedUsers:
+            rounds[roundNr].addDisqualifiedUser(participants[participantIndex])
+
         processor(rounds, participants, experimentConfig, gasCosts, outdir)
 
+def _detect_disqualifications(rounds: list[Round], participants: dict[int, Participant]):
+    disqualified = []
+
+    # total_rounds = len(rounds)
+    markedIndexes = []
+    for round in rounds:
+        for i, userGrs in enumerate(round.GRS):
+            if (userGrs == 0 and i not in markedIndexes):
+                markedIndexes.append(i)
+                disqualified.append((round.nr, i))
+
+
+    # for uid, p in participants.items():
+    #     user_rounds = len(p.states)
+
+    #     if user_rounds < total_rounds:
+    #         r_idx = user_rounds
+    #         disqualified.append(
+    #             (rounds[r_idx].nr, uid)
+    #         )
+
+    return disqualified

@@ -3,7 +3,7 @@ from parser.round import GasType
 
 totals = []
 
-def print_gas(rounds: list[Round], participants: list[Participant], experiment_specs: ExperimentSpec, gasStats: GasStats, outDir):
+def print_gas(rounds: list[Round], participants: dict[int, Participant], experiment_specs: ExperimentSpec, gasStats: GasStats, outDir):
   total = sum(gasStats.gas_close) + sum(gasStats.gas_deploy) + sum(gasStats.gas_exit) + sum(gasStats.gas_feedback) + sum(gasStats.gas_register) + sum(gasStats.gas_slot) + sum(gasStats.gas_weights) + sum(gasStats.gas_close)
   print(f"gasclose {sum(gasStats.gas_close)}")
   print(f"gasdeploy {sum(gasStats.gas_deploy)}")

@@ -1039,9 +1039,6 @@ class FLChallenge(FLManager):
             grs = [user._globalrep[-1] for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
             round_punishment = [(punishment[0], punishment[1]) for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]
             round_kicked = [punishment[2] for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]
-            print("ASMKASDMKL")
-            print(len(self.txHashes))
-            print(self.writeTxProgress)
             roundTx = self.txHashes[self.writeTxProgress:]
             self.writeTxProgress = len(self.txHashes) - 1
             self.writer.writeResult({
