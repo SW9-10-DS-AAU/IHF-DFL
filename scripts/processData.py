@@ -21,13 +21,13 @@ RESULTDATAFOLDER = Path(__file__).resolve().parents[1].joinpath("experiment/data
 
 
 def graph_one_one():
-    kickedGraph(1, "Roundkicked Freerider: 1", RESULTDATAFOLDER)
+    kickedGraph(1, "Freerider Activated Round: 3", RESULTDATAFOLDER)
 
 def graph_one_two():
-    kickedGraph(3, "Roundkicked Freerider: 3", RESULTDATAFOLDER)
+    kickedGraph(3, "Freerider Activated Round: 3", RESULTDATAFOLDER)
 
 def graph_one_three():
-    kickedGraph(5, "Roundkicked Freerider: 5", RESULTDATAFOLDER)
+    kickedGraph(5, "Freerider Activated Round: 5", RESULTDATAFOLDER)
 
 
 
@@ -40,9 +40,9 @@ def graph_three_one():
     grsGraph(Attitude.BAD, "Malicious GRS", 3, RESULTDATAFOLDER)
 
 #graph_one_one()
-graph_one_two()
+#graph_one_two()
 #graph_one_three()
 
-#graph_two()
+graph_two()
 
 #graph_three_one()
