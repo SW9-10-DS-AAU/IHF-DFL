@@ -5,7 +5,7 @@ from enum import IntEnum
 class Attitude(IntEnum):
     GOOD = 1
     FREERIDER = 2
-    BAD = 3
+    MALICIOUS = 3
 
     @classmethod
     def from_string(cls, name: str):
@@ -15,12 +15,38 @@ class Attitude(IntEnum):
             return cls[key]
         except KeyError:
             raise ValueError(f"Invalid method: {name}")
+        
+    @property
+    def display_name(self) -> str:
+        return {
+            Attitude.GOOD: "Honest",
+            Attitude.FREERIDER: "Freerider",
+            Attitude.MALICIOUS: "Malicious",
+        }[self]
 
 class MetaAttitude(IntEnum):
     GOOD = 1
     FREERIDER = 2
-    BAD = 3
+    MALICIOUS = 3
     BOTH = 4
+
+    @classmethod
+    def from_string(cls, name: str, use_outlier: bool):
+        key = name.upper()
+
+        try:
+            return cls[key]
+        except KeyError:
+            raise ValueError(f"Invalid method: {name}")
+
+    @property
+    def display_name(self) -> str:
+        return {
+            MetaAttitude.GOOD: "Honest",
+            MetaAttitude.FREERIDER: "Freerider",
+            MetaAttitude.MALICIOUS: "Malicious",
+            MetaAttitude.BOTH: "Both have been kicked",
+        }[self]
 
 class Participant:
   def __init__(self, _id, _currentAcc, _attitude, _futureAttitude, _attitudeSwitch, _address):
@@ -47,7 +73,7 @@ def parse_attitude(s: str) -> Attitude:
         return Attitude.GOOD
     if s == "freerider":
         return Attitude.FREERIDER
-    if s == "bad":
-        return Attitude.BAD
+    if s == "bad" or s == "malicious":
+        return Attitude.MALICIOUS
     raise ValueError(f"Unknown attitude: {s}")
 

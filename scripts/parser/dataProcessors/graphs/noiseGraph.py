@@ -4,6 +4,7 @@ from parser.helpers.mehods import Method
 from parser.parseExports import runProcessor
 from parser.participant import MetaAttitude
 from parser.plotters.groupedBarWithVariance import grouped_bar_with_variance
+from parser.helpers.varianceCalculator import getVariances
 
 
 roundkicked_by_method_noise = {}
@@ -45,12 +46,8 @@ def get_round_kicked_method_noise():
         for noise, values in noises.items():
             if not values:
                 continue
-
-            out[method][noise] = {
-                "avg": np.mean(values),
-                "p25": np.percentile(values, 25),
-                "p75": np.percentile(values, 75),
-            }
+            variences = getVariances(values)
+            out[method][noise] = getVariances(values)
 
     return out
 
@@ -58,18 +55,22 @@ def format_for_grouped_bar_method_noise(data):
     methods = list(data.keys())
     noises = sorted({n for m in data.values() for n in m.keys()})
 
-    labels = [m.name for m in methods]
+    labels = [m.display_name for m in methods]
     group_names = [f"noise={n}" for n in noises]
 
     means = []
     variances = []
+    missing = []
 
     for noise in noises:
         noise_means = []
         noise_vars = []
+        noise_missing = []
 
         for method in methods:
             s = data.get(method, {}).get(noise)
+            is_missing = s is None or s["NoValues"]
+            noise_missing.append(is_missing)
             if s is None:
                 noise_means.append(0)
                 noise_vars.append([0, 0])
@@ -77,19 +78,21 @@ def format_for_grouped_bar_method_noise(data):
                 avg = s["avg"]
                 noise_means.append(avg)
                 noise_vars.append([
-                    max(0, avg - s["p25"]),
-                    max(0, s["p75"] - avg),
+                    max(0, s["low"]),
+                    max(0, s["high"]),
                 ])
 
         means.append(noise_means)
         variances.append(noise_vars)
+        missing.append(noise_missing)
 
-    return labels, means, variances, group_names
+    return labels, means, variances, group_names, missing
 
 
-def kickedGraphMethodNoise(freeriderRound: int, title: str, RESULTDATAFOLDER):
+def kickedGraphMethodNoise(freeriderRound: int, title: str, usePreviousTests: bool, RESULTDATAFOLDER):
     runProcessor(
         RESULTDATAFOLDER,
+        usePreviousTests, 
         lambda rounds, participants, experimentConfig, gasCosts, outdir: \
             prepare_data_for_graph_method_noise(
                 rounds,
@@ -101,7 +104,7 @@ def kickedGraphMethodNoise(freeriderRound: int, title: str, RESULTDATAFOLDER):
             )
     )
 
-    labels, means, variances, group_names = \
+    labels, means, variances, group_names, missing = \
         format_for_grouped_bar_method_noise(
             get_round_kicked_method_noise()
         )
@@ -111,6 +114,7 @@ def kickedGraphMethodNoise(freeriderRound: int, title: str, RESULTDATAFOLDER):
         means,
         variances,
         group_names,
+        missing,
         ylabel="Round Freerider Kicked",
         title=title,
     )

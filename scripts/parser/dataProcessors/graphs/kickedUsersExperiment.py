@@ -6,11 +6,14 @@ from parser.helpers.mehods import Method
 from parser.participant import MetaAttitude
 from parser.parseExports import runProcessor
 from parser.plotters.groupedBarWithVariance import grouped_bar_with_variance
+from parser.helpers.varianceCalculator import getVariances
+
+nrOfRounds = 0
 
 def new_counter():
     return {
         MetaAttitude.GOOD: [],
-        MetaAttitude.BAD: [],
+        MetaAttitude.MALICIOUS: [],
         MetaAttitude.FREERIDER: [],
         MetaAttitude.BOTH: []
     }
@@ -23,6 +26,7 @@ roundkicked = {
 }
 
 def prepare_data_for_graph(rounds: list[Round], participants: dict[int, Participant], experiment_specs: ExperimentSpec, gasStats: GasStats, outDir, freeRiderRound: int):
+  global nrOfRounds
   if experiment_specs.freerider_start_round != freeRiderRound:
      return
   
@@ -43,37 +47,49 @@ def prepare_data_for_graph(rounds: list[Round], participants: dict[int, Particip
   if bothKickedRound:
      roundkicked[Method.from_string(experiment_specs.contribution_score_strategy, experiment_specs.use_outlier_detection)]\
       [MetaAttitude.BOTH].append(bothKickedRound)
-  print(jsonpickle.dumps(roundkicked, indent=2))
+    
+  nrOfRounds = len(rounds)
 
   
 def format_for_grouped_bar(data):
+    global nrOfRounds
     methods = list(data.keys())
     attitudes = list(next(iter(data.values())).keys())
 
-    labels = [m.name for m in methods]
-    group_names = [a.name if hasattr(a, "name") else a for a in attitudes]
+    labels = [m.display_name for m in methods]
+    group_names = [a.display_name for a in attitudes]
 
     means = []
     variances = []
+    missing = []
 
     for att in attitudes:
       att_means = []
       att_vars = []
+      attitude_missing = []
 
       for m in methods:
-        s = data[m][att]
+        s = data[m].get(att)
+        is_missing = s is None or s["NoValues"]
+        attitude_missing.append(is_missing)
+        if s is None:
+            att_means.append(nrOfRounds)
+            att_vars.append([nrOfRounds, 0])
+            continue
+        
         avg = s["avg"]
-
-        lower = max(0, avg - s["p25"])
-        upper = max(0, s["p75"] - avg)
+        
+        upper = s["high"]
+        lower = s["low"]
 
         att_means.append(avg)
         att_vars.append([lower, upper]) 
 
       means.append(att_means)
       variances.append(att_vars)
+      missing.append(attitude_missing)
 
-    return labels, means, variances, group_names
+    return labels, means, variances, group_names, missing
       
 
 def get_round_kicked():
@@ -86,22 +102,18 @@ def get_round_kicked():
         out.setdefault(method, {})
 
         for userType, values in userTypes.items():
-            if not values:
+            if not values or all(v == 0 for v in values):
                 continue
 
-            out[method][userType] = {
-                "p25": np.percentile(values, 25),
-                "avg": np.mean(values),
-                "p75": np.percentile(values, 75),
-            }
+            out[method][userType] = getVariances(values)
 
     return out
 
-def kickedGraph(freeriderRound: int, title: str, RESULTDATAFOLDER):
-    runProcessor(RESULTDATAFOLDER, lambda rounds, participants, experimentConfig, gasCosts, outdir: \
+def kickedGraph(freeriderRound: int, title: str, useSameTests: bool, RESULTDATAFOLDER):
+    runProcessor(RESULTDATAFOLDER, useSameTests, lambda rounds, participants, experimentConfig, gasCosts, outdir: \
                  prepare_data_for_graph(rounds, participants, experimentConfig, gasCosts, outdir, freeriderRound))
 
 
-    labels, means, variances, group_names = format_for_grouped_bar(get_round_kicked())
+    labels, means, variances, group_names, missing = format_for_grouped_bar(get_round_kicked())
 
-    grouped_bar_with_variance(labels, means, variances, group_names, ylabel="Round Kicked", title=title)
+    grouped_bar_with_variance(labels, means, variances, group_names, missing, ylabel="Round Kicked", title=title)

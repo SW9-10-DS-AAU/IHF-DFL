@@ -13,30 +13,50 @@ from parser.dataProcessors.graphs.GRSOverRounds import grsGraph
 from parser.dataProcessors.graphs.kickedUsersExperiment import kickedGraph, prepare_data_for_graph, get_round_kicked, format_for_grouped_bar
 from parser.plotters.groupedBarWithVariance import grouped_bar_with_variance
 from parser.dataProcessors.graphs.noiseGraph import kickedGraphMethodNoise
-from parser.dataProcessors.graphs.gasCostComparison import gasCostGraph
-from parser.dataProcessors.graphs.dotProductOutlierGRS import dotProductOutlierGRSGraph
-from parser.participant import Attitude
-from parser.dataProcessors.graphs.accuracyGRSGainPerRound import accuracyGRSGainGraph
+from parser.dataProcessors.graphs.gasGraph import gasCostGraphMethods
+from parser.dataProcessors.graphs.contributionScoreVarianceGraph import plot_contribution_score_variance
+from parser.participant import MetaAttitude
 
 #RESULTDATAFOLDER = Path(__file__).resolve().parents[1].joinpath("experiment/data/experimentData")
 RESULTDATAFOLDER = Path(__file__).resolve().parents[1].joinpath("experiment/data/experimentData")
 
-
-def graph_one_one():
-    kickedGraph(1, "Freerider Activated Round: 3", RESULTDATAFOLDER)
-
-def graph_one_two():
-    kickedGraph(3, "Freerider Activated Round: 3", RESULTDATAFOLDER)
-
-def graph_one_three():
-    kickedGraph(5, "Freerider Activated Round: 5", RESULTDATAFOLDER)
+LISTOFALLMETHODS = [Method.ACCURACY, Method.DOTPRODUCT, Method.DOTPRODUCTANDOUTLIER, Method.NAIVE]
+LISTOFALLATTIDUDESASMETA = [MetaAttitude.GOOD, MetaAttitude.FREERIDER, MetaAttitude.MALICIOUS]
 
 
-def graph_two():
-    kickedGraphMethodNoise(3, "Freerider noise comparisons", RESULTDATAFOLDER)
+def graph_one_one(usePreviousTests: bool = True):
+    kickedGraph(1, "Effectiveness of Strategies in Removing Dishonest Participants - Freerider Activation Round: 1", usePreviousTests, RESULTDATAFOLDER)
 
-def graph_three_one():
-    grsGraph(Attitude.BAD, "Malicious GRS", 3, RESULTDATAFOLDER)
+def graph_one_two(usePreviousTests: bool = True):
+    kickedGraph(3, "Effectiveness of Strategies in Removing Dishonest Participants - Freerider Activated Round: 3", usePreviousTests, RESULTDATAFOLDER)
+
+def graph_one_three(usePreviousTests: bool = True):
+    kickedGraph(5, "Effectiveness of Strategies in Removing Dishonest Participants - Freerider Activated Round: 5", usePreviousTests, RESULTDATAFOLDER)
+
+
+
+def graph_two(usePreviousTests: bool = True):
+    kickedGraphMethodNoise(3, "Freerider noise comparisons - Freerider Activated Round: 3", usePreviousTests, RESULTDATAFOLDER)
+
+
+def graph_three_one(usePreviousTests: bool = True):
+    grsGraph(Attitude.FREERIDER, "Freerider GRS", 3, usePreviousTests, RESULTDATAFOLDER)
+
+
+def graph_four_one(usePreviousTests: bool = True):
+    gasCostGraphMethods("Gas Comparision - Contribution Score Strategies", usePreviousTests, RESULTDATAFOLDER)
+
+def graph_seven_one(usePreviousTests: bool = True):
+    plot_contribution_score_variance("Variance Of Contribution Score - Accuracy", [Method.ACCURACY], LISTOFALLATTIDUDESASMETA, usePreviousTests, RESULTDATAFOLDER)
+
+def graph_seven_two(usePreviousTests: bool = True):
+    plot_contribution_score_variance("Variance Of Contribution Score - Dot Product Without Outlier Detection", [Method.DOTPRODUCT], LISTOFALLATTIDUDESASMETA, usePreviousTests, RESULTDATAFOLDER)
+
+def graph_seven_three(usePreviousTests: bool = True):
+    plot_contribution_score_variance("Variance Of Contribution Score - Dot Product With Outlier Detection", [Method.DOTPRODUCTANDOUTLIER], LISTOFALLATTIDUDESASMETA, usePreviousTests, RESULTDATAFOLDER)
+
+def graph_seven_four(usePreviousTests: bool = True):
+    plot_contribution_score_variance("Variance Of Contribution Score - Naive", [Method.NAIVE], LISTOFALLATTIDUDESASMETA, usePreviousTests, RESULTDATAFOLDER)
 
 def graph_four():
     gasCostGraph(
@@ -80,17 +100,13 @@ def graph_six():
 # graph_one_two()
 # graph_one_three()
 
-# graph_two()
+#graph_two()
 
-# graph_three_one()
+#graph_three_one()
 
-# graph_four()
+#graph_four_one()
 
-# graph_five_one()
-# graph_five_two()
-# graph_five_three()
-
-graph_six()
-
-
-
+graph_seven_one()
+graph_seven_two()
+graph_seven_three()
+graph_seven_four()

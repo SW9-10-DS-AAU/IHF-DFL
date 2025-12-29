@@ -10,18 +10,23 @@ from .round import Round
 from .parser import load_data
 from .selector import choose_from_list
 
-def runProcessor(RESULTDATAFOLDER: Path, processor: Callable[[list[Round], list[Participant], ExperimentSpec, GasStats, str], Any]):
-    dirs = sorted([d for d in RESULTDATAFOLDER.iterdir() if d.is_dir()])
+chosenTests = []
 
-    chosenDirs = choose_from_list(dirs, "Chose test run(s)", False)
+def runProcessor(RESULTDATAFOLDER: Path, useSameTests: bool, processor: Callable[[list[Round], list[Participant], ExperimentSpec, GasStats, str], Any]):
+    global chosenTests
+    if not chosenTests or not useSameTests:
+        dirs = sorted([d for d in RESULTDATAFOLDER.iterdir() if d.is_dir()])
 
-    files: list[Path] = []
-    for d in chosenDirs:
-        files.extend([p for p in d.iterdir() if p.is_file() and p.suffix == ".csv"])
+        chosenDirs = choose_from_list(dirs, "Chose test run(s)", False)
 
-    tests = sorted(files)
+        files: list[Path] = []
+        for d in chosenDirs:
+            files.extend([p for p in d.iterdir() if p.is_file() and p.suffix == ".csv"])
 
-    chosenTests = choose_from_list(tests, "Chose tests to process")
+        tests = sorted(files)
+
+        chosenTests = choose_from_list(tests, "Chose tests to process")
+
 
     for test in chosenTests:
         outdir = (
@@ -40,6 +45,7 @@ def runProcessor(RESULTDATAFOLDER: Path, processor: Callable[[list[Round], list[
 
         processor(rounds, participants, experimentConfig, gasCosts, outdir)
 
+
 def _detect_disqualifications(rounds: list[Round], participants: dict[int, Participant]):
     disqualified = []
 
@@ -50,15 +56,5 @@ def _detect_disqualifications(rounds: list[Round], participants: dict[int, Parti
             if (userGrs == 0 and i not in markedIndexes):
                 markedIndexes.append(i)
                 disqualified.append((round.nr, i))
-
-
-    # for uid, p in participants.items():
-    #     user_rounds = len(p.states)
-
-    #     if user_rounds < total_rounds:
-    #         r_idx = user_rounds
-    #         disqualified.append(
-    #             (rounds[r_idx].nr, uid)
-    #         )
 
     return disqualified

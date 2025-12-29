@@ -56,7 +56,7 @@ def load_data(path: str):
           _punishments=parse(row["punishments"]),
           _contributionScores=parse(row["contributionScores"]),
           _feedbackMatrix=parse(row["feedbackMatrix"]),
-          _disqualifiedUsers=parse(row["disqualifiedUsers"]),
+          _disqualifiedUsers=parse(row["disqualifiedUsers"]), # This is wrong, but a workaround has been found, and this gets overwritten later
           _gasTransactions=parse(row["GasTransactions"]),
           _lastTime=last_time
       )

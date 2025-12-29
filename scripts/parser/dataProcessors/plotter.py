@@ -5,6 +5,7 @@ from matplotlib.lines import Line2D
 import numpy as np
 
 from parser import *
+from parser.experiment_specs import ExperimentSpec
 
 def plotData(rounds: list[Round], participants: list[Participant], experiment_specs: ExperimentSpec, gasStats: GasStats, outDir):
   #print(rounds)
@@ -29,7 +30,7 @@ def line_graph(data, x_label, y_label, title, vline=None):
     plt.ylabel(y_label)
     plt.title(title)
     plt.legend()
-    plt.show()
+    plt.show(block=True)
 
 def plot_from_parsed(
     rounds: list[Round],
@@ -204,7 +205,7 @@ def plot_from_parsed(
                 
                 attitudeArr.append(getattr(att, "name", "").upper() if att is not None else "unknown")
 
-                if att is not None and getattr(att, "name", "").upper() == "BAD":
+                if att is not None and getattr(att, "name", "").upper() in ["BAD", "MALICIOUS"]:
                     malicious += 1
                 if att is not None and getattr(att, "name", "").upper() == "FREERIDER":
                     freerider += 1

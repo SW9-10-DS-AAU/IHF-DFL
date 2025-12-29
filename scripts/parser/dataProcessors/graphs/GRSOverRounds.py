@@ -22,7 +22,7 @@ def prepare_grs_by_round(
     participants: dict[int, Participant], 
     experiment_specs: ExperimentSpec, 
     gasStats: GasStats, 
-    outDir, 
+    outDir: str, 
     target_attitude: Attitude,  # FREERIDER or BAD only
 ):
     method = Method.from_string(
@@ -31,23 +31,26 @@ def prepare_grs_by_round(
     )
 
     target_ids = get_target_user_ids(participants, target_attitude)
+    print(f"{experiment_specs.contribution_score_strategy}-{experiment_specs.freerider_start_round}-{experiment_specs.freerider_noise_scale}-{experiment_specs.use_outlier_detection}")
     if not target_ids:
         return
 
     grs_by_method_round.setdefault(method, {})
 
     for r in rounds:
-        vals = [r.GRS[pid] for pid in target_ids]
+        vals = [(pid, r.GRS[pid]) for pid in target_ids]
 
         grs_by_method_round[method].setdefault(r.nr, []).extend(vals)
 
 def get_grs_lines():
     out = {}
 
-    for method, rounds in grs_by_method_round.items():
-        out[method] = {
-            r: np.mean(vals) for r, vals in rounds.items()
-        }
+    for method, rounds_dict in grs_by_method_round.items():
+        out[method] = {}
+
+        for r, pairs in rounds_dict.items():
+            grs_values = [v for _, v in pairs]
+            out[method][r] = np.mean(grs_values)
 
     return out
 
@@ -55,12 +58,14 @@ def grsGraph(
     target_attitude: Attitude,
     title: str,
     freeridingRoundStart: int,
+    usePreviousTests: bool, 
     RESULTDATAFOLDER: str
 ):
     grs_by_method_round.clear()
 
     runProcessor(
         RESULTDATAFOLDER,
+        usePreviousTests,
         lambda rounds, participants, experimentConfig, gasCosts, outdir: \
             prepare_grs_by_round(
                 rounds,

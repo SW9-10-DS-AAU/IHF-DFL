@@ -20,3 +20,12 @@ class Method(Enum):
             return cls[key]
         except KeyError:
             raise ValueError(f"Invalid method: {name}")
+        
+    @property
+    def display_name(self) -> str:
+        return {
+            Method.ACCURACY: "Accuracy",
+            Method.NAIVE: "Naive",
+            Method.DOTPRODUCT: "Dot product (no outlier detection)",
+            Method.DOTPRODUCTANDOUTLIER: "Dot product (with outlier detection)",
+        }[self]
