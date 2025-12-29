@@ -89,22 +89,22 @@ def graph_seven_four(usePreviousTests: bool = True):
     plot_contribution_score_variance("Variance Of Contribution Score - Naive", [Method.NAIVE], LISTOFALLATTIDUDESASMETA, usePreviousTests, RESULTDATAFOLDER)
 
 
-# graph_one_one()
-# graph_one_two()
-# graph_one_three()
+graph_one_one()
+graph_one_two()
+graph_one_three()
 
-# graph_two_one()
+graph_two_one()
 
-# graph_three_one()
+graph_three_one()
 
-# graph_four_one_cand_one()
-# graph_four_one_cand_two()
+graph_four_one_cand_one()
+graph_four_one_cand_two()
 
-# graph_five_one()
-# graph_five_two()
-# graph_five_three()
+graph_five_one()
+graph_five_two()
+graph_five_three()
 
-# graph_six_one()
+graph_six_one()
 
 graph_seven_one()
 graph_seven_two()

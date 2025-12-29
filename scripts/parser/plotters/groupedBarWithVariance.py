@@ -62,7 +62,7 @@ def  grouped_bar_with_variance(
                 )
 
     ax.set_xticks(x)
-    ax.set_xticklabels(labels, rotation=20)
+    ax.set_xticklabels(labels, rotation=10)
     ax.set_ylabel(ylabel)
 
     if title:
