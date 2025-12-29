@@ -1,12 +1,12 @@
 import numpy as np
 from openfl.ml.pytorch_model import Participant
 from parser.helpers.mehods import Method
-from parser.participant import Attitude, MetaAttitude
+from parser.types.participant import Attitude, MetaAttitude
 from parser.dataProcessors.plotter import line_graph
 from parser.parseExports import runProcessor
 from parser.experiment_specs import ExperimentSpec
 from parser.gasCosts import GasStats
-from parser.round import Round
+from parser.types.round import Round
 
 
 grs_by_method_round = {}

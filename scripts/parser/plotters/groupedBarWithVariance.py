@@ -68,7 +68,7 @@ def  grouped_bar_with_variance(
     if title:
         ax.set_title(title)
 
-    ax.legend(frameon=False)
+    ax.legend(frameon=True)
     ax.grid(axis="y", linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
 

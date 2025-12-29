@@ -3,7 +3,7 @@ import numpy as np
 from parser import *
 from parser.experiment_specs import ExperimentSpec
 from parser.helpers.mehods import Method
-from parser.participant import MetaAttitude
+from parser.types.participant import MetaAttitude
 from parser.parseExports import runProcessor
 from parser.plotters.groupedBarWithVariance import grouped_bar_with_variance
 from parser.helpers.varianceCalculator import getVariances

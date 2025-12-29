@@ -4,10 +4,10 @@ from parser.parseExports import runProcessor
 from parser.helpers.mehods import Method
 from parser.helpers.varianceCalculator import getVariances
 from parser.plotters.groupedBarWithVariance import grouped_bar_with_variance
-from parser.round import GasType, Round
+from parser.types.round import GasType, Round
 from parser.experiment_specs import ExperimentSpec
 from parser.gasCosts import GasStats
-from parser.participant import Participant
+from parser.types.participant import Participant
 
 gas_by_method = defaultdict(list)
 

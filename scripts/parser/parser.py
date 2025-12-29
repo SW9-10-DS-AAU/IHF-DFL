@@ -8,8 +8,8 @@ from .experiment_specs import parse_experiment_spec
 
 from .gasCosts import GasStats
 
-from .participant import Participant, ParticipantState, parse_attitude
-from .round import Round
+from .types.participant import Participant, ParticipantState, parse_attitude
+from .types.round import Round
 
 def _filtered_lines(path: Path) -> Tuple[list[str], list[str]]:
     kept = []

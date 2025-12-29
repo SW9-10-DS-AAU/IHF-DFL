@@ -2,7 +2,7 @@ import numpy as np
 from parser.dataProcessors.graphs.kickedUsersExperiment import format_for_grouped_bar, prepare_data_for_graph
 from parser.helpers.mehods import Method
 from parser.parseExports import runProcessor
-from parser.participant import MetaAttitude
+from parser.types.participant import MetaAttitude
 from parser.plotters.groupedBarWithVariance import grouped_bar_with_variance
 from parser.helpers.varianceCalculator import getVariances
 

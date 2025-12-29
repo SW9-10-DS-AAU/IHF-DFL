@@ -1,6 +1,6 @@
 import numpy as np
 from parser.helpers.mehods import Method
-from parser.participant import Attitude
+from parser.types.participant import Attitude
 from parser.parseExports import runProcessor
 from parser.dataProcessors.plotter import line_graph
 
@@ -24,7 +24,7 @@ def prepare_accuracy_grs_gain(
     groups = {
         Attitude.GOOD: set(),
         Attitude.FREERIDER: set(),
-        Attitude.BAD: set(),
+        Attitude.MALICIOUS: set(),
     }
 
     for pid, p in participants.items():
@@ -63,12 +63,14 @@ def prepare_accuracy_grs_gain(
 
 def accuracyGRSGainGraph(
     title: str,
+    usePreviousTests: bool, 
     RESULTDATAFOLDER,
 ):
     grs_gain.clear()
 
     runProcessor(
         RESULTDATAFOLDER,
+        usePreviousTests,
         lambda rounds, participants, experimentConfig, gasCosts, outdir:
             prepare_accuracy_grs_gain(
                 rounds,

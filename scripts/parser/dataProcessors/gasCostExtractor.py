@@ -1,6 +1,4 @@
 from parser import *
-from parser.round import GasType
-
 totals = []
 
 def print_gas(rounds: list[Round], participants: dict[int, Participant], experiment_specs: ExperimentSpec, gasStats: GasStats, outDir):

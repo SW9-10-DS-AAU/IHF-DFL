@@ -6,7 +6,7 @@ from typing import Any, Callable
 from openfl.ml.pytorch_model import Participant
 from .experiment_specs import ExperimentSpec
 from .gasCosts import GasStats
-from .round import Round
+from .types.round import Round
 from .parser import load_data
 from .selector import choose_from_list
 

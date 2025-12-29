@@ -1,6 +1,6 @@
 import numpy as np
 from parser.helpers.mehods import Method
-from parser.participant import Attitude
+from parser.types.participant import Attitude
 from parser.parseExports import runProcessor
 from parser.dataProcessors.plotter import line_graph
 
@@ -46,12 +46,14 @@ def prepare_dotproduct_grs(
 def dotProductOutlierGRSGraph(
     target_attitude: Attitude,
     title: str,
+    usePreviousTests: bool, 
     RESULTDATAFOLDER,
 ):
     grs.clear()
 
     runProcessor(
         RESULTDATAFOLDER,
+        usePreviousTests,
         lambda rounds, participants, experimentConfig, gasCosts, outdir:
             prepare_dotproduct_grs(
                 rounds,

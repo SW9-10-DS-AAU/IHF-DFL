@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from parser.parseExports import runProcessor
 from parser.helpers.mehods import Method
-from parser.participant import MetaAttitude
+from parser.types.participant import MetaAttitude
 
 data = defaultdict(lambda: defaultdict(list))
 
@@ -69,25 +69,47 @@ def plot_contribution_score_variance(title, methods: list[Method], attitudes: li
             labels.append(f"{method.display_name}\n{att.display_name}")
 
     fig, ax = plt.subplots(figsize=(12, 5))
-    
-    ax.ticklabel_format(axis="y", style="sci", scilimits=(18, 18))
-    
-    parts = ax.violinplot(
+
+    # --- plot violins ---
+    ax.violinplot(
         values,
         showmeans=True,
         showmedians=False,
         showextrema=True,
     )
 
-    ax.axhline(0, color="gray", linestyle="--", linewidth=1)
-
+    # --- x axis ---
     ax.set_xticks(range(1, len(labels) + 1))
-    ax.set_xticklabels(labels, rotation=45, ha="right")
+    ax.set_xticklabels(labels, rotation=25, ha="right")
+
+    # --- y axis ---
     ax.set_ylabel("Contribution Score per Round")
     ax.set_title(title)
 
+    # scientific notation: 1e18
+    ax.ticklabel_format(axis="y", style="sci", scilimits=(18, 18))
+
+    # grid
     ax.grid(axis="y", linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
+
+    # --- autoscale to violins ONLY ---
+    ax.relim()
+    ax.autoscale_view()
+
+    # --- freeze limits ---
+    ymin, ymax = ax.get_ylim()
+    ax.set_ylim(ymin, ymax)
+
+    # --- draw zero line without affecting limits ---
+    ax.axhline(
+        0,
+        color="gray",
+        linestyle="--",
+        linewidth=1,
+        clip_on=False,
+        zorder=0,
+    )
 
     plt.tight_layout()
     plt.show(block=True)
