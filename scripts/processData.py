@@ -14,6 +14,8 @@ from parser.dataProcessors.graphs.kickedUsersExperiment import kickedGraph, prep
 from parser.plotters.groupedBarWithVariance import grouped_bar_with_variance
 from parser.dataProcessors.graphs.noiseGraph import kickedGraphMethodNoise
 from parser.dataProcessors.graphs.gasCostComparison import gasCostGraph
+from parser.dataProcessors.graphs.dotProductOutlierGRS import dotProductOutlierGRSGraph
+from parser.participant import Attitude
 
 #RESULTDATAFOLDER = Path(__file__).resolve().parents[1].joinpath("experiment/data/experimentData")
 RESULTDATAFOLDER = Path(__file__).resolve().parents[1].joinpath("experiment/data/experimentData")
@@ -41,12 +43,42 @@ def graph_four():
         RESULTDATAFOLDER
     )
 
+def graph_five_one():
+    # Dotproduct data
+    # 11-33 49-52
+
+    dotProductOutlierGRSGraph(
+        Attitude.FREERIDER,
+        "Dot Product GRS (Freeriders) – With vs Without Outlier Detection",
+        RESULTDATAFOLDER,
+    )
+
+
+def graph_five_two():
+    dotProductOutlierGRSGraph(
+        Attitude.BAD,
+        "Dot Product GRS (Malicious) – With vs Without Outlier Detection",
+        RESULTDATAFOLDER,
+    )
+
+def graph_five_three():
+    dotProductOutlierGRSGraph(
+        Attitude.GOOD,
+        "Dot Product GRS (Honest Users)",
+        RESULTDATAFOLDER,
+    )
+
+
 # graph_one_one()
 # graph_one_two()
 # graph_one_three()
 # graph_two()
-#graph_three_one()
-graph_four()
+# graph_three_one()
+# graph_four()
+
+graph_five_one()
+graph_five_two()
+graph_five_three()
 
 
 
