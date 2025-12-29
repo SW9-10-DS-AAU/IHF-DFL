@@ -109,11 +109,11 @@ def get_round_kicked():
 
     return out
 
-def kickedGraph(freeriderRound: int, title: str, useSameTests: bool, RESULTDATAFOLDER):
+def kickedGraph(freeriderRound: int, title: str, useSameTests: bool, windowAndFileName: str, RESULTDATAFOLDER):
     runProcessor(RESULTDATAFOLDER, useSameTests, lambda rounds, participants, experimentConfig, gasCosts, outdir: \
                  prepare_data_for_graph(rounds, participants, experimentConfig, gasCosts, outdir, freeriderRound))
 
 
     labels, means, variances, group_names, missing = format_for_grouped_bar(get_round_kicked())
 
-    grouped_bar_with_variance(labels, means, variances, group_names, missing, ylabel="Round Kicked", title=title)
+    grouped_bar_with_variance(labels, means, variances, group_names, missing, windowAndFileName, ylabel="Round Kicked", title=title)

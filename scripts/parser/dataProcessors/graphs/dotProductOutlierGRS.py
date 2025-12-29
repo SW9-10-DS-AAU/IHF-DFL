@@ -47,6 +47,7 @@ def dotProductOutlierGRSGraph(
     target_attitude: Attitude,
     title: str,
     usePreviousTests: bool, 
+    windowAndFileName: str,
     RESULTDATAFOLDER,
 ):
     grs.clear()
@@ -67,7 +68,7 @@ def dotProductOutlierGRSGraph(
 
     # Average per round
     data = {
-        m.name: {r: np.mean(vals) for r, vals in rounds.items()}
+        m: {r: np.mean(vals) for r, vals in rounds.items()}
         for m, rounds in grs.items()
     }
 
@@ -77,4 +78,5 @@ def dotProductOutlierGRSGraph(
         y_label="Average GRS",
         title=title,
         vline=3,
+        windowAndFileName=windowAndFileName
     )

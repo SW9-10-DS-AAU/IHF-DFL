@@ -89,7 +89,7 @@ def format_for_grouped_bar_method_noise(data):
     return labels, means, variances, group_names, missing
 
 
-def kickedGraphMethodNoise(freeriderRound: int, title: str, usePreviousTests: bool, RESULTDATAFOLDER):
+def kickedGraphMethodNoise(freeriderRound: int, title: str, usePreviousTests: bool, windowAndFileName:str, RESULTDATAFOLDER):
     runProcessor(
         RESULTDATAFOLDER,
         usePreviousTests, 
@@ -115,6 +115,7 @@ def kickedGraphMethodNoise(freeriderRound: int, title: str, usePreviousTests: bo
         variances,
         group_names,
         missing,
+        windowAndFileName=windowAndFileName,
         ylabel="Round Freerider Kicked",
         title=title,
     )

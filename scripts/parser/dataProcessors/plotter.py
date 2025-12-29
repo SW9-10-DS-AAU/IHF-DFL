@@ -15,21 +15,26 @@ def plotData(rounds: list[Round], participants: list[Participant], experiment_sp
   plot_from_parsed(rounds, participants, experiment_specs, outDir, "plot.pdf", "TestPlot")
 
 
-def line_graph(data, x_label, y_label, title, vline=None):
+def line_graph(data, x_label, y_label, title, vline=None, windowAndFileName: str = "Figure 1"):
     import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots()   # <-- create figure explicitly
 
     for label, series in data.items():
         xs = sorted(series.keys())
         ys = [series[x] for x in xs]
-        plt.plot(xs, ys, label=label)
+        ax.plot(xs, ys, label=label.display_name)
 
     if vline is not None:
-        plt.axvline(vline, linestyle="--")
+        ax.axvline(vline, linestyle="--")
 
-    plt.xlabel(x_label)
-    plt.ylabel(y_label)
-    plt.title(title)
-    plt.legend()
+    fig.canvas.manager.set_window_title(windowAndFileName)
+
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.set_title(title)
+    ax.legend()
+
     plt.show(block=True)
 
 def plot_from_parsed(

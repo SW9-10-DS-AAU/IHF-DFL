@@ -58,7 +58,8 @@ def grsGraph(
     target_attitude: Attitude,
     title: str,
     freeridingRoundStart: int,
-    usePreviousTests: bool, 
+    usePreviousTests: bool,
+    windowAndFileName: str,
     RESULTDATAFOLDER: str
 ):
     grs_by_method_round.clear()
@@ -78,7 +79,7 @@ def grsGraph(
     )
 
     data = {
-        m.name: v for m, v in get_grs_lines().items()
+        m: v for m, v in get_grs_lines().items()
     }
 
     line_graph(
@@ -87,4 +88,5 @@ def grsGraph(
         y_label="GRS",
         title=title,
         vline=freeridingRoundStart,
+        windowAndFileName=windowAndFileName
     )

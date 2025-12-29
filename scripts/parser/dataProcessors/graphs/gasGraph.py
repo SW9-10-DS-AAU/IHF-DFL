@@ -109,7 +109,7 @@ def format_for_grouped_bar_gas_methods(data):
 
     return labels, means, variances, group_names, missing
 
-def gasCostGraphMethods(title: str, usePreviousTests: bool, RESULTDATAFOLDER):
+def gasCostGraphMethods(title: str, usePreviousTests: bool, windowAndFileName: str, RESULTDATAFOLDER):
     runProcessor(
         RESULTDATAFOLDER,
         usePreviousTests,
@@ -127,6 +127,7 @@ def gasCostGraphMethods(title: str, usePreviousTests: bool, RESULTDATAFOLDER):
         variances,
         group_names,
         missing,
+        windowAndFileName=windowAndFileName,
         ylabel="Gas used per round",
         title=title,
     )

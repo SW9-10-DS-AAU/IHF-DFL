@@ -63,7 +63,8 @@ def prepare_accuracy_grs_gain(
 
 def accuracyGRSGainGraph(
     title: str,
-    usePreviousTests: bool, 
+    usePreviousTests: bool,
+    windowAndFileName: str,
     RESULTDATAFOLDER,
 ):
     grs_gain.clear()
@@ -89,7 +90,7 @@ def accuracyGRSGainGraph(
     data = {}
 
     for key, rounds in grs_gain.items():
-        label = key if isinstance(key, str) else key.name
+        label = key
         data[label] = {r: np.mean(vals) for r, vals in rounds.items()}
 
     line_graph(
@@ -97,4 +98,5 @@ def accuracyGRSGainGraph(
         x_label="Round",
         y_label="Average GRS Gained",
         title=title,
+        windowAndFileName=windowAndFileName
     )

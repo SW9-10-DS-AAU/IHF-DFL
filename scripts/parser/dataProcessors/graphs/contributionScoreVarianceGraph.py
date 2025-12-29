@@ -43,7 +43,7 @@ def prepare_data_for_contribution_variance(
             data[method][attitude].append(delta)
 
 
-def plot_contribution_score_variance(title, methods: list[Method], attitudes: list[MetaAttitude], usePreviousTests: bool, RESULTDATAFOLDER):
+def plot_contribution_score_variance(title, methods: list[Method], attitudes: list[MetaAttitude], usePreviousTests: bool, windowAndFileName: str, RESULTDATAFOLDER):
     runProcessor(
         RESULTDATAFOLDER,
         usePreviousTests,
@@ -110,6 +110,8 @@ def plot_contribution_score_variance(title, methods: list[Method], attitudes: li
         clip_on=False,
         zorder=0,
     )
+
+    fig.canvas.manager.set_window_title(windowAndFileName)
 
     plt.tight_layout()
     plt.show(block=True)

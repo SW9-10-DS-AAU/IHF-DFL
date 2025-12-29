@@ -7,6 +7,7 @@ def  grouped_bar_with_variance(
     variances,
     group_names,
     missing,
+    windowAndFileName: str,
     ylabel="Value",
     title=None,
     figsize=(8, 5)
@@ -71,6 +72,8 @@ def  grouped_bar_with_variance(
     ax.legend(frameon=True)
     ax.grid(axis="y", linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
+
+    fig.canvas.manager.set_window_title(windowAndFileName)
 
     fig.tight_layout()
     plt.show(block=True)

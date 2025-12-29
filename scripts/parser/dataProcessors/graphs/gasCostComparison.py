@@ -6,7 +6,7 @@ import numpy as np
 
 gas_by_method = {}
 
-def gasCostGraph(title, RESULTDATAFOLDER):
+def gasCostGraph(title, windowAndFileName:str, RESULTDATAFOLDER):
     gas_by_method.clear()
 
     runProcessor(
@@ -23,7 +23,7 @@ def gasCostGraph(title, RESULTDATAFOLDER):
         )
     )
 
-    labels = [m.name for m in gas_by_method]
+    labels = [m.display_name for m in gas_by_method]
     means = [[np.mean(v) for v in gas_by_method.values()]]
     variances = [[
         [np.mean(v) - np.percentile(v, 25), np.percentile(v, 75) - np.mean(v)]
@@ -35,6 +35,7 @@ def gasCostGraph(title, RESULTDATAFOLDER):
         means,
         variances,
         ["Total Gas Used"],
+        windowAndFileName=windowAndFileName,
         ylabel="Total Gas Used",
         title=title,
     )
