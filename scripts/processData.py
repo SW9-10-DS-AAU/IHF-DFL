@@ -16,6 +16,7 @@ from parser.dataProcessors.graphs.noiseGraph import kickedGraphMethodNoise
 from parser.dataProcessors.graphs.gasCostComparison import gasCostGraph
 from parser.dataProcessors.graphs.dotProductOutlierGRS import dotProductOutlierGRSGraph
 from parser.participant import Attitude
+from parser.dataProcessors.graphs.accuracyGRSGainPerRound import accuracyGRSGainGraph
 
 #RESULTDATAFOLDER = Path(__file__).resolve().parents[1].joinpath("experiment/data/experimentData")
 RESULTDATAFOLDER = Path(__file__).resolve().parents[1].joinpath("experiment/data/experimentData")
@@ -68,18 +69,28 @@ def graph_five_three():
         RESULTDATAFOLDER,
     )
 
+def graph_six():
+    # accuracy_grs_gain: 0-11 57-67 110-112
+    accuracyGRSGainGraph(
+        "Accuracy Scoring – GRS Gained Per Round",
+        RESULTDATAFOLDER,
+    )
 
 # graph_one_one()
 # graph_one_two()
 # graph_one_three()
+
 # graph_two()
+
 # graph_three_one()
+
 # graph_four()
 
-graph_five_one()
-graph_five_two()
-graph_five_three()
+# graph_five_one()
+# graph_five_two()
+# graph_five_three()
 
+graph_six()
 
 
 
