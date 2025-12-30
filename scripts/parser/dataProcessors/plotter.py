@@ -15,7 +15,7 @@ def plotData(rounds: list[Round], participants: list[Participant], experiment_sp
   plot_from_parsed(rounds, participants, experiment_specs, outDir, "plot.pdf", "TestPlot")
 
 
-def line_graph(data, x_label, y_label, title, vline=None, windowAndFileName: str = "Figure 1"):
+def line_graph(data, useShortName: bool, x_label, y_label, title, vline=None, windowAndFileName: str = "Figure 1"):
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots()   # <-- create figure explicitly
@@ -23,10 +23,10 @@ def line_graph(data, x_label, y_label, title, vline=None, windowAndFileName: str
     for label, series in data.items():
         xs = sorted(series.keys())
         ys = [series[x] for x in xs]
-        ax.plot(xs, ys, label=label.display_name)
+        ax.plot(xs, ys, label=label.short_name if useShortName else label.display_name)
 
     if vline is not None:
-        ax.axvline(vline, linestyle="--")
+        ax.axvline(vline, linestyle="--", label="Freerider activation")
 
     fig.canvas.manager.set_window_title(windowAndFileName)
 
@@ -34,6 +34,8 @@ def line_graph(data, x_label, y_label, title, vline=None, windowAndFileName: str
     ax.set_ylabel(y_label)
     ax.set_title(title)
     ax.legend()
+    ax.grid(True)
+    ax.ticklabel_format(axis="y", style="sci", scilimits=(18, 18))
 
     plt.show(block=True)
 

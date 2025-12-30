@@ -49,6 +49,7 @@ def dotProductOutlierGRSGraph(
     usePreviousTests: bool, 
     windowAndFileName: str,
     RESULTDATAFOLDER,
+    useShortName: bool = False
 ):
     grs.clear()
 
@@ -74,6 +75,7 @@ def dotProductOutlierGRSGraph(
 
     line_graph(
         data,
+        useShortName,
         x_label="Round",
         y_label="Average GRS",
         title=title,

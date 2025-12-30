@@ -4,9 +4,11 @@ from parser.parseExports import runProcessor
 from parser.plotters.groupedBarWithVariance import grouped_bar_with_variance
 import numpy as np
 
+from parser.helpers.setLegendLocation import LegendPosition
+
 gas_by_method = {}
 
-def gasCostGraph(title, windowAndFileName:str, RESULTDATAFOLDER):
+def gasCostGraph(title, windowAndFileName:str, legend_position: LegendPosition, RESULTDATAFOLDER):
     gas_by_method.clear()
 
     runProcessor(
@@ -35,7 +37,8 @@ def gasCostGraph(title, windowAndFileName:str, RESULTDATAFOLDER):
         means,
         variances,
         ["Total Gas Used"],
-        windowAndFileName=windowAndFileName,
+        windowAndFileName,
+        legend_position,
         ylabel="Total Gas Used",
         title=title,
     )

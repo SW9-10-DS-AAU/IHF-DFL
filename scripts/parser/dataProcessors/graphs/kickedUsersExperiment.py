@@ -7,6 +7,7 @@ from parser.types.participant import MetaAttitude
 from parser.parseExports import runProcessor
 from parser.plotters.groupedBarWithVariance import grouped_bar_with_variance
 from parser.helpers.varianceCalculator import getVariances
+from parser.helpers.setLegendLocation import LegendPosition
 
 nrOfRounds = 0
 
@@ -27,10 +28,10 @@ roundkicked = {
 
 def prepare_data_for_graph(rounds: list[Round], participants: dict[int, Participant], experiment_specs: ExperimentSpec, gasStats: GasStats, outDir, freeRiderRound: int):
   global nrOfRounds
+  global roundkicked
   if experiment_specs.freerider_start_round != freeRiderRound:
      return
   
-  global roundkicked
   disqualified_users: list[tuple[int, Participant]] = []
 
   bothKickedRound = None
@@ -39,7 +40,7 @@ def prepare_data_for_graph(rounds: list[Round], participants: dict[int, Particip
         disqualified_users.append((round.nr, dusers))
         if(len(disqualified_users) > 1):
            bothKickedRound = round.nr
-
+  print(f"{experiment_specs.contribution_score_strategy}-{experiment_specs.freerider_start_round}-{experiment_specs.freerider_noise_scale}-{experiment_specs.use_outlier_detection}")
   for round_nr, participant in disqualified_users:
     roundkicked[Method.from_string(experiment_specs.contribution_score_strategy, experiment_specs.use_outlier_detection)]\
       [participant.futureAttitude].append(round_nr)
@@ -109,11 +110,19 @@ def get_round_kicked():
 
     return out
 
-def kickedGraph(freeriderRound: int, title: str, useSameTests: bool, windowAndFileName: str, RESULTDATAFOLDER):
+def kickedGraph(freeriderRound: int, title: str, useSameTests: bool, windowAndFileName: str, legend_position: LegendPosition, RESULTDATAFOLDER):
+    global roundkicked, nrOfRounds
+    roundkicked = {
+        Method.ACCURACY: new_counter(),
+        Method.DOTPRODUCT: new_counter(),
+        Method.DOTPRODUCTANDOUTLIER: new_counter(),
+        Method.NAIVE: new_counter()
+    }
+    nrOfRounds = 0
     runProcessor(RESULTDATAFOLDER, useSameTests, lambda rounds, participants, experimentConfig, gasCosts, outdir: \
                  prepare_data_for_graph(rounds, participants, experimentConfig, gasCosts, outdir, freeriderRound))
 
 
     labels, means, variances, group_names, missing = format_for_grouped_bar(get_round_kicked())
 
-    grouped_bar_with_variance(labels, means, variances, group_names, missing, windowAndFileName, ylabel="Round Kicked", title=title)
+    grouped_bar_with_variance(labels, means, variances, group_names, missing, windowAndFileName, legend_position, ylabel="Round Kicked", title=title)

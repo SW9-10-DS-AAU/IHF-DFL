@@ -40,8 +40,8 @@ def runProcessor(RESULTDATAFOLDER: Path, useSameTests: bool, processor: Callable
 
         disqualifiedUsers = _detect_disqualifications(rounds, participants)
 
-        for roundNr, participantIndex, in disqualifiedUsers:
-            rounds[roundNr].addDisqualifiedUser(participants[participantIndex])
+        for roundNr, participant in disqualifiedUsers:
+            rounds[roundNr].addDisqualifiedUser(participant)
 
         processor(rounds, participants, experimentConfig, gasCosts, outdir)
 
@@ -55,6 +55,6 @@ def _detect_disqualifications(rounds: list[Round], participants: dict[int, Parti
         for i, userGrs in enumerate(round.GRS):
             if (userGrs == 0 and i not in markedIndexes):
                 markedIndexes.append(i)
-                disqualified.append((round.nr, i))
+                disqualified.append((round.nr, participants[i]))
 
     return disqualified

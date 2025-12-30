@@ -95,6 +95,7 @@ def accuracyGRSGainGraph(
 
     line_graph(
         data,
+        False,
         x_label="Round",
         y_label="Average GRS Gained",
         title=title,

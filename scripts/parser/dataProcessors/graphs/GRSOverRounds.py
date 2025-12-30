@@ -24,14 +24,17 @@ def prepare_grs_by_round(
     gasStats: GasStats, 
     outDir: str, 
     target_attitude: Attitude,  # FREERIDER or BAD only
+    freeridingRoundStart,
 ):
+    if (experiment_specs.freerider_start_round != freeridingRoundStart):
+        return
     method = Method.from_string(
         experiment_specs.contribution_score_strategy,
         experiment_specs.use_outlier_detection,
     )
 
     target_ids = get_target_user_ids(participants, target_attitude)
-    print(f"{experiment_specs.contribution_score_strategy}-{experiment_specs.freerider_start_round}-{experiment_specs.freerider_noise_scale}-{experiment_specs.use_outlier_detection}")
+    
     if not target_ids:
         return
 
@@ -75,6 +78,7 @@ def grsGraph(
                 gasCosts,
                 outdir,
                 target_attitude,
+                freeridingRoundStart,
             )
     )
 
@@ -84,6 +88,7 @@ def grsGraph(
 
     line_graph(
         data,
+        False,
         x_label="Round",
         y_label="GRS",
         title=title,

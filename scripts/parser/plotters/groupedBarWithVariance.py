@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from parser.helpers.setLegendLocation import LegendPosition, set_legend
+
 def  grouped_bar_with_variance(
     labels,
     means,
@@ -8,9 +10,10 @@ def  grouped_bar_with_variance(
     group_names,
     missing,
     windowAndFileName: str,
+    legend_position,
     ylabel="Value",
     title=None,
-    figsize=(8, 5)
+    figsize=(8, 5),
 ):
     """
     labels: list[str]            -> x-axis categories
@@ -68,8 +71,8 @@ def  grouped_bar_with_variance(
 
     if title:
         ax.set_title(title)
-
-    ax.legend(frameon=True)
+    ax.grid(True)
+    set_legend(ax, legend_position, group_names)
     ax.grid(axis="y", linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
 

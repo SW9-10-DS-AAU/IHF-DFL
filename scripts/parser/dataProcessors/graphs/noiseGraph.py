@@ -5,6 +5,7 @@ from parser.parseExports import runProcessor
 from parser.types.participant import MetaAttitude
 from parser.plotters.groupedBarWithVariance import grouped_bar_with_variance
 from parser.helpers.varianceCalculator import getVariances
+from parser.helpers.setLegendLocation import LegendPosition
 
 
 roundkicked_by_method_noise = {}
@@ -89,7 +90,7 @@ def format_for_grouped_bar_method_noise(data):
     return labels, means, variances, group_names, missing
 
 
-def kickedGraphMethodNoise(freeriderRound: int, title: str, usePreviousTests: bool, windowAndFileName:str, RESULTDATAFOLDER):
+def kickedGraphMethodNoise(freeriderRound: int, title: str, usePreviousTests: bool, windowAndFileName:str, legend_position: LegendPosition, RESULTDATAFOLDER):
     runProcessor(
         RESULTDATAFOLDER,
         usePreviousTests, 
@@ -115,7 +116,8 @@ def kickedGraphMethodNoise(freeriderRound: int, title: str, usePreviousTests: bo
         variances,
         group_names,
         missing,
-        windowAndFileName=windowAndFileName,
+        windowAndFileName,
+        legend_position,
         ylabel="Round Freerider Kicked",
         title=title,
     )

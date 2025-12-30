@@ -7,7 +7,7 @@ from parser.helpers.mehods import Method
 from parser.types.participant import MetaAttitude
 
 data = defaultdict(lambda: defaultdict(list))
-
+Y_SCALE = 1e18
 
 def prepare_data_for_contribution_variance(
     rounds,
@@ -43,7 +43,40 @@ def prepare_data_for_contribution_variance(
             data[method][attitude].append(delta)
 
 
-def plot_contribution_score_variance(title, methods: list[Method], attitudes: list[MetaAttitude], usePreviousTests: bool, windowAndFileName: str, RESULTDATAFOLDER):
+def annotate_clipped(ax, values, y_range):
+    ymin, ymax = y_range
+    yrange = ymax - ymin
+
+    top_y = ymax - 0.03 * yrange
+    bottom_y = ymin + 0.03 * yrange
+
+    for i, vals in enumerate(values, start=1):
+        vmin = min(vals)
+        vmax = max(vals)
+
+        if vmax > ymax:
+            ax.text(
+                i,
+                top_y,
+                f"↑ max={vmax / Y_SCALE:.2f}",
+                ha="center",
+                va="bottom",
+                fontsize=8,
+                color="red",
+            )
+
+        if vmin < ymin:
+            ax.text(
+                i,
+                bottom_y,
+                f"↓ min={vmin / Y_SCALE:.2f}",
+                ha="center",
+                va="top",
+                fontsize=8,
+                color="red",
+            )
+
+def plot_contribution_score_variance(title, methods: list[Method], attitudes: list[MetaAttitude], usePreviousTests: bool, windowAndFileName: str, RESULTDATAFOLDER, y_range: tuple[float, float] | None = None):
     runProcessor(
         RESULTDATAFOLDER,
         usePreviousTests,
@@ -62,9 +95,17 @@ def plot_contribution_score_variance(title, methods: list[Method], attitudes: li
 
     for method in methods:
         for att in attitudes:
-            vals = data[method].get(att, [])
+            raw_vals = data[method].get(att, [])
+
+            vals = [
+                float(v)
+                for v in raw_vals
+                if v is not None
+            ]
+
             if not vals:
-                vals = [0]  # keep alignment
+                vals = [0.0]
+
             values.append(vals)
             labels.append(f"{method.display_name}\n{att.display_name}")
 
@@ -93,13 +134,12 @@ def plot_contribution_score_variance(title, methods: list[Method], attitudes: li
     ax.grid(axis="y", linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
 
-    # --- autoscale to violins ONLY ---
-    ax.relim()
-    ax.autoscale_view()
-
-    # --- freeze limits ---
-    ymin, ymax = ax.get_ylim()
-    ax.set_ylim(ymin, ymax)
+    if y_range is not None:
+        ax.set_ylim(y_range)
+        annotate_clipped(ax, values, y_range)
+    else:
+        ax.relim()
+        ax.autoscale_view()
 
     # --- draw zero line without affecting limits ---
     ax.axhline(

@@ -8,6 +8,7 @@ from parser.types.round import GasType, Round
 from parser.experiment_specs import ExperimentSpec
 from parser.gasCosts import GasStats
 from parser.types.participant import Participant
+from parser.helpers.setLegendLocation import LegendPosition
 
 gas_by_method = defaultdict(list)
 
@@ -109,7 +110,7 @@ def format_for_grouped_bar_gas_methods(data):
 
     return labels, means, variances, group_names, missing
 
-def gasCostGraphMethods(title: str, usePreviousTests: bool, windowAndFileName: str, RESULTDATAFOLDER):
+def gasCostGraphMethods(title: str, usePreviousTests: bool, windowAndFileName: str, legend_position: LegendPosition,RESULTDATAFOLDER):
     runProcessor(
         RESULTDATAFOLDER,
         usePreviousTests,
@@ -127,7 +128,8 @@ def gasCostGraphMethods(title: str, usePreviousTests: bool, windowAndFileName: s
         variances,
         group_names,
         missing,
-        windowAndFileName=windowAndFileName,
+        windowAndFileName,
+        legend_position,
         ylabel="Gas used per round",
         title=title,
     )
