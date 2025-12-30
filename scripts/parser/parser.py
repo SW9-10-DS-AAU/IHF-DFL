@@ -8,8 +8,8 @@ from .experiment_specs import parse_experiment_spec
 
 from .gasCosts import GasStats
 
-from .participant import Participant, ParticipantState, parse_attitude
-from .round import Round
+from .types.participant import Participant, ParticipantState, parse_attitude
+from .types.round import Round
 
 def _filtered_lines(path: Path) -> Tuple[list[str], list[str]]:
     kept = []
@@ -36,7 +36,6 @@ def load_data(path: str):
   for row in reader:
       nr = int(row["round"])
       time = datetime.strptime(row["time"], "%H:%M:%S.%f")
-
       def parse(x):
           try:
               return ast.literal_eval(x)
@@ -57,7 +56,7 @@ def load_data(path: str):
           _punishments=parse(row["punishments"]),
           _contributionScores=parse(row["contributionScores"]),
           _feedbackMatrix=parse(row["feedbackMatrix"]),
-          _disqualifiedUsers=parse(row["disqualifiedUsers"]),
+          _disqualifiedUsers=parse(row["disqualifiedUsers"]), # This is wrong, but a workaround has been found, and this gets overwritten later
           _gasTransactions=parse(row["GasTransactions"]),
           _lastTime=last_time
       )

@@ -5,6 +5,7 @@ from matplotlib.lines import Line2D
 import numpy as np
 
 from parser import *
+from parser.experiment_specs import ExperimentSpec
 
 def plotData(rounds: list[Round], participants: list[Participant], experiment_specs: ExperimentSpec, gasStats: GasStats, outDir):
   #print(rounds)
@@ -13,6 +14,30 @@ def plotData(rounds: list[Round], participants: list[Participant], experiment_sp
   #print(gasStats)
   plot_from_parsed(rounds, participants, experiment_specs, outDir, "plot.pdf", "TestPlot")
 
+
+def line_graph(data, useShortName: bool, x_label, y_label, title, vline=None, windowAndFileName: str = "Figure 1"):
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots()   # <-- create figure explicitly
+
+    for label, series in data.items():
+        xs = sorted(series.keys())
+        ys = [series[x] for x in xs]
+        ax.plot(xs, ys, label=label.short_name if useShortName else label.display_name)
+
+    if vline is not None:
+        ax.axvline(vline, linestyle="--", label="Freerider activation")
+
+    fig.canvas.manager.set_window_title(windowAndFileName)
+
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.set_title(title)
+    ax.legend()
+    ax.grid(True)
+    ax.ticklabel_format(axis="y", style="sci", scilimits=(18, 18))
+
+    plt.show(block=True)
 
 def plot_from_parsed(
     rounds: list[Round],
@@ -187,7 +212,7 @@ def plot_from_parsed(
                 
                 attitudeArr.append(getattr(att, "name", "").upper() if att is not None else "unknown")
 
-                if att is not None and getattr(att, "name", "").upper() == "BAD":
+                if att is not None and getattr(att, "name", "").upper() in ["BAD", "MALICIOUS"]:
                     malicious += 1
                 if att is not None and getattr(att, "name", "").upper() == "FREERIDER":
                     freerider += 1

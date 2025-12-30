@@ -1,0 +1,1 @@
+from .participant import Participant, Attitude, MetaAttitude

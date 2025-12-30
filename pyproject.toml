@@ -20,6 +20,7 @@ dependencies = [
   "python-dotenv==1.2.1",
   "pytest==9.0.1",
   "psutil== 6.1.0",
+  "jsonpickle"
 ]
 
 # Dev-only tools (notebooks, testing, formatting, etc.)

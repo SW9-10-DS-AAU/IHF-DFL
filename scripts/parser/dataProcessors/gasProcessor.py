@@ -1,4 +1,4 @@
 from parser import *
+from parser.experiment_specs import ExperimentSpec
+from parser.types.round import GasType
 
-def createKickedGraph(rounds: list[Round], participants: list[Participant], experiment_specs: ExperimentSpec, gasStats: GasStats, outDir):
-  
