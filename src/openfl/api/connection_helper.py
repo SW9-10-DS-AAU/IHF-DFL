@@ -146,13 +146,16 @@ class ConnectionHelper:
     
     
     
-    def initialize_model(self, address):
+    def initialize_model(self, address=None):
         bytecode_path = Path(__file__).resolve().parents[3] / "artifacts" / "bytecode"
         with open(bytecode_path / "abi_model.txt") as abiFile:
             abi = re.sub("\n|\t|\ ", "", abiFile.read())
         with open(bytecode_path / "bytecode_model.txt") as abiFile:
             bytecode = abiFile.read().strip()
-        return self.w3.eth.contract(address=address, bytecode=bytecode, abi=abi)
+        if address is not None:
+            return self.w3.eth.contract(address=address, bytecode=bytecode, abi=abi)
+        else:
+            return self.w3.eth.contract(bytecode=bytecode, abi=abi)
     
     
     

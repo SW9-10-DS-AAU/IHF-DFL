@@ -16,8 +16,11 @@ dependencies = [
   "matplotlib==3.10.7",
   "eth-abi==5.2.0",
   "pandas==2.3.3",
-  "py-solc-x==2.0.4",
-  "python-dotenv==1.2.1"
+  "py-solc-x >= 2.0.5",
+  "python-dotenv==1.2.1",
+  "pytest==9.0.1",
+  "psutil== 6.1.0",
+  "jsonpickle"
 ]
 
 # Dev-only tools (notebooks, testing, formatting, etc.)
@@ -30,6 +33,7 @@ dev = [
   "ruff",
   "mypy",
   "pytest",
+  "pytest-cov",
 ]
 
 ci = [

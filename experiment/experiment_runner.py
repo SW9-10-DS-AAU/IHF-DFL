@@ -7,12 +7,16 @@ from openfl.utils import require_env_var
 from types import SimpleNamespace
 from web3 import Web3, Account
 
+from openfl.utils.async_writer import AsyncWriter
 
-def run_experiment(dataset_name, experiment_config):
+
+def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=None):
+
+  dataset_name = dataset_name.replace(".", "-")
+
   experiment_start = time.perf_counter()
   RPC_ENDPOINT = require_env_var("RPC_URL")
     
-
 # Only for the real-net simulation
 # In order to use a non-locally forked blockchain, 
 # private keys are required to unlock accounts
@@ -33,7 +37,7 @@ def run_experiment(dataset_name, experiment_config):
 
     print(f"Loaded {len(PRIVKEYS)} private keys.")
   else:
-      PRIVKEYS = None
+    PRIVKEYS = None
 
   pytorch_model = PM.PytorchModel(dataset_name, 
                               experiment_config.number_of_good_contributors, 
@@ -41,7 +45,9 @@ def run_experiment(dataset_name, experiment_config):
                               experiment_config.epochs, 
                               experiment_config.batch_size, 
                               experiment_config.standard_buy_in,
-                              experiment_config.max_buy_in)
+                              experiment_config.max_buy_in,
+                              experiment_config.freerider_noise_scale,
+                              experiment_config.freerider_start_round)
 
   for i in range(experiment_config.number_of_bad_contributors):
       pytorch_model.add_participant("bad",3)
@@ -51,6 +57,7 @@ def run_experiment(dataset_name, experiment_config):
       
   for i in range(experiment_config.number_of_inactive_contributors):
       pytorch_model.add_participant("inactive",1)
+
 
   manager = Manager.FLManager(pytorch_model, True).init(experiment_config.number_of_good_contributors, 
                                               experiment_config.number_of_bad_contributors,
@@ -68,6 +75,7 @@ def run_experiment(dataset_name, experiment_config):
                                           experiment_config.minimum_rounds,
                                           experiment_config.punish_factor,
                                           experiment_config.first_round_fee)
+  writer.writeComment(f"$startingUserConfig${[p.getStatus() for p in pytorch_model.participants]}")
 
   extra_configs = {}
   if experiment_config.contribution_score_strategy is not None:
@@ -75,12 +83,11 @@ def run_experiment(dataset_name, experiment_config):
           experiment_config.contribution_score_strategy
       )
 
-  if extra_configs:
-      configs = tuple(configs) + (extra_configs,)
-
   model = Challenge.FLChallenge(manager, 
                       configs,
-                      pytorch_model)
+                      pytorch_model,
+                      experiment_config,
+                      writer)
 
 
   model.simulate(rounds=experiment_config.minimum_rounds)
@@ -89,13 +96,14 @@ def run_experiment(dataset_name, experiment_config):
 
   print("\n" + "="*75)
   print(f"TOTAL EXPERIMENT TIME: {total_experiment_time:.2f} seconds")
+  writer.writeComment(f"TOTAL EXPERIMENT TIME: {total_experiment_time:.2f} seconds")
   print("="*75 + "\n")
 
   return Experiment(model, manager)
 
 
 def visualizeModel(model):
-  model.visualize_simulation("experiment/figures")
+  model.visualize_simulation("figures")
 
 
 
@@ -103,7 +111,7 @@ def print_transactions(experiment):
   model = experiment.model
   print("{:<10} - {:^64} -    Gas Used - {}".format("Function", "Transaction Hash", "Success"))
   print("------------------------------------------------------------------------------------------")
-  for f, txhash in model.txHashes:
+  for f, txhash, gasUsed in model.txHashes:
       r = model.w3.eth.wait_for_transaction_receipt(txhash)
       if r["status"] == 1:
           success = "✅"

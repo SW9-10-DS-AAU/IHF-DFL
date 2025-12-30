@@ -12,6 +12,13 @@
       "console": "integratedTerminal"
     },
     {
+      "name": "Python Debugger: Processor",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "scripts/processData.py",
+      "console": "integratedTerminal"
+    },
+    {
       "name": "Python Debugger: Current File",
       "type": "debugpy",
       "request": "launch",

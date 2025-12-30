@@ -29,10 +29,10 @@ PRIVATE_KEYS="<Private keys from your accounts colon separated (for non-locally 
 
 ## 3. Requirements
 - Only tested with Python3.10
-- Run ``pip install -e .[dev]``
+- Run ``pip install -e ".[dev]"``
 
 Build the abi and bytecode files from the smart contracts
-``python scripts/compile_contracts.py``
+``python3 scripts/compile_contracts.py``
 
 ## 4. Running an Experiment
 The Experiment folder contains files for running experiments on different datasets.
@@ -52,3 +52,7 @@ The file experiments.py runs one such experiment and can be run with:
 - To Test:
   - `forge build` 
   - `forge test`
+
+# 6. Test Coverage
+To get test coverage, run the following command: \
+`pytest --cov=openfl tests/`
