@@ -1,4 +1,5 @@
 import importlib.util
+import types
 import sys
 from pathlib import Path
 
@@ -27,11 +28,19 @@ def test_compile_contracts_runs_with_stubs(tmp_path, monkeypatch):
             }
 
     fake = FakeSolcx()
-    monkeypatch.setitem(sys.modules, "solcx", fake)
+    solcx_stub = types.ModuleType("solcx")
+    solcx_stub.install_solc = fake.install_solc
+    solcx_stub.set_solc_version = fake.set_solc_version
+    solcx_stub.compile_standard = fake.compile_standard
+    solcx_stub.get_installed_solc_versions = lambda: list(fake.installed)
 
-    # Create temporary module copy with __file__ pointing to tmp_path
-    src_path = Path("scripts/compile_contracts.py")
-    code = src_path.read_text()
+    monkeypatch.setitem(sys.modules, "solcx", solcx_stub)
+
+    project_root = Path(__file__).resolve().parents[2]
+    src_path = project_root / "scripts" / "compile_contracts.py"
+    code = src_path.read_text(encoding="utf-8")
+
+
     module_path = tmp_path / "pkg" / "compile_contracts.py"
     module_path.parent.mkdir(parents=True, exist_ok=True)
     module_path.write_text(code)
