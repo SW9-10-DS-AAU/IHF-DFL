@@ -145,17 +145,17 @@ def minist_graph_seven_four(usePreviousTests: bool = True):
 
 # graph_six_one()
 
-cifar_graph_seven_one()
-cifar_graph_seven_two()
-cifar_graph_seven_three()
-cifar_graph_seven_four()
+#cifar_graph_seven_one()
+#cifar_graph_seven_two()
+#cifar_graph_seven_three()
+#cifar_graph_seven_four()
 
 # minist_graph_seven_one()
 # minist_graph_seven_two()
 # minist_graph_seven_three()
 # minist_graph_seven_four()
 
-graph_three_investigation()
+#graph_three_investigation()
 
 
 ## REMOVED
@@ -168,7 +168,7 @@ errCounter = 0
 def test(rounds: list[Round], participants: dict[int, Participant], experiment_specs: ExperimentSpec, gasStats: GasStats, outDir):
     global eCounter
     global errCounter
-    if Method.from_config(experiment_specs) != Method.ACCURACY: # or experiment_specs.freerider_start_round != 1:
+    if Method.from_config(experiment_specs) != Method.NAIVE: # or experiment_specs.freerider_start_round != 1:
         return
     eCounter += 1
 
@@ -182,7 +182,6 @@ def test(rounds: list[Round], participants: dict[int, Participant], experiment_s
     for i, r in enumerate(rounds):
         if found:
             break
-        #print(f"{participants[7].futureAttitude.display_name}-{r.nr}-{r.GRS[7]}")
         for id in targetIds:
             if r.GRS[id] <= 0.333333e18 and r.GRS[id] != 0:
                 errCounter += 1 
