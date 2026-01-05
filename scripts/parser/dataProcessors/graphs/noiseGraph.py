@@ -10,8 +10,9 @@ from parser.helpers.setLegendLocation import LegendPosition
 
 roundkicked_by_method_noise = {}
 
-def new_noise_bucket():
-    return {}
+def reset_round_kicked():
+    global roundkicked_by_method_noise
+    roundkicked_by_method_noise = {}
 
 def prepare_data_for_graph_method_noise(
     rounds,
@@ -91,6 +92,7 @@ def format_for_grouped_bar_method_noise(data):
 
 
 def kickedGraphMethodNoise(freeriderRound: int, title: str, usePreviousTests: bool, windowAndFileName:str, legend_position: LegendPosition, RESULTDATAFOLDER):
+    reset_round_kicked()
     runProcessor(
         RESULTDATAFOLDER,
         usePreviousTests, 

@@ -75,7 +75,7 @@ class DummyExperiment:
 
 def test_print_transactions_outputs_receipts(capsys):
     dummy = DummyExperiment()
-    dummy.model.txHashes = [("fn", "hash")]
+    dummy.model.txHashes = [("fn", "hash", 42)]
     dummy.model.w3.eth.receipts = {"hash": {"status": 1, "gasUsed": 42}}
 
     runner.print_transactions(dummy)
