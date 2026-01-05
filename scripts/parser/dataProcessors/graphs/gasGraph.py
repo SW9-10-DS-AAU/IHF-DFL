@@ -130,6 +130,6 @@ def gasCostGraphMethods(title: str, usePreviousTests: bool, windowAndFileName: s
         missing,
         windowAndFileName,
         legend_position,
-        ylabel="Gas used per round",
+        ylabel="Gas used per round (WEI)",
         title=title,
     )

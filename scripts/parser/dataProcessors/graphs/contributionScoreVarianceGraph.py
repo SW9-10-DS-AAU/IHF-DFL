@@ -121,7 +121,7 @@ def plot_contribution_score_variance(title, methods: list[Method], attitudes: li
 
     # --- x axis ---
     ax.set_xticks(range(1, len(labels) + 1))
-    ax.set_xticklabels(labels, rotation=10, ha="right")
+    ax.set_xticklabels(labels, rotation=10, ha="center")
 
     # --- y axis ---
     ax.set_ylabel("Contribution Score per Round")

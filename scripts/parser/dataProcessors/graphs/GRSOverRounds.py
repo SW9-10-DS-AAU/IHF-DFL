@@ -1,3 +1,4 @@
+from typing import Callable
 import numpy as np
 from openfl.ml.pytorch_model import Participant
 from parser.helpers.mehods import Method
@@ -25,13 +26,15 @@ def prepare_grs_by_round(
     outDir: str, 
     target_attitude: Attitude,  # FREERIDER or BAD only
     freeridingRoundStart,
+    filter: Callable[[ExperimentSpec], bool] | None = None
 ):
+    
+    if (filter is not None and not filter(experiment_specs)):
+        return
+
     if (experiment_specs.freerider_start_round != freeridingRoundStart):
         return
-    method = Method.from_string(
-        experiment_specs.contribution_score_strategy,
-        experiment_specs.use_outlier_detection,
-    )
+    method = Method.from_config(experiment_specs)
 
     target_ids = get_target_user_ids(participants, target_attitude)
     
@@ -39,7 +42,7 @@ def prepare_grs_by_round(
         return
 
     grs_by_method_round.setdefault(method, {})
-
+    
     for r in rounds:
         vals = [(pid, r.GRS[pid]) for pid in target_ids]
 
@@ -57,13 +60,17 @@ def get_grs_lines():
 
     return out
 
+def noiseScaleFilter(experiment_config: ExperimentSpec):
+    return experiment_config.freerider_noise_scale == 1.0
+
 def grsGraph(
     target_attitude: Attitude,
     title: str,
     freeridingRoundStart: int,
     usePreviousTests: bool,
     windowAndFileName: str,
-    RESULTDATAFOLDER: str
+    RESULTDATAFOLDER: str,
+    filter: Callable[[ExperimentSpec], bool] | None = None
 ):
     grs_by_method_round.clear()
 
@@ -79,6 +86,7 @@ def grsGraph(
                 outdir,
                 target_attitude,
                 freeridingRoundStart,
+                filter=filter
             )
     )
 

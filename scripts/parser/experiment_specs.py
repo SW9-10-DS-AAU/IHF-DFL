@@ -61,6 +61,9 @@ def parse_experiment_spec(csv_text: list[str]) -> ExperimentSpec:
         value = rest.strip().split()[0]
 
         data[key.strip()] = value
+    
+    if data.get('TOTAL EXPERIMENT TIME') is None:
+        raise ValueError("TOTAL EXPERIMENT TIME is missing, experiment probably failed")
 
     return ExperimentSpec(
         author=data.get("author", "Nykjaer"),
