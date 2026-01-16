@@ -20,6 +20,7 @@ contract OpenFLModel {
     uint8 public round = 0;
     uint8 public votesPerRound;
     uint8 public punishfactor;
+    uint8 public punishfactorContrib;
     uint8 public min_rounds;
 
     uint public nrOfParticipants;
@@ -174,6 +175,7 @@ contract OpenFLModel {
         uint _reward,
         uint8 _min_rounds,
         uint8 _punishfactor,
+        uint8 _punishfactorContrib,
         uint8 _freeriderPenalty
     ) payable {
         // Initialize Contract
@@ -185,6 +187,7 @@ contract OpenFLModel {
         totalReward = _reward;
         min_rounds = _min_rounds;
         punishfactor = _punishfactor;
+        punishfactorContrib = _punishfactorContrib;
         freeriderPenalty = (min_collateral * _freeriderPenalty) / 100;
         rewardPerRound = totalReward / min_rounds;
         rewardLeft = totalReward;
@@ -488,7 +491,7 @@ contract OpenFLModel {
                 if (isRegistered[user] && whitelistedForRewards[user] && !isPunished[user]) {
                     boundedSumOfWeights = sumOfWeights <= 0 ? 1 : uint(sumOfWeights);
                     uint personalReward = (reward * personalWeight[user]) / boundedSumOfWeights;
-                    if (isContribScoreNegative[round][user] && (GlobalReputationOf[user] <= personalReward)) {
+                    if (isContribScoreNegative[round][user] && (GlobalReputationOf[user] <= personalReward*punishfactorContrib)) {
                         reward += GlobalReputationOf[user];
 
                         emit Disqualification(
@@ -518,7 +521,7 @@ contract OpenFLModel {
                     delete personalWeight[user];
 
                     if (isContribScoreNegative[round][user]) {
-                        GlobalReputationOf[participants[i]] -= personalReward;
+                        GlobalReputationOf[participants[i]] -= personalReward*punishfactorContrib;
                     } else {
                         GlobalReputationOf[participants[i]] += personalReward;
                     }
