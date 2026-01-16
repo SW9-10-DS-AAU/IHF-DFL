@@ -148,7 +148,7 @@ class Net_MNIST(nn.Module):
 
         
 class PytorchModel:
-    def __init__(self, DATASET, _goodParticipants, _totalParticipants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,):
+    def __init__(self, DATASET, _goodParticipants, _totalParticipants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False):
         self.DATASET = DATASET
         if self.DATASET == "mnist":
             self.global_model = Net_MNIST().to(DEVICE)
@@ -167,6 +167,8 @@ class PytorchModel:
         self.train, self.val, self.test = self.load_data(self.NUMBER_OF_CONTRIBUTERS, _print=True)
         self.default_collateral = default_collateral
         self.max_collateral = max_collateral
+        self.force_merge_all = force_merge_all
+
 
         if freerider_noise_scale < 0:
             raise ValueError("freerider_noise_scale must be non-negative")
@@ -641,6 +643,8 @@ class PytorchModel:
                     prev_accs[feedbackGiver.id] = prev_acc
                     prev_losses[feedbackGiver.id] = prev_loss
 
+                if self.force_merge_all:
+                    feedback_matrix[feedbackGiver.id][user.id] = 0
 
             # RESET
             feedbackGiver.userToEvaluate = []

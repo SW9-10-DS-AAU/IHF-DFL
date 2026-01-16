@@ -480,15 +480,39 @@ contract OpenFLModel {
                     }
                 }
             }
-            boundedSumOfWeights = sumOfWeights <= 0 ? 1 : uint(sumOfWeights);
 
-            // Give rewards
+            // check if a user should be disqualified
             for (uint i = 0; i < participants.length; i++) {
                 address user = participants[i];
 
                 if (isRegistered[user] && whitelistedForRewards[user] && !isPunished[user]) {
-                    uint personalReward = (reward * personalWeight[user]) /
-                        boundedSumOfWeights;
+                    boundedSumOfWeights = sumOfWeights <= 0 ? 1 : uint(sumOfWeights);
+                    uint personalReward = (reward * personalWeight[user]) / boundedSumOfWeights;
+                    if (isContribScoreNegative[round][user] && (GlobalReputationOf[user] <= personalReward)) {
+                        reward += GlobalReputationOf[user];
+
+                        emit Disqualification(
+                            participants[i],
+                            RoundReputationOf[user],
+                            GlobalReputationOf[user],
+                            0
+                        );
+                        sumOfWeights += int(nrOfVotesOfUser[user] * contributionScore[round][user]);
+
+                        GlobalReputationOf[user] = 0;
+                        nrOfParticipants -= 1;
+                        delete participants[i];
+                    }
+                }
+            }
+            boundedSumOfWeights = sumOfWeights <= 0 ? 1 : uint(sumOfWeights);
+
+            // Give rewards (or negative rewards) based on contribution score
+            for (uint i = 0; i < participants.length; i++) {
+                address user = participants[i];
+
+                if (isRegistered[user] && whitelistedForRewards[user] && !isPunished[user]) {
+                    uint personalReward = (reward * personalWeight[user]) / boundedSumOfWeights;
 
                     delete whitelistedForRewards[user];
                     delete personalWeight[user];
