@@ -114,6 +114,8 @@ class AsyncWriter:
           ("use_outlier_detection", cfg.use_outlier_detection, "Whether to use outlier detection"),
           ("freerider_start_round", cfg.freerider_start_round, "When freeriders should start freeriding"),
           ("freerider_noise_scale", cfg.freerider_noise_scale, "How much noise a freeder should add"),
+          ("malicious_start_round", cfg.malicious_start_round, "When malicious users should start attacking"),
+          ("malicious_noise_scale", cfg.malicious_noise_scale, "How much noise a malicious user should add"),
       ]
       file.write("# ------Config--------")
       file.writelines([
