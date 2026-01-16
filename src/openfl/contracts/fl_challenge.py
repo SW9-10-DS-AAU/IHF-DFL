@@ -37,9 +37,10 @@ class FLChallenge(FLManager):
 
         self.model, self.modelAddress = configs[:2]
         self.pytorch_model = pyTorchModel
-        self.MIN_BUY_IN, self.MAX_BUY_IN , self.REWARD, self.MIN_ROUNDS, = configs[2:-2]
-        self.PUNISHMENT_FACTOR = configs[-2]
-        self.FREERIDER_FACTOR  = configs[-1]
+        self.MIN_BUY_IN, self.MAX_BUY_IN, self.REWARD, self.MIN_ROUNDS = configs[2:6]
+        self.PUNISHMENT_FACTOR = configs[6]
+        self.PUNISHMENT_FACTOR_CONTRIB = configs[7]
+        self.FREERIDER_FACTOR = configs[8]
         self.fork = manager.fork
         
         self.gas_feedback = [] 

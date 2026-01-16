@@ -12,6 +12,7 @@ class ExperimentConfiguration:
                  epochs=1,
                  batch_size=32,
                  punish_factor=3,
+                 punish_factor_contrib=3,
                  first_round_fee=50, # Percentage of buy-in to charge as fee in first round
                  fork=True,
                  use_outlier_detection = True,
@@ -47,6 +48,7 @@ class ExperimentConfiguration:
         self.epochs = epochs
         self.batch_size = batch_size
         self.punish_factor = punish_factor
+        self.punish_factor_contrib = punish_factor_contrib
         self.first_round_fee = first_round_fee
         self.contribution_score_strategy = contribution_score_strategy
         self.use_outlier_detection = use_outlier_detection

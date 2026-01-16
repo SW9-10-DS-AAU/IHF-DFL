@@ -77,6 +77,7 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
                                           experiment_config.reward, 
                                           experiment_config.minimum_rounds,
                                           experiment_config.punish_factor,
+                                          experiment_config.punish_factor_contrib,
                                           experiment_config.first_round_fee)
   writer.writeComment(f"$startingUserConfig${[p.getStatus() for p in pytorch_model.participants]}")
 
