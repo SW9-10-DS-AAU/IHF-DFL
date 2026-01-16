@@ -47,13 +47,15 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
                               experiment_config.standard_buy_in,
                               experiment_config.max_buy_in,
                               experiment_config.freerider_noise_scale,
-                              experiment_config.freerider_start_round)
+                              experiment_config.freerider_start_round,
+                              experiment_config.malicious_start_round,
+                              experiment_config.malicious_noise_scale)
 
   for i in range(experiment_config.number_of_bad_contributors):
-      pytorch_model.add_participant("bad",3)
+      pytorch_model.add_participant("bad",experiment_config.malicious_start_round)
 
   for i in range(experiment_config.number_of_freerider_contributors):
-      pytorch_model.add_participant("freerider",1)
+      pytorch_model.add_participant("freerider",experiment_config.freerider_start_round)
       
   for i in range(experiment_config.number_of_inactive_contributors):
       pytorch_model.add_participant("inactive",1)

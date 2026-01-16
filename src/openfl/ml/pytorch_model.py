@@ -148,7 +148,7 @@ class Net_MNIST(nn.Module):
 
         
 class PytorchModel:
-    def __init__(self, DATASET, _goodParticipants, _totalParticipants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 2):
+    def __init__(self, DATASET, _goodParticipants, _totalParticipants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,):
         self.DATASET = DATASET
         if self.DATASET == "mnist":
             self.global_model = Net_MNIST().to(DEVICE)
@@ -176,9 +176,14 @@ class PytorchModel:
             raise ValueError("freerider_start_round must be at least 1")
         self.freerider_start_round = freerider_start_round
 
-        if freerider_start_round < 1:
-            raise ValueError("freerider_start_round must be at least 1")
-        self.freerider_start_round = freerider_start_round
+        if malicious_start_round < 1:
+            raise ValueError("malicious_start_round must be at least 1")
+        self.malicious_start_round = malicious_start_round
+
+        if malicious_noise_scale < 0:
+            raise ValueError("malicious_noise_scale must be non-negative")
+        self.malicious_noise_scale = malicious_noise_scale
+
         loss, accuracy = test(self.global_model,self.test,DEVICE)
         
         # INTERFACE VARIABLES
@@ -191,8 +196,7 @@ class PytorchModel:
         print(str(self.global_model))
         print("\n===================================================================================")
 
-        if self.freerider_start_round < 1:
-            raise ValueError("freerider_start_round must be at least 1")
+
 
         for i in range(_goodParticipants):
             if self.DATASET == "mnist":
@@ -233,6 +237,7 @@ class PytorchModel:
         
         if _attitude == "bad":
             self.NUMBER_OF_BAD_CONTRIBUTORS +=1
+            _attitudeSwitch = self.malicious_start_round
         if _attitude == "freerider":
             self.NUMBER_OF_FREERIDER_CONTRIBUTORS +=1
             _attitudeSwitch = self.freerider_start_round
@@ -398,7 +403,8 @@ class PytorchModel:
         for i in range(len(self.participants)):
             if self.participants[i].attitude == "bad":                
                 print(red("Address {} going to provide random weights".format(self.participants[i].address[0:16]+"...")))
-                manipulated_state_dict = manipulate(self.participants[i].model)
+                # manipulated_state_dict = manipulate(self.participants[i].model)
+                manipulated_state_dict = manipulate(self.participants[i].model,scale=self.malicious_noise_scale,)
                 self.participants[i].model.load_state_dict(manipulated_state_dict)
                 self.participants[i].hashedModel = self.get_hash(self.participants[i].model.state_dict())
                 loss, accuracy = test(self.participants[i].model, self.test, DEVICE)

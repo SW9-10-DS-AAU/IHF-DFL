@@ -17,7 +17,9 @@ class ExperimentConfiguration:
                  use_outlier_detection = True,
                  contribution_score_strategy="accuracy", # Options: dotproduct, naive, accuracy, None (defaults to dotproduct)
                  freerider_noise_scale=0.1,
-                 freerider_start_round=3):
+                 freerider_start_round=2,
+                 malicious_start_round=1,
+                 malicious_noise_scale=1.0):
 
         # Store the fork mode
         self.fork = fork
@@ -49,6 +51,8 @@ class ExperimentConfiguration:
         self.use_outlier_detection = use_outlier_detection
         self.freerider_noise_scale = freerider_noise_scale
         self.freerider_start_round = freerider_start_round
+        self.malicious_start_round = malicious_start_round
+        self.malicious_noise_scale = malicious_noise_scale
 
     @property
     def number_of_contributors(self):

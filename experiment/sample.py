@@ -5,7 +5,7 @@ import experiment_runner as ExperimentRunner
 from experiment_configuration import ExperimentConfiguration
 from openfl.utils.async_writer import AsyncWriter
 
-config = ExperimentConfiguration(contribution_score_strategy="accuracy", minimum_rounds=2) # OVERSKRIV variabler her for testing. eksempel: config = ExperimentConfiguration(minimum_rounds=1), hvis du kun vil køre een round
+config = ExperimentConfiguration(contribution_score_strategy="accuracy", minimum_rounds=4) # OVERSKRIV variabler her for testing. eksempel: config = ExperimentConfiguration(minimum_rounds=1), hvis du kun vil køre een round
 
 #DATASET = "cifar-10"
 RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/sample")
@@ -47,7 +47,7 @@ def main():
 def getPath(experimentConfig: ExperimentConfiguration):
     time = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
 
-    filename = f"{experimentConfig.contribution_score_strategy}-{experimentConfig.freerider_start_round}-{experimentConfig.freerider_noise_scale}-{experimentConfig.use_outlier_detection}.csv"
+    filename = f"{experimentConfig.contribution_score_strategy}-{experimentConfig.freerider_start_round}-{experimentConfig.freerider_noise_scale}-{experimentConfig.malicious_start_round}-{experimentConfig.malicious_noise_scale}-{experimentConfig.use_outlier_detection}.csv"
 
     path = Path(RESULTDATAFOLDER).joinpath(time).joinpath(filename)
 
