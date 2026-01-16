@@ -47,7 +47,8 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
                               experiment_config.standard_buy_in,
                               experiment_config.max_buy_in,
                               experiment_config.freerider_noise_scale,
-                              experiment_config.freerider_start_round)
+                              experiment_config.freerider_start_round,
+                              experiment_config.force_merge_all)
 
   for i in range(experiment_config.number_of_bad_contributors):
       pytorch_model.add_participant("bad",3)
