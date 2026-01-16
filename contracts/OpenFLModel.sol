@@ -507,13 +507,12 @@ contract OpenFLModel {
             }
             boundedSumOfWeights = sumOfWeights <= 0 ? 1 : uint(sumOfWeights);
 
-            // Give rewards
+            // Give rewards (or negative rewards) based on contribution score
             for (uint i = 0; i < participants.length; i++) {
                 address user = participants[i];
 
                 if (isRegistered[user] && whitelistedForRewards[user] && !isPunished[user]) {
-                    uint personalReward = (reward * personalWeight[user]) /
-                        boundedSumOfWeights;
+                    uint personalReward = (reward * personalWeight[user]) / boundedSumOfWeights;
 
                     delete whitelistedForRewards[user];
                     delete personalWeight[user];
