@@ -42,7 +42,17 @@ def build_challenge(strategy: str, *, use_outlier_detection: bool = False, contr
     manager.w3 = MagicMock()
     manager.fork = True
 
-    configs = [contract or MagicMock(), "0xModel", 1, 2, 3, 4, 0.5, 0.1]
+    configs = [
+        contract or MagicMock(),
+        "0xModel",
+        1,
+        2,
+        3,
+        4,
+        0.5,
+        3,
+        0.1
+    ]
     pytorch_model = MagicMock()
     pytorch_model.participants = []
 

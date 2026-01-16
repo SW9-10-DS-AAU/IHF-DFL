@@ -78,6 +78,7 @@ def fl_challenge(request, mock_w3, mock_contract, mock_participants):
         500,  # REWARD
         3,  # MIN_ROUNDS
         0.5,  # PUNISHMENT_FACTOR
+        3, # PUNISHMENT_FACTOR_CONTRIB
         0.1,  # FREERIDER_FACTOR
     ]
 
