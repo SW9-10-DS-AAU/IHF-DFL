@@ -14,7 +14,7 @@ gas_by_method = defaultdict(list)
 
 def prepare_data_for_graph_gas_methods(
     rounds: list[Round], 
-    participants: dict[int, Participant], 
+    participants: dict[str, Participant], 
     experiment_specs: ExperimentSpec, 
     gasStats: GasStats, 
     outDir: str, 

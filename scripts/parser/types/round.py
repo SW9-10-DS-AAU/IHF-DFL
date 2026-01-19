@@ -12,7 +12,7 @@ class Round:
     _globalLoss: float,
     _attitude,
     _time: datetime,
-    _GRS: list[float],
+    _GRS: list[tuple[str, float]],
     _accAvgPerUser: list[float],
     _lossAvgPerUser: list[float],
     _rewards: list[float],

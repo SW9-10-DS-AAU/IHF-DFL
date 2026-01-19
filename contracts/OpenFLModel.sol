@@ -366,8 +366,8 @@ contract OpenFLModel {
                     votesPerRound -= nrOfVotesOfUser[participants[i]];
 
                     uint punishment = uint(
-                            GlobalReputationOf[participants[i]] / punishfactor
-                        );
+                        GlobalReputationOf[participants[i]] / punishfactor
+                    );
 
                     if (
                         GlobalReputationOf[participants[i]] >
@@ -383,7 +383,7 @@ contract OpenFLModel {
                         RoundReputationOf[participants[i]] =
                             RoundReputationOf[participants[i]] -
                             int(punishment);
-                            totalPunishment += punishment;
+                        totalPunishment += punishment;
                         emit Punishment(
                             participants[i],
                             RoundReputationOf[participants[i]],
@@ -471,7 +471,11 @@ contract OpenFLModel {
             for (uint i = 0; i < participants.length; i++) {
                 address user = participants[i];
 
-                if (isRegistered[user] && whitelistedForRewards[user] && !isPunished[user]) {
+                if (
+                    isRegistered[user] &&
+                    whitelistedForRewards[user] &&
+                    !isPunished[user]
+                ) {
                     uint weight = nrOfVotesOfUser[user] *
                         contributionScore[round][user];
                     personalWeight[user] = weight;
@@ -488,10 +492,21 @@ contract OpenFLModel {
             for (uint i = 0; i < participants.length; i++) {
                 address user = participants[i];
 
-                if (isRegistered[user] && whitelistedForRewards[user] && !isPunished[user]) {
-                    boundedSumOfWeights = sumOfWeights <= 0 ? 1 : uint(sumOfWeights);
-                    uint personalReward = (reward * personalWeight[user]) / boundedSumOfWeights;
-                    if (isContribScoreNegative[round][user] && (GlobalReputationOf[user] <= personalReward*punishfactorContrib)) {
+                if (
+                    isRegistered[user] &&
+                    whitelistedForRewards[user] &&
+                    !isPunished[user]
+                ) {
+                    boundedSumOfWeights = sumOfWeights <= 0
+                        ? 1
+                        : uint(sumOfWeights);
+                    uint personalReward = (reward * personalWeight[user]) /
+                        boundedSumOfWeights;
+                    if (
+                        isContribScoreNegative[round][user] &&
+                        (GlobalReputationOf[user] <=
+                            personalReward * punishfactorContrib)
+                    ) {
                         reward += GlobalReputationOf[user];
 
                         emit Disqualification(
@@ -500,7 +515,10 @@ contract OpenFLModel {
                             GlobalReputationOf[user],
                             0
                         );
-                        sumOfWeights += int(nrOfVotesOfUser[user] * contributionScore[round][user]);
+                        sumOfWeights += int(
+                            nrOfVotesOfUser[user] *
+                                contributionScore[round][user]
+                        );
 
                         GlobalReputationOf[user] = 0;
                         nrOfParticipants -= 1;
@@ -509,30 +527,78 @@ contract OpenFLModel {
                 }
             }
             boundedSumOfWeights = sumOfWeights <= 0 ? 1 : uint(sumOfWeights);
+            uint redistributedPenalty = 0;
+            uint positiveSumOfWeights = 0;
+            // Give punishmentts (negative rewards) based on contribution score
+            for (uint i = 0; i < participants.length; i++) {
+                address user = participants[i];
+
+                if (
+                    isRegistered[user] &&
+                    whitelistedForRewards[user] &&
+                    !isPunished[user] &&
+                    isContribScoreNegative[round][user]
+                ) {
+                    uint personalReward = (reward * personalWeight[user]) /
+                        boundedSumOfWeights;
+
+                    uint penalty = personalReward * punishfactorContrib;
+
+                    GlobalReputationOf[user] -= penalty;
+                    redistributedPenalty += penalty;
+
+                    emit Reward(
+                        user,
+                        RoundReputationOf[user],
+                        0,
+                        GlobalReputationOf[user]
+                    );
+                }
+            }
+            reward += redistributedPenalty;
+
+            // Compute total weight of positive contributors
+            for (uint i = 0; i < participants.length; i++) {
+                address user = participants[i];
+
+                if (
+                    isRegistered[user] &&
+                    whitelistedForRewards[user] &&
+                    !isPunished[user] &&
+                    !isContribScoreNegative[round][user]
+                ) {
+                    positiveSumOfWeights += personalWeight[user];
+                }
+            }
+            positiveSumOfWeights = positiveSumOfWeights == 0
+                ? 1
+                : positiveSumOfWeights;
 
             // Give rewards (or negative rewards) based on contribution score
             for (uint i = 0; i < participants.length; i++) {
                 address user = participants[i];
 
-                if (isRegistered[user] && whitelistedForRewards[user] && !isPunished[user]) {
-                    uint personalReward = (reward * personalWeight[user]) / boundedSumOfWeights;
+                if (
+                    isRegistered[user] &&
+                    whitelistedForRewards[user] &&
+                    !isPunished[user] &&
+                    !isContribScoreNegative[round][user]
+                ) {
+                    uint personalReward = (reward * personalWeight[user]) /
+                        positiveSumOfWeights;
 
-                    delete whitelistedForRewards[user];
-                    delete personalWeight[user];
+                    GlobalReputationOf[user] += personalReward;
 
-                    if (isContribScoreNegative[round][user]) {
-                        GlobalReputationOf[participants[i]] -= personalReward*punishfactorContrib;
-                    } else {
-                        GlobalReputationOf[participants[i]] += personalReward;
-                    }
-                    // TODO: maybe give negative reputation
                     emit Reward(
                         user,
                         RoundReputationOf[user],
                         personalReward,
                         GlobalReputationOf[user]
-                    ); // TODO: we updated win, but do we need to update roundScore?
+                    );
                 }
+
+                delete whitelistedForRewards[user];
+                delete personalWeight[user];
             }
         }
         emit EndRound(

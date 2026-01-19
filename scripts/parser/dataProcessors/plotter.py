@@ -41,7 +41,7 @@ def line_graph(data, useShortName: bool, x_label, y_label, title, vline=None, wi
 
 def plot_from_parsed(
     rounds: list[Round],
-    participants: dict[int, "Participant"],
+    participants: dict[str, Participant],
     experiment_config: ExperimentSpec,
     output_folder_path: str,
     filename: str = "simulation.pdf",

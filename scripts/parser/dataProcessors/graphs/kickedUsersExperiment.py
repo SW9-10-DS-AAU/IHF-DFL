@@ -26,7 +26,7 @@ roundkicked = {
     Method.NAIVE: new_counter()
 }
 
-def prepare_data_for_graph(rounds: list[Round], participants: dict[int, Participant], experiment_specs: ExperimentSpec, gasStats: GasStats, outDir, freeRiderRound: int):
+def prepare_data_for_graph(rounds: list[Round], participants: dict[str, Participant], experiment_specs: ExperimentSpec, gasStats: GasStats, outDir, freeRiderRound: int):
   global nrOfRounds
   global roundkicked
   if experiment_specs.freerider_start_round != freeRiderRound:

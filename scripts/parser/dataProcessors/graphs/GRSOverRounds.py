@@ -20,7 +20,7 @@ def get_target_user_ids(participants, target_attitude):
 
 def prepare_grs_by_round(
     rounds: list[Round], 
-    participants: dict[int, Participant], 
+    participants: dict[str, Participant], 
     experiment_specs: ExperimentSpec, 
     gasStats: GasStats, 
     outDir: str, 

@@ -67,6 +67,8 @@ class FLChallenge(FLManager):
         }
         self.experiment_config = experiment_config
 
+        self.disqualifiedUserEvents = []
+
     def _get_contribution_score_calculator(self):
         """
         Return the function used for contribution-score calculation,
@@ -974,7 +976,7 @@ class FLChallenge(FLManager):
         print(self.modelAddress)
         self.register_all_users()
         
-        grs = [user._globalrep[-1] for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
+        grs = [(user.address, user._globalrep[-1]) for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
         
         roundTx = self.txHashes[self.writeTxProgress:]
         self.writeTxProgress = len(self.txHashes)
