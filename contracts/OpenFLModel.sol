@@ -69,6 +69,13 @@ contract OpenFLModel {
     mapping(uint8 => mapping(address => AccuracySubmission[]))
         private accuracySubmissions;
 
+    function absIntToUint(int value) internal pure returns (uint) {
+        if (value == type(int).min) {
+            return uint(1) << 255;
+        }
+        return value < 0 ? uint(-value) : uint(value);
+    }
+
     modifier onlyRegisteredUsers() {
         require(isRegistered[msg.sender], "SNR");
         _;
@@ -499,10 +506,8 @@ contract OpenFLModel {
                 ) {
                     if (sumOfWeights == 0) {
                         boundedSumOfWeights = 1;
-                    } else if (sumOfWeights < 0) {
-                        boundedSumOfWeights = uint(-sumOfWeights);
                     } else {
-                        boundedSumOfWeights = uint(sumOfWeights);
+                        boundedSumOfWeights = absIntToUint(sumOfWeights);
                     }
                     uint personalReward = (reward * personalWeight[user]) /
                         boundedSumOfWeights;
@@ -532,10 +537,8 @@ contract OpenFLModel {
             }
             if (sumOfWeights == 0) {
                 boundedSumOfWeights = 1;
-            } else if (sumOfWeights < 0) {
-                boundedSumOfWeights = uint(-sumOfWeights);
             } else {
-                boundedSumOfWeights = uint(sumOfWeights);
+                boundedSumOfWeights = absIntToUint(sumOfWeights);
             }
             uint redistributedPenalty = 0;
             uint positiveSumOfWeights = 0;
