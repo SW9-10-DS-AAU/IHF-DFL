@@ -13,51 +13,54 @@ RESULTDATAFOLDER = Path(__file__).resolve().parents[1].joinpath("experiment/data
 
 LISTOFALLMETHODS = [Method.ACCURACY, Method.DOTPRODUCT, Method.DOTPRODUCTANDOUTLIER, Method.NAIVE]
 LISTOFALLATTIDUDESASMETA = [MetaAttitude.GOOD, MetaAttitude.FREERIDER, MetaAttitude.MALICIOUS]
-DATASET = "cifar"
-#DATASET = "mnist"
-
+#DATASET = "cifar"
+DATASET = "mnist"
+FORCED = False
+FORCEDTEXT = ' FORCED_MERGE' if FORCED else ''
 
 def graph_one_one(usePreviousTests: bool = True, legend_position: LegendPosition = LegendPosition.INSIDE_LOWER_LEFT):
-    kickedGraph(1, "Effectiveness of Strategies in Removing Dishonest Participants - Freerider Activation Round: 1", usePreviousTests, f"Graph11{DATASET}", legend_position, RESULTDATAFOLDER)
+    kickedGraph(1, "Effectiveness of Strategies in Removing Dishonest Participants - Freerider Activation Round: 1", usePreviousTests, f"Graph11{DATASET}{FORCEDTEXT}", legend_position, RESULTDATAFOLDER, FORCED)
 
 def graph_one_two(usePreviousTests: bool = True, legend_position: LegendPosition = LegendPosition.INSIDE_LOWER_LEFT):
-    kickedGraph(3, "Effectiveness of Strategies in Removing Dishonest Participants - Freerider Activated Round: 3", usePreviousTests, f"Graph12{DATASET}", legend_position, RESULTDATAFOLDER)
+    kickedGraph(3, "Effectiveness of Strategies in Removing Dishonest Participants - Freerider Activated Round: 3", usePreviousTests, f"Graph12{DATASET}{FORCEDTEXT}", legend_position, RESULTDATAFOLDER, FORCED)
 
 def graph_one_three(usePreviousTests: bool = True, legend_position: LegendPosition = LegendPosition.INSIDE_LOWER_LEFT):
-    kickedGraph(5, "Effectiveness of Strategies in Removing Dishonest Participants - Freerider Activated Round: 5", usePreviousTests, f"Graph13{DATASET}", legend_position, RESULTDATAFOLDER)
+    kickedGraph(5, "Effectiveness of Strategies in Removing Dishonest Participants - Freerider Activated Round: 5", usePreviousTests, f"Graph13{DATASET}{FORCEDTEXT}", legend_position, RESULTDATAFOLDER, FORCED)
 
 
 def graph_two_one(usePreviousTests: bool = True, legend_position: LegendPosition = LegendPosition.INSIDE_LOWER_LEFT):
-    kickedGraphMethodNoise(1, "Freerider noise comparisons - Freerider Activated Round: 1", usePreviousTests, f"Graph21{DATASET}", legend_position, RESULTDATAFOLDER)
+    kickedGraphMethodNoise(1, "Freerider noise comparisons - Freerider Activated Round: 1", usePreviousTests, f"Graph21{DATASET}{FORCEDTEXT}", legend_position, RESULTDATAFOLDER, FORCED)
 
 def graph_two_two(usePreviousTests: bool = True, legend_position: LegendPosition = LegendPosition.INSIDE_LOWER_LEFT):
-    kickedGraphMethodNoise(3, "Freerider noise comparisons - Freerider Activated Round: 3", usePreviousTests, f"Graph22{DATASET}", legend_position, RESULTDATAFOLDER)
+    kickedGraphMethodNoise(3, "Freerider noise comparisons - Freerider Activated Round: 3", usePreviousTests, f"Graph22{DATASET}{FORCEDTEXT}", legend_position, RESULTDATAFOLDER, FORCED)
 
 def graph_two_three(usePreviousTests: bool = True, legend_position: LegendPosition = LegendPosition.INSIDE_LOWER_LEFT):
-    kickedGraphMethodNoise(5, "Freerider noise comparisons - Freerider Activated Round: 5", usePreviousTests, f"Graph23{DATASET}", legend_position, RESULTDATAFOLDER)
+    kickedGraphMethodNoise(5, "Freerider noise comparisons - Freerider Activated Round: 5", usePreviousTests, f"Graph23{DATASET}{FORCEDTEXT}", legend_position, RESULTDATAFOLDER, FORCED)
 
 
+def grsForceFilter(spec: ExperimentSpec):
+    return FORCED is None or spec.forced == FORCED
 
-def graph_three_one(usePreviousTests: bool = True):
-    grsGraph(Attitude.FREERIDER, "Freerider GRS", 3, usePreviousTests, f"Graph31{DATASET}", RESULTDATAFOLDER)
+def graph_three_one(usePreviousTests: bool = True, legend_position: LegendPosition = LegendPosition.INSIDE_UPPER_LEFT):
+    grsGraph(Attitude.FREERIDER, "Freerider GRS", 5, usePreviousTests, f"Graph31{DATASET}{FORCEDTEXT}", RESULTDATAFOLDER, legend_position, grsForceFilter)
 
-def graph_three_two(usePreviousTests: bool = True):
-    grsGraph(Attitude.MALICIOUS, "Malicious GRS", 3, usePreviousTests, f"Graph32{DATASET}", RESULTDATAFOLDER)
+def graph_three_two(usePreviousTests: bool = True, legend_position: LegendPosition = LegendPosition.INSIDE_UPPER_LEFT):
+    grsGraph(Attitude.MALICIOUS, "Malicious GRS", 5, usePreviousTests, f"Graph32{DATASET}{FORCEDTEXT}", RESULTDATAFOLDER, legend_position, grsForceFilter)
 
-def graph_three_three(usePreviousTests: bool = True):
-    grsGraph(Attitude.GOOD, "Honest GRS", 3, usePreviousTests, f"Graph33{DATASET}", RESULTDATAFOLDER)
+def graph_three_three(usePreviousTests: bool = True, legend_position: LegendPosition = LegendPosition.INSIDE_UPPER_LEFT):
+    grsGraph(Attitude.GOOD, "Honest GRS", 5, usePreviousTests, f"Graph33{DATASET}{FORCEDTEXT}", RESULTDATAFOLDER, legend_position, grsForceFilter)
 
 
 
 def graph_three_investigation(usePreviousTests: bool = True):  
     def onlyNoise10(experimentSpec: ExperimentSpec):
         return experimentSpec.freerider_noise_scale == 1.0
-    grsGraph(Attitude.FREERIDER, "Freerider GRS - Noise 1.0 ", 3, usePreviousTests, f"Graph3x1{DATASET}", RESULTDATAFOLDER, filter=onlyNoise10)
+    grsGraph(Attitude.FREERIDER, "Freerider GRS - Noise 1.0 ", 3, usePreviousTests, f"Graph3x1{DATASET}{FORCEDTEXT}", RESULTDATAFOLDER, filter=onlyNoise10)
 
 
 
-def graph_four_one(usePreviousTests: bool = True, legend_position: LegendPosition = LegendPosition.INSIDE_UPPER_RIGHT):
-    gasCostGraphMethods("Gas Comparision - Contribution Score Strategies", usePreviousTests, f"Graph41{DATASET}", legend_position, RESULTDATAFOLDER)
+def graph_four_one(usePreviousTests: bool = True, legend_position: LegendPosition = LegendPosition.INSIDE_UPPER_LEFT):
+    gasCostGraphMethods("Gas Comparision - Contribution Score Strategies", usePreviousTests, f"Graph41{DATASET}{FORCEDTEXT}", legend_position, RESULTDATAFOLDER)
 
 
 def graph_five_one(usePreviousTests: bool = True):
@@ -65,7 +68,7 @@ def graph_five_one(usePreviousTests: bool = True):
         Attitude.FREERIDER,
         "Dot Product GRS (Freeriders) – With vs Without Outlier Detection",
         usePreviousTests, 
-        f"Graph51{DATASET}",
+        f"Graph51{DATASET}{FORCEDTEXT}",
         RESULTDATAFOLDER,
         True,
     )
@@ -76,7 +79,7 @@ def graph_five_two(usePreviousTests: bool = True):
         Attitude.MALICIOUS,
         "Dot Product GRS (Malicious) – With vs Without Outlier Detection",
         usePreviousTests,
-        f"Graph52{DATASET}",
+        f"Graph52{DATASET}{FORCEDTEXT}",
         RESULTDATAFOLDER,
         True,
     )
@@ -86,7 +89,7 @@ def graph_five_three(usePreviousTests: bool = True):
         Attitude.GOOD,
         "Dot Product GRS (Honest Users)",
         usePreviousTests,
-        f"Graph53{DATASET}",
+        f"Graph53{DATASET}{FORCEDTEXT}",
         RESULTDATAFOLDER,
         True,
     )
@@ -96,8 +99,9 @@ def graph_six_one(usePreviousTests: bool = True):
     accuracyGRSGainGraph(
         "Accuracy Scoring – GRS Gained Per Round",
         usePreviousTests,
-        f"Graph61{DATASET}",
+        f"Graph61{DATASET}{FORCEDTEXT}",
         RESULTDATAFOLDER,
+        LegendPosition.INSIDE_UPPER_LEFT
     )
 
 def cifar_graph_seven_one(usePreviousTests: bool = True):
@@ -118,42 +122,42 @@ def minist_graph_seven_one(usePreviousTests: bool = True):
     plot_contribution_score_variance("Variance Of Contribution Score - Accuracy", [Method.ACCURACY], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph71{DATASET}", RESULTDATAFOLDER, y_range=(-1.0e18, 1.2e18))
 
 def minist_graph_seven_two(usePreviousTests: bool = True):
-    plot_contribution_score_variance("Variance Of Contribution Score - Dot Product Without Outlier Detection", [Method.DOTPRODUCT], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph72{DATASET}", RESULTDATAFOLDER, y_range=(0.15e18, 0.26e18))
+    plot_contribution_score_variance("Variance Of Contribution Score - Dot Product Without Outlier Detection", [Method.DOTPRODUCT], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph72{DATASET}", RESULTDATAFOLDER)#, y_range=(0.15e18, 0.26e18))
 
 def minist_graph_seven_three(usePreviousTests: bool = True):
-    plot_contribution_score_variance("Variance Of Contribution Score - Dot Product With Outlier Detection", [Method.DOTPRODUCTANDOUTLIER], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph73{DATASET}", RESULTDATAFOLDER, y_range=(0.15e18, 0.26e18))
+    plot_contribution_score_variance("Variance Of Contribution Score - Dot Product With Outlier Detection", [Method.DOTPRODUCTANDOUTLIER], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph73{DATASET}", RESULTDATAFOLDER)#, y_range=(0.15e18, 0.26e18))
 
 def minist_graph_seven_four(usePreviousTests: bool = True):
-    plot_contribution_score_variance("Variance Of Contribution Score - Naive", [Method.NAIVE], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph74{DATASET}", RESULTDATAFOLDER, y_range=(0.16e18, 0.26e18))
+    plot_contribution_score_variance("Variance Of Contribution Score - Naive", [Method.NAIVE], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph74{DATASET}", RESULTDATAFOLDER)#, y_range=(0.16e18, 0.26e18))
 
 
-# graph_one_one()
-# graph_one_two()
-# graph_one_three()
+graph_one_one()
+graph_one_two()
+graph_one_three()
 
-# graph_two_one()
-# graph_two_two()
-# graph_two_three()
+graph_two_one()
+#graph_two_two() # Does not work for Forced true
+graph_two_three()
 
-# graph_three_one()
-# graph_three_two()
-# graph_three_three()
+graph_three_one()
+graph_three_two()
+graph_three_three()
 
-# graph_four_one()
+graph_four_one()
 
 
 
-# graph_six_one()
+graph_six_one()
 
 #cifar_graph_seven_one()
 #cifar_graph_seven_two()
 #cifar_graph_seven_three()
 #cifar_graph_seven_four()
 
-# minist_graph_seven_one()
-# minist_graph_seven_two()
-# minist_graph_seven_three()
-# minist_graph_seven_four()
+#minist_graph_seven_one()    #--No work
+#minist_graph_seven_two()    #--No work
+#minist_graph_seven_three()  #--No work
+#minist_graph_seven_four()   #--No work
 
 #graph_three_investigation()
 
@@ -165,7 +169,7 @@ def minist_graph_seven_four(usePreviousTests: bool = True):
 
 eCounter = 0
 errCounter = 0
-def test(rounds: list[Round], participants: dict[int, Participant], experiment_specs: ExperimentSpec, gasStats: GasStats, outDir):
+def test(rounds: list[Round], participants: dict[str, Participant], experiment_specs: ExperimentSpec, gasStats: GasStats, outDir):
     global eCounter
     global errCounter
     if Method.from_config(experiment_specs) != Method.NAIVE: # or experiment_specs.freerider_start_round != 1:

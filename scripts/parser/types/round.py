@@ -12,7 +12,7 @@ class Round:
     _globalLoss: float,
     _attitude,
     _time: datetime,
-    _GRS: list[tuple[str, float]],
+    _GRS: dict[str, float],
     _accAvgPerUser: list[float],
     _lossAvgPerUser: list[float],
     _rewards: list[float],
@@ -30,7 +30,7 @@ class Round:
     self.globalAcc = _globalAcc
     self.globalLoss = _globalLoss
     self.attitude = _attitude
-    self.GRS = _GRS
+    self.GRS = dict(_GRS)
     self.accAvgPerUser = _accAvgPerUser
     self.lossAvgPerUser = _lossAvgPerUser
     self.rewards = _rewards

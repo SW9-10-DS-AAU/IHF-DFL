@@ -3,6 +3,7 @@ from parser.helpers.mehods import Method
 from parser.types.participant import Attitude
 from parser.parseExports import runProcessor
 from parser.dataProcessors.plotter import line_graph
+from parser.helpers.setLegendLocation import LegendPosition
 
 # gains[user_type][round] = [values...]
 grs_gain = {}
@@ -66,6 +67,7 @@ def accuracyGRSGainGraph(
     usePreviousTests: bool,
     windowAndFileName: str,
     RESULTDATAFOLDER,
+    legendPosition: LegendPosition
 ):
     grs_gain.clear()
 
@@ -78,7 +80,7 @@ def accuracyGRSGainGraph(
                 participants,
                 experimentConfig,
                 gasCosts,
-                outdir,
+                outdir
             )
     )
 
@@ -96,8 +98,9 @@ def accuracyGRSGainGraph(
     line_graph(
         data,
         False,
-        x_label="Round",
-        y_label="Average GRS Gained",
-        title=title,
-        windowAndFileName=windowAndFileName
+        "Round",
+        "Average GRS Gained",
+        title,
+        legendPosition,
+        windowAndFileName=windowAndFileName,
     )
