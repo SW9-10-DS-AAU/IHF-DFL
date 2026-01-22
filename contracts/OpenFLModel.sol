@@ -497,9 +497,13 @@ contract OpenFLModel {
                     whitelistedForRewards[user] &&
                     !isPunished[user]
                 ) {
-                    boundedSumOfWeights = sumOfWeights <= 0
-                        ? 1
-                        : uint(sumOfWeights);
+                    if (sumOfWeights == 0) {
+                        boundedSumOfWeights = 1;
+                    } else if (sumOfWeights < 0) {
+                        boundedSumOfWeights = uint(-sumOfWeights);
+                    } else {
+                        boundedSumOfWeights = uint(sumOfWeights);
+                    }
                     uint personalReward = (reward * personalWeight[user]) /
                         boundedSumOfWeights;
                     if (
@@ -526,7 +530,13 @@ contract OpenFLModel {
                     }
                 }
             }
-            boundedSumOfWeights = sumOfWeights <= 0 ? 1 : uint(sumOfWeights);
+            if (sumOfWeights == 0) {
+                boundedSumOfWeights = 1;
+            } else if (sumOfWeights < 0) {
+                boundedSumOfWeights = uint(-sumOfWeights);
+            } else {
+                boundedSumOfWeights = uint(sumOfWeights);
+            }
             uint redistributedPenalty = 0;
             uint positiveSumOfWeights = 0;
             // Give punishmentts (negative rewards) based on contribution score
