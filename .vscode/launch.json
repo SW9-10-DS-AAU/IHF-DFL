@@ -9,6 +9,10 @@
       "type": "debugpy",
       "request": "launch",
       "program": "experiment/experiments.py",
+      "args": [
+        "--skipFolder",
+        "experiment/data"
+      ],
       "console": "integratedTerminal"
     },
     {

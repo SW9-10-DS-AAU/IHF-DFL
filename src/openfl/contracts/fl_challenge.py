@@ -1039,7 +1039,7 @@ class FLChallenge(FLManager):
             if receipt is not None:
                 self.print_round_summary(receipt)
 
-            grs = [user._globalrep[-1] for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
+            grs = [(user.address, user._globalrep[-1]) for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
             round_punishment = [(punishment[0], punishment[1]) for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]
             round_kicked = [punishment[2] for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]
             roundTx = self.txHashes[self.writeTxProgress:]
