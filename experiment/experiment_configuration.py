@@ -12,12 +12,16 @@ class ExperimentConfiguration:
                  epochs=1,
                  batch_size=32,
                  punish_factor=3,
+                 punish_factor_contrib=3,
                  first_round_fee=50, # Percentage of buy-in to charge as fee in first round
                  fork=True,
                  use_outlier_detection = True,
                  contribution_score_strategy="accuracy", # Options: dotproduct, naive, accuracy, None (defaults to dotproduct)
                  freerider_noise_scale=0.1,
-                 freerider_start_round=3):
+                 freerider_start_round=3,
+                 malicious_start_round=3,
+                 malicious_noise_scale=1.0,
+                 force_merge_all=False):
 
         # Store the fork mode
         self.fork = fork
@@ -44,11 +48,15 @@ class ExperimentConfiguration:
         self.epochs = epochs
         self.batch_size = batch_size
         self.punish_factor = punish_factor
+        self.punish_factor_contrib = punish_factor_contrib
         self.first_round_fee = first_round_fee
         self.contribution_score_strategy = contribution_score_strategy
         self.use_outlier_detection = use_outlier_detection
         self.freerider_noise_scale = freerider_noise_scale
         self.freerider_start_round = freerider_start_round
+        self.malicious_start_round = malicious_start_round
+        self.malicious_noise_scale = malicious_noise_scale
+        self.force_merge_all = force_merge_all
 
     @property
     def number_of_contributors(self):

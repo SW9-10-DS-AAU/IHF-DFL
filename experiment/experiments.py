@@ -19,11 +19,13 @@ DATASETFAST = "mnist"
 RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData")
 
 datasets = [ DATASETFAST ]
-strategy_options = ["accuracy", "naive", "dotproduct"]
+strategy_options = ["dotproduct"]
 #strategy_options = ["naive", "dotproduct"]
-outlier_detection_options = [ True, False ]
-free_rider_activation_round_options = [1, 3, 5]
-free_rider_noise_options = [0.0, 0.01, 0.1, 0.5, 1.0]
+outlier_detection_options = [ True ]
+free_rider_activation_round_options = [3]
+malicious_activation_round_options = [3]
+free_rider_noise_options = [1.0]
+malicious_noise_options = [1.0]
 
 #strategy_options = ["accuracy"]
 #free_rider_activation_round_options = [1]
@@ -60,14 +62,14 @@ def main(author):
     if (args.skipFolder is not None):
         parseSkips()
 
-    for strategy, outlier_detection, free_rider_activation_round, free_rider_noise, dataset in product(strategy_options, outlier_detection_options, free_rider_activation_round_options, free_rider_noise_options, datasets):
+    for strategy, outlier_detection, free_rider_activation_round, free_rider_noise, malicious_activation_round, malicious_noise, dataset in product(strategy_options, outlier_detection_options, free_rider_activation_round_options, free_rider_noise_options, malicious_activation_round_options, malicious_noise_options, datasets):
         # Set up configuration for the experiment run
         if (strategy == "accuracy" and outlier_detection == True or (strategy == "naive" and outlier_detection == True)):
             continue #As accuracy mode always uses making having both on redundent
         
         # Auto skips
-        if (shouldSkip(Skip(strategy, outlier_detection, free_rider_activation_round, free_rider_noise, dataset))):
-            print(f"Skipping: {strategy} {outlier_detection} {free_rider_activation_round} {free_rider_activation_round} {dataset}")
+        if (shouldSkip(Skip(strategy, outlier_detection, free_rider_activation_round, free_rider_noise, malicious_activation_round, malicious_noise, dataset))):
+            print(f"Skipping: {strategy} {outlier_detection} {free_rider_activation_round} {free_rider_activation_round} {malicious_activation_round} {malicious_noise} {dataset}")
             continue
 
         config = ExperimentConfiguration(
@@ -78,6 +80,8 @@ def main(author):
             use_outlier_detection = outlier_detection,
             freerider_start_round = free_rider_activation_round,
             freerider_noise_scale = free_rider_noise,
+            malicious_start_round = malicious_activation_round,
+            malicious_noise_scale=malicious_noise,
         )
         
         path = getPath(config, startTime, dataset)
@@ -107,7 +111,7 @@ def main(author):
 
 def getPath(experimentConfig: ExperimentConfiguration, time: datetime, dataset):
 
-    filename = f"{dataset}-{experimentConfig.contribution_score_strategy}-{experimentConfig.freerider_start_round}-{experimentConfig.freerider_noise_scale}-{experimentConfig.use_outlier_detection}.csv"
+    filename = f"{dataset}-{experimentConfig.contribution_score_strategy}-{experimentConfig.freerider_start_round}-{experimentConfig.freerider_noise_scale}-{experimentConfig.malicious_start_round}-{experimentConfig.malicious_noise_scale}-{experimentConfig.use_outlier_detection}.csv"
 
     path = Path(RESULTDATAFOLDER).joinpath(time).joinpath(filename)
 
@@ -124,6 +128,8 @@ class Skip:
     outlier_detection: bool
     free_rider_activation_round: int
     free_rider_noise: float
+    malicious_activation_round: int
+    malicious_noise: float
     dataset: str
 
 skips: list[Skip] = []
@@ -142,10 +148,10 @@ def parseSkips():
     for file in files:
         m = re.fullmatch(
             r"(?P<dataset>[^-]+)-(?P<strategy>[^-]+)-(?P<activationRound>[^-]+)-"
-            r"(?P<noise>[^-]+)-(?P<outlierDetection>[^-]+)\.csv", file)
+            r"(?P<noise>[^-]+)-(?P<maliciousRound>[^-]+)-(?P<maliciousNoise>[^-]+)-(?P<outlierDetection>[^-]+)\.csv", file)
         m2 = re.fullmatch(
             r"(?P<strategy>[^-]+)-(?P<activationRound>[^-]+)-"
-            r"(?P<noise>[^-]+)-(?P<outlierDetection>[^-]+)\.csv", file)
+            r"(?P<noise>[^-]+)-(?P<maliciousRound>[^-]+)-(?P<maliciousNoise>[^-]+)-(?P<outlierDetection>[^-]+)\.csv", file)
         if m:
             dataset = m.group("dataset")
             groups = m
@@ -162,6 +168,8 @@ def parseSkips():
                 outlier_detection=groups.group("outlierDetection") == "True",
                 free_rider_activation_round=int(groups.group("activationRound")),
                 free_rider_noise=float(groups.group("noise")),
+                malicious_activation_round=int(groups.group("maliciousRound")),
+                malicious_noise=float(groups.group("maliciousNoise")),
                 dataset=dataset,
             )
         )

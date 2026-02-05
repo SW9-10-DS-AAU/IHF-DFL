@@ -108,12 +108,16 @@ class AsyncWriter:
           ("epochs", cfg.epochs, "local epochs per round"),
           ("batch_size", cfg.batch_size, "training batch size"),
           ("punish_factor", cfg.punish_factor, "penalty multiplier"),
+          ("punish_factor_contrib", cfg.punish_factor_contrib, "penalty multiplier contribution score"),
+          ("force_merge_all", cfg.force_merge_all, "Whether to force merging all participants"),
           ("first_round_fee", cfg.first_round_fee, "fee for first round"),
           ("fork", cfg.fork, "True=local fork, False=real net"),
           ("contribution_score_strategy", cfg.contribution_score_strategy, "scoring method"),
           ("use_outlier_detection", cfg.use_outlier_detection, "Whether to use outlier detection"),
           ("freerider_start_round", cfg.freerider_start_round, "When freeriders should start freeriding"),
           ("freerider_noise_scale", cfg.freerider_noise_scale, "How much noise a freeder should add"),
+          ("malicious_start_round", cfg.malicious_start_round, "When malicious users should start attacking"),
+          ("malicious_noise_scale", cfg.malicious_noise_scale, "How much noise a malicious user should add"),
       ]
       file.write("# ------Config--------")
       file.writelines([
