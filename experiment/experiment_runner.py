@@ -47,13 +47,16 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
                               experiment_config.standard_buy_in,
                               experiment_config.max_buy_in,
                               experiment_config.freerider_noise_scale,
-                              experiment_config.freerider_start_round)
+                              experiment_config.freerider_start_round,
+                              experiment_config.malicious_start_round,
+                              experiment_config.malicious_noise_scale,
+                              experiment_config.force_merge_all)
 
   for i in range(experiment_config.number_of_bad_contributors):
-      pytorch_model.add_participant("bad",3)
+      pytorch_model.add_participant("bad",experiment_config.malicious_start_round)
 
   for i in range(experiment_config.number_of_freerider_contributors):
-      pytorch_model.add_participant("freerider",1)
+      pytorch_model.add_participant("freerider",experiment_config.freerider_start_round)
       
   for i in range(experiment_config.number_of_inactive_contributors):
       pytorch_model.add_participant("inactive",1)
@@ -74,6 +77,7 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
                                           experiment_config.reward, 
                                           experiment_config.minimum_rounds,
                                           experiment_config.punish_factor,
+                                          experiment_config.punish_factor_contrib,
                                           experiment_config.first_round_fee)
   writer.writeComment(f"$startingUserConfig${[p.getStatus() for p in pytorch_model.participants]}")
 

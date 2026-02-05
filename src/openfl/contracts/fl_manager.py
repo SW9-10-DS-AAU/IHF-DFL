@@ -97,7 +97,7 @@ class FLManager(ConnectionHelper):
     def deploy_challenge_contract(self, *args):
         print(b("Starting simulation..."))
         print(b("-----------------------------------------------------------------------------------"))
-        min_buyin, max_buyin, reward, min_rounds, punishment, freerider_fee = args
+        min_buyin, max_buyin, reward, min_rounds, punishment, punish_contrib, freerider_fee = args
         p1_collateral = self.pytorch_model.participants[0].collateral
         value = reward + p1_collateral
         deployer = self.pytorch_model.participants[0].address
@@ -118,6 +118,7 @@ class FLManager(ConnectionHelper):
                 reward,
                 min_rounds,
                 punishment,
+                punish_contrib,
                 freerider_fee
             ).transact(tx)
         else:
@@ -131,6 +132,7 @@ class FLManager(ConnectionHelper):
                 reward,
                 min_rounds,
                 punishment,
+                punish_contrib,
                 freerider_fee
             ).build_transaction(depl)
             signed = self.w3.eth.account.sign_transaction(depl, private_key=self.pytorch_model.participants[0].privateKey)

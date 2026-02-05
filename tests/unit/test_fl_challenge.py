@@ -522,7 +522,7 @@ class TestFLChallengeWorkflow:
             contribution_score_strategy='dotproduct',
             use_outlier_detection=True,
         )
-        configs = [mock_contract, "0xModel", 100, 1000, 500, 3, 0.5, 0.1]
+        configs = [mock_contract, "0xModel", 100, 1000, 500, 3, 0.5, 3, 0.1]
         pytorch_model = MagicMock()
 
         challenge = FLChallenge(manager, configs, pytorch_model, experiment_config)
@@ -538,7 +538,7 @@ class TestFLChallengeWorkflow:
             contribution_score_strategy='naive',
             use_outlier_detection=False,
         )
-        configs = [mock_contract, "0xModel", 100, 1000, 500, 3, 0.5, 0.1]
+        configs = [mock_contract, "0xModel", 100, 1000, 500, 3, 0.5, 3, 0.1]
         pytorch_model = MagicMock()
 
         challenge = FLChallenge(manager, configs, pytorch_model, experiment_config)
@@ -553,7 +553,7 @@ class TestFLChallengeWorkflow:
             contribution_score_strategy='invalid_strategy',
             use_outlier_detection=False,
         )
-        configs = [mock_contract, "0xModel", 100, 1000, 500, 3, 0.5, 0.1]
+        configs = [mock_contract, "0xModel", 100, 1000, 500, 3, 0.5, 3, 0.1]
         pytorch_model = MagicMock()
 
         challenge = FLChallenge(manager, configs, pytorch_model, experiment_config)
@@ -678,7 +678,7 @@ class TestNonForkInteractions:
         manager.w3 = mock_w3
         manager.fork = False  # Switch to non-fork mode
 
-        configs = [mock_contract, "0xModel", 100, 1000, 500, 3, 0.5, 0.1]
+        configs = [mock_contract, "0xModel", 100, 1000, 500, 3, 0.5, 3, 0.1]
         pytorch_model = MagicMock()
         pytorch_model.participants = mock_participants
         experiment_config = SimpleNamespace(
