@@ -573,22 +573,32 @@ class PytorchModel:
     
     def evaluation(self):
         print("Users evaluating models...")
-                
-        count_dq = len(self.disqualified)
-        
-        feedback_matrix = np.zeros((1,len(self.participants)+count_dq,len(self.participants)+count_dq))[0]
-        n = len(self.participants) + count_dq
-        accuracy_matrix = [[0 for _ in range(n)] for _ in range(n)]
-        loss_matrix = [[0 for _ in range(n)] for _ in range(n)]
-        prev_accs = [0 for _ in range(n)]
-        prev_losses = [0 for _ in range(n)]
 
+        # Counts how many users have been disqualified from the experiment
+        count_dq = len(self.disqualified)
+
+        no_of_users = len(self.participants) + count_dq
+
+        # Initialize arrays to zeroes
+
+        # Feedback/evaluation scores between all user pairs
+        feedback_matrix = np.zeros((1, no_of_users, no_of_users))[0]
+        accuracy_matrix = [[0 for _ in range(no_of_users)] for _ in range(no_of_users)]
+        loss_matrix = [[0 for _ in range(no_of_users)] for _ in range(no_of_users)]
+        prev_accs = [0 for _ in range(no_of_users)]
+        prev_losses = [0 for _ in range(no_of_users)]
+
+
+        # Each user evaluates the models of all other users and fills the matrices accordingly
         for feedbackGiver in self.participants:
             valloader = feedbackGiver.val
             bad_att = feedbackGiver.attitude == "bad"
             free_att = feedbackGiver.attitude == "freerider"
             accuracy_last_round = -1
 
+            # Depending on the attitude of the feedback giver, the evaluation is done differently:
+
+            # For each user, traverse its list of usersToEvaluate and fill the feedback, accuracy and loss matrices
             for ix, user in enumerate(feedbackGiver.userToEvaluate):
                 if not bad_att and not free_att:
                     loss, accuracy = test(user.model, valloader, DEVICE)
@@ -614,7 +624,7 @@ class PytorchModel:
                     prev_accs[feedbackGiver.id] = round(accuracy_last_round)
                     prev_losses[feedbackGiver.id] = round(loss_last_round)
 
-                elif user in feedbackGiver.cheater:
+                elif len(feedbackGiver.cheater) > 0 and user in feedbackGiver.cheater:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
                     loss_matrix[feedbackGiver.id][user.id] = round(loss)
