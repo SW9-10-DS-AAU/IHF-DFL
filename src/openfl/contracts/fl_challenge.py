@@ -130,11 +130,13 @@ class FLChallenge(FLManager):
     
     
     def get_global_reputation_of_user(self, user):
-        return self.model.functions.GlobalReputationOf(user).call({"to": self.modelAddress})
+        user_struct = self.model.functions.users(user).call()
+        return user_struct[1]
         
     
     def get_round_reputation_of_user(self, user):
-        return self.model.functions.RoundReputationOf(user).call({"to": self.modelAddress})
+        user_struct = self.model.functions.users(user).call()
+        return user_struct[2]
     
     
     def get_reward_left(self):
@@ -629,7 +631,7 @@ class FLChallenge(FLManager):
                 args = ev["args"]
                 print(b(f"\nEND OF ROUND {args['round'] + 1}"))
                 print(b(f"VALID VOTES:      {args['validVotes']}"))
-                print(b(f"SUM OF WEIGHTS:  {args['sumOfWeights']:,}"))
+                print(b(f"SUM OF WEIGHTS:  {args['sumOfWeightedContribScore']:,}"))
                 print(b(f"TOTAL PUNISHMENT: {args['totalPunishment']:,}\n"))
             print("-----------------------------------------------------------------------------------\n")
 
@@ -756,8 +758,7 @@ class FLChallenge(FLManager):
             if self.fork:
                 tx = super().build_tx(u.address, self.modelAddress)
                 tx_hash = self.model.functions.submitContributionScore(
-                    abs(score),
-                    u.is_contrib_score_negative
+                    score,
                 ).transact(tx)
             else:  # TODO: Dobbeltjek at logic er rigtig her.
                 nonce = self.w3.eth.get_transaction_count(u.address)
@@ -766,8 +767,7 @@ class FLChallenge(FLManager):
                     nonce,
                 )
                 cl = self.model.functions.submitContributionScore(
-                    abs(score),
-                    u.is_contrib_score_negative
+                    score,
                 ).build_transaction(cl)
                 pk = u.privateKey
                 signed = self.w3.eth.account.sign_transaction(cl, private_key=pk)

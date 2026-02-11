@@ -1,0 +1,11 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "compile-contracts",
+      "type": "shell",
+      "command": "venv/bin/python scripts/compile_contracts.py",
+      "problemMatcher": []
+    }
+  ]
+}

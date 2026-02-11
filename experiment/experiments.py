@@ -18,14 +18,15 @@ DATASETFAST = "mnist"
 RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData")
 
 datasets = [ DATASETFAST ]
-strategy_options = ["dotproduct", "naive", "accuracy"]
-#strategy_options = ["naive", "dotproduct"]
+#strategy_options = ["dotproduct", "naive", "accuracy"]
+strategy_options = [ "accuracy" ]
 outlier_detection_options = [ True, False ]
 free_rider_activation_round_options = [1, 3, 5]
 #malicious_activation_round_options = [1, 3, 5]
 free_rider_noise_options = [1.0, 0.5, 0.1, 0.01, 0.0]
 #malicious_noise_options = [1.0, 0.5, 0.05, 0.01]
-forced_ones = [ True, False ]
+#forced_ones = [ True, False ]
+forced_ones = [ False ]
 
 #strategy_options = ["accuracy"]
 #free_rider_activation_round_options = [1]

@@ -5,7 +5,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Python Debugger: Experiment",
+      "name": "Compile - Debug: Experiments",
       "type": "debugpy",
       "request": "launch",
       "program": "experiment/experiments.py",
@@ -13,7 +13,19 @@
         "--skipFolder",
         "experiment/data"
       ],
-      "console": "integratedTerminal"
+      "console": "integratedTerminal",
+      "preLaunchTask": "compile-contracts"
+    },
+    {
+      "name": "Debug: Experiments",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "experiment/experiments.py",
+      "args": [
+        "--skipFolder",
+        "experiment/data"
+      ],
+      "console": "integratedTerminal",
     },
     {
       "name": "Python Debugger: Processor",
