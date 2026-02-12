@@ -36,8 +36,6 @@ contract OpenFLModel {
     uint public freeriderPenalty;
     uint constant ONE_DAY = 864e2;
 
-    mapping(uint8 => mapping(address => bool)) public isContribScoreNegative; //Todo: Remove
-
     address[] public participants;
     address[] punishedAddresses;
 
@@ -45,7 +43,7 @@ contract OpenFLModel {
 
     // Dont change order, fl_challenge.py relies on order. Maybe use getters if bytecode size allows later
     struct User {
-        uint256 weightedContribScore; // 32 //Todo: make int256
+        int256 weightedContribScore; // 32
         uint globalReputationScore; // 32
         int roundReputation; // 32
         address addr; // 20
@@ -63,7 +61,7 @@ contract OpenFLModel {
     mapping(address => mapping(address => bool)) public votedPositiveFor;
     mapping(address => mapping(uint8 => bytes32)) public secretOf;
     mapping(address => mapping(uint8 => bytes32)) public weightsOf;
-    mapping(uint8 => mapping(address => uint256)) public contributionScore; // round => user => score
+    mapping(uint8 => mapping(address => int256)) public contributionScore; // round => user => score
     mapping(uint8 => uint256) public nrOfContributionScores; // round => number of submissions
 
     struct AccuracySubmission {
@@ -119,6 +117,19 @@ contract OpenFLModel {
         _;
     }
 
+    event DebugUser(
+        address addr,
+        int256 weightedContribScore,
+        uint globalReputationScore,
+        int roundReputation,
+        uint8 nrOfRoundsParticipated,
+        uint8 nrOfVotesFromUser,
+        bool isPunished,
+        bool isRegistered,
+        bool whitelistedForRewards,
+        bool isDisqualified
+    );
+
     event FederatedLerningModelDeployed(
         uint initTS,
         uint max_collateral,
@@ -139,13 +150,12 @@ contract OpenFLModel {
         address target,
         address user,
         uint globalReputation,
-        int newRoundReputation
+        int newroundReputation
     );
 
     event ContributionScoreSubmitted(
         address indexed user,
-        uint256 contributionScore,
-        bool isContribScoreNegative
+        int256 contributionScore
     );
 
     event EndRound(
@@ -212,11 +222,15 @@ contract OpenFLModel {
         );
     }
 
-    function setTesting(bool _testing) external {
-        testing = _testing;
+    function _setUserGRSAtAddressStorage(address userAddr, uint value) public {
+        User storage user = users[userAddr];
+        user.globalReputationScore = value;
     }
 
-    // Register participants
+    function clamp0Uint(int x) internal pure returns (uint) {
+        return x > 0 ? uint(x) : 0;
+    }
+
     function register() public payable onlyNotYetRegisteredUsers {
         require(
             msg.value >= min_collateral && msg.value <= max_collateral,
@@ -240,14 +254,16 @@ contract OpenFLModel {
     // Registration helper
     function registrationProcess(address userAddr) internal {
         User storage user = users[userAddr];
+
+        user.addr = userAddr;
         user.isRegistered = true;
+        user.isDisqualified = false;
         user.globalReputationScore = msg.value;
         user.nrOfRoundsParticipated = 1;
-        user.addr = userAddr;
         nrOfParticipants += 1;
         participants.push(userAddr);
         emit Registered(
-            user.addr,
+            userAddr,
             msg.value,
             address(this).balance,
             nrOfParticipants
@@ -312,7 +328,7 @@ contract OpenFLModel {
         );
     }
 
-    function submitContributionScore(uint256 score, bool is_negative) external {
+    function submitContributionScore(int256 score) external {
         require(users[msg.sender].isRegistered, "User not registered");
         require(
             contributionScore[round][msg.sender] == 0,
@@ -320,10 +336,13 @@ contract OpenFLModel {
         );
 
         contributionScore[round][msg.sender] = score;
-        isContribScoreNegative[round][msg.sender] = is_negative;
         nrOfContributionScores[round] += 1;
 
-        emit ContributionScoreSubmitted(msg.sender, score, is_negative);
+        emit ContributionScoreSubmitted(msg.sender, score);
+    }
+
+    function __getVotesPerRound() public view returns (uint roundClosed) {
+        return votesPerRound;
     }
 
     function isFeedBackRoundDone() public view returns (bool roundClosed) {
@@ -331,10 +350,15 @@ contract OpenFLModel {
             return false; // no participants => not done
         }
 
+        return
+            votesPerRound >=
+            (participants.length * participants.length) - participants.length;
+
+        uint voteCount = 0;
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             // If a particaipant hasnt voted for everyone else wait
-            if (user.isRegistered) {
+            if (user.isRegistered && !user.isDisqualified) {
                 if (user.nrOfVotesFromUser < nrOfParticipants - 1) {
                     return false;
                 }
@@ -343,7 +367,7 @@ contract OpenFLModel {
         return true;
     }
 
-    function isContributionRoundDone() public returns (bool roundClosed) {
+    function isContributionRoundDone() public view returns (bool roundClosed) {
         uint mergedUsers = 0;
         for (uint i = 0; i < participants.length; i++) {
             if (users[participants[i]].roundReputation < 0) {
@@ -360,6 +384,7 @@ contract OpenFLModel {
     function settle() public {
         uint totalPunishment;
         uint freeriderLock; // A global total of sum of freerider penalties
+        delete punishedAddresses;
 
         // First round users pay their anti-freerider fee
         for (uint i = 0; i < participants.length; i++) {
@@ -377,7 +402,10 @@ contract OpenFLModel {
             User storage user = users[participants[i]];
             if (user.isRegistered) {
                 if (user.roundReputation < 0) {
-                    votesPerRound -= user.nrOfVotesFromUser;
+                    //Todo should not be necessary
+                    votesPerRound = user.nrOfVotesFromUser > votesPerRound
+                        ? 0
+                        : votesPerRound - user.nrOfVotesFromUser;
 
                     uint punishment = uint(
                         user.globalReputationScore / punishfactor
@@ -388,18 +416,19 @@ contract OpenFLModel {
                         min_collateral / punishfactor
                     ) {
                         user.isPunished = true;
-                        punishedAddresses.push(participants[i]);
+                        punishedAddresses.push(user.addr);
                         user.whitelistedForRewards = false;
 
                         user.globalReputationScore =
                             user.globalReputationScore -
                             punishment;
+
                         user.roundReputation =
                             user.roundReputation -
                             int(punishment);
                         totalPunishment += punishment;
                         emit Punishment(
-                            participants[i],
+                            user.addr,
                             user.roundReputation,
                             punishment,
                             user.globalReputationScore
@@ -407,20 +436,20 @@ contract OpenFLModel {
                     } else {
                         user.isRegistered = false;
                         user.isPunished = true;
-                        punishedAddresses.push(participants[i]);
+                        punishedAddresses.push(user.addr);
                         user.whitelistedForRewards = false;
 
                         totalPunishment += user.globalReputationScore;
 
                         emit Disqualification(
-                            participants[i],
+                            user.addr,
                             user.roundReputation,
                             user.globalReputationScore,
                             0
                         );
                         user.globalReputationScore = 0;
                         nrOfParticipants -= 1;
-                        delete participants[i];
+                        user.isDisqualified = true;
                     }
                 } else {
                     user.whitelistedForRewards = true;
@@ -433,16 +462,17 @@ contract OpenFLModel {
             User storage user = users[participants[i]];
             if (user.isRegistered) {
                 for (uint j = 0; j < punishedAddresses.length; j++) {
-                    if (
-                        votedPositiveFor[participants[i]][punishedAddresses[j]]
-                    ) {
-                        votedPositiveFor[participants[i]][
+                    if (votedPositiveFor[user.addr][punishedAddresses[j]]) {
+                        votedPositiveFor[user.addr][
                             punishedAddresses[j]
                         ] = false;
-                        votesPerRound -= user.nrOfVotesFromUser;
+                        //Todo should not be necessary
+                        votesPerRound = user.nrOfVotesFromUser > votesPerRound
+                            ? 0
+                            : votesPerRound - user.nrOfVotesFromUser;
                         user.whitelistedForRewards = false;
                         emit PassivPunishment(
-                            participants[i],
+                            user.addr,
                             user.roundReputation,
                             0,
                             user.globalReputationScore
@@ -474,7 +504,7 @@ contract OpenFLModel {
         // Pay back freeriderLock funds to good users
         // First round users pay their anti-freerider fee
         int sumOfWeightedContribScore = 0;
-        uint BoundedSumOfWeightedContribScore = 0;
+        uint boundedSumOfWeightedContribScore = 0;
         if (votesPerRound > 0 && rewardLeft >= rewardPerRound) {
             rewardLeft -= rewardPerRound;
 
@@ -493,14 +523,15 @@ contract OpenFLModel {
                     !user.isPunished
                 ) {
                     uint weight = user.nrOfVotesFromUser *
-                        contributionScore[round][user.addr];
-                    user.weightedContribScore = weight;
+                        absUint(contributionScore[round][user.addr]);
 
-                    if (isContribScoreNegative[round][user.addr]) {
-                        sumOfWeightedContribScore -= int(weight);
-                    } else {
-                        sumOfWeightedContribScore += int(weight);
-                    }
+                    user.weightedContribScore += contributionScore[round][
+                        user.addr
+                    ] < 0
+                        ? int(weight)
+                        : -int(weight);
+
+                    sumOfWeightedContribScore += user.weightedContribScore;
                 }
             }
 
@@ -513,42 +544,44 @@ contract OpenFLModel {
                     user.whitelistedForRewards &&
                     !user.isPunished
                 ) {
-                    BoundedSumOfWeightedContribScore = sumOfWeightedContribScore <=
+                    boundedSumOfWeightedContribScore = sumOfWeightedContribScore <=
                         0
                         ? 1
                         : uint(sumOfWeightedContribScore);
-                    uint personalReward = (reward * user.weightedContribScore) /
-                        BoundedSumOfWeightedContribScore;
+                    //Clamping is fine here as it is used as a punishment
+                    uint personalReward = (reward *
+                        clamp0Uint(user.weightedContribScore)) /
+                        boundedSumOfWeightedContribScore;
                     if (
-                        isContribScoreNegative[round][user.addr] &&
+                        contributionScore[round][user.addr] < 0 &&
                         (user.globalReputationScore <=
                             personalReward * punishfactorContrib)
                     ) {
                         reward += user.globalReputationScore;
 
                         emit Disqualification(
-                            participants[i],
+                            user.addr,
                             user.roundReputation,
                             user.globalReputationScore,
                             0
                         );
                         sumOfWeightedContribScore += int(
                             user.nrOfVotesFromUser *
-                                contributionScore[round][user.addr]
+                                absUint(contributionScore[round][user.addr])
                         );
 
                         user.globalReputationScore = 0;
                         nrOfParticipants -= 1;
-                        delete participants[i];
+                        user.isDisqualified = true;
                     }
                 }
             }
-            BoundedSumOfWeightedContribScore = sumOfWeightedContribScore <= 0
+            boundedSumOfWeightedContribScore = sumOfWeightedContribScore <= 0
                 ? 1
                 : uint(sumOfWeightedContribScore);
             uint redistributedPenalty = 0;
-            uint positiveSumOfWeights = 0;
-            // Give punishmentts (negative rewards) based on contribution score
+            uint positivesumOfWeightedContribScore = 0;
+            // Give punishments (negative rewards) based on contribution score
             for (uint i = 0; i < participants.length; i++) {
                 User storage user = users[participants[i]];
 
@@ -556,10 +589,11 @@ contract OpenFLModel {
                     user.isRegistered &&
                     user.whitelistedForRewards &&
                     !user.isPunished &&
-                    isContribScoreNegative[round][user.addr]
+                    contributionScore[round][user.addr] < 0
                 ) {
-                    uint personalReward = (reward * user.weightedContribScore) /
-                        BoundedSumOfWeightedContribScore;
+                    uint personalReward = (reward *
+                        clamp0Uint(user.weightedContribScore)) /
+                        boundedSumOfWeightedContribScore;
 
                     uint penalty = personalReward * punishfactorContrib;
 
@@ -584,16 +618,20 @@ contract OpenFLModel {
                     user.isRegistered &&
                     user.whitelistedForRewards &&
                     !user.isPunished &&
-                    !isContribScoreNegative[round][user.addr]
+                    contributionScore[round][user.addr] > 0
                 ) {
-                    positiveSumOfWeights += user.weightedContribScore;
+                    positivesumOfWeightedContribScore += uint(
+                        user.weightedContribScore
+                    );
                 }
             }
-            positiveSumOfWeights = positiveSumOfWeights == 0
+            positivesumOfWeightedContribScore = positivesumOfWeightedContribScore ==
+                0
                 ? 1
-                : positiveSumOfWeights;
+                : positivesumOfWeightedContribScore;
 
             // Give rewards (or negative rewards) based on contribution score
+            // Todo: No negative rewards???? What it talking about
             for (uint i = 0; i < participants.length; i++) {
                 User storage user = users[participants[i]];
 
@@ -601,10 +639,11 @@ contract OpenFLModel {
                     user.isRegistered &&
                     user.whitelistedForRewards &&
                     !user.isPunished &&
-                    !isContribScoreNegative[round][user.addr]
+                    contributionScore[round][user.addr] > 0
                 ) {
-                    uint personalReward = (reward * user.weightedContribScore) /
-                        positiveSumOfWeights;
+                    uint personalReward = (reward *
+                        clamp0Uint(user.weightedContribScore)) /
+                        positivesumOfWeightedContribScore;
 
                     user.globalReputationScore += personalReward;
 
@@ -616,14 +655,14 @@ contract OpenFLModel {
                     );
                 }
 
-                delete user.whitelistedForRewards;
-                delete user.weightedContribScore;
+                user.whitelistedForRewards = false;
+                user.weightedContribScore = 0;
             }
         }
         emit EndRound(
             round,
             votesPerRound,
-            BoundedSumOfWeightedContribScore,
+            boundedSumOfWeightedContribScore,
             totalPunishment
         );
 
@@ -644,10 +683,9 @@ contract OpenFLModel {
         round += 1;
         votesPerRound = 0;
         nrOfProvidedHashedWeights = 0;
-        delete punishedAddresses;
     }
 
-    // Exit contract
+    // Exit contract -- Does not work
     function exitModel() public onlyRegisteredUsers feedbackRoundClosed {
         require(users[msg.sender].globalReputationScore > 0, "NEF");
         uint val = users[msg.sender].globalReputationScore;
@@ -833,18 +871,18 @@ contract OpenFLModel {
 
         // 1️⃣ First, count total matching entries to size arrays
         for (uint i = 0; i < participants.length; i++) {
-            User storage sender = users[participants[i]];
-            uint subCount = accuracySubmissions[round][sender.addr].length;
+            address senderAddr = participants[i];
+            uint subCount = accuracySubmissions[round][senderAddr].length;
 
             for (uint j = 0; j < subCount; j++) {
                 AccuracySubmission storage sub = accuracySubmissions[round][
-                    sender.addr
+                    senderAddr
                 ][j];
 
                 for (uint k = 0; k < sub.adrs.length; k++) {
                     if (sub.adrs[k] == target) {
                         // TODO: GØR whitelisted eller lign. ACCESSIBLE OG CLEAR DEN EFTER ROUND END!
-                        if (sender.roundReputation >= 0) {
+                        if (users[senderAddr].roundReputation >= 0) {
                             totalCount++;
                         }
                     }
@@ -883,75 +921,6 @@ contract OpenFLModel {
         }
     }
 
-    // Fallback function parses dynamic size feedback arrays
-    // @dev This allows the contract to have an arbitrary number of participants
-    fallback() external {
-        address[] memory ads;
-        int256[] memory ints;
-
-        assembly {
-            let tmp := 0
-            let tmp2 := 0
-
-            // Skip : function selector    : 0x4 bytes
-            let offset := 0x00
-
-            // Compute the number of addresses :
-            // ((array length - 0x04) - 0x20) / 0x14
-            // ((array length - sizeof(function Selector)) - sizeof(uint256)) / sizeof(address)
-            let adsCount := div(calldatasize(), 0x34)
-
-            // Allocate memory for the address array
-            ads := mload(0x40)
-            mstore(0x40, add(ads, add(0x20, mul(adsCount, 0x20))))
-
-            // Set the size of the array
-            mstore(ads, adsCount)
-
-            // Get an address from calldata on each iteration :
-            // loads 0x20 bytes from calldata starting at offset : calldata[offset: offset + 0x20)
-            // shift value by 96 bits (12 bytes) to the right to keep only the relevant portion (first 20 bytes)
-            // store that value at ads[i]
-            // increments calldata offset by 0x14 (20 bytes)
-            for {
-                let i := 0
-            } lt(i, adsCount) {
-                i := add(i, 1)
-            } {
-                tmp := calldataload(offset)
-                tmp := shr(96, tmp)
-                mstore(add(add(ads, 0x20), mul(i, 0x20)), tmp)
-                offset := add(offset, 0x14)
-            }
-
-            // Allocate memory for the address array
-            ints := mload(0x40)
-            mstore(0x40, add(ints, add(0x20, mul(adsCount, 0x20))))
-
-            // Set the size of the array
-            mstore(ints, adsCount)
-
-            // Get an address from calldata on each iteration :
-            // loads 0x20 bytes from calldata starting at offset : calldata[offset: offset + 0x20)
-            // store that value at ads[i]
-            // increments calldata offset by 0x20 (32 bytes)
-            for {
-                let i := 0
-            } lt(i, adsCount) {
-                i := add(i, 1)
-            } {
-                tmp2 := calldataload(offset)
-                mstore(add(add(ints, 0x20), mul(i, 0x20)), tmp2)
-                offset := add(offset, 0x20)
-            }
-        }
-
-        for (uint i = 0; i < ads.length; i++) {
-            if (!testing) {
-                feedback(ads[i], ints[i]);
-            }
-        }
-    }
     function getUser(
         address u
     )
@@ -959,7 +928,7 @@ contract OpenFLModel {
         view
         returns (
             address,
-            uint256,
+            int256,
             uint,
             int,
             uint8,
@@ -983,5 +952,15 @@ contract OpenFLModel {
             user.whitelistedForRewards,
             user.isDisqualified
         );
+    }
+
+    function absUint(int256 x) internal pure returns (uint256) {
+        if (x >= 0) return uint256(x);
+
+        if (x == type(int256).min) {
+            return uint256(type(int256).max) + 1;
+        }
+
+        return uint256(-x);
     }
 }

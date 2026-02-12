@@ -74,11 +74,11 @@ contract OpenFLModelHarness is OpenFLModel {
         user.isPunished = false;
         user.whitelistedForRewards = false;
 
-        user.GlobalReputationOf = reputation;
-        user.RoundReputationOf = roundRep;
-        user.nrOfVotesOfUser = votesCount;
-        user.roundOfUser = 1;
-        user.personalWeight = 0;
+        user.globalReputationScore = reputation;
+        user.roundReputation = roundRep;
+        user.nrOfVotesFromUser = votesCount;
+        user.nrOfRoundsParticipated = 1;
+        user.weightedContribScore = 0;
         user.addr = u;
     }
 
@@ -106,5 +106,18 @@ contract OpenFLModelHarness is OpenFLModel {
             }
         }
         return false;
+    }
+
+    function _setUserGRSAtAddress(address userAddr, uint value) public {
+        users[userAddr].globalReputationScore = value;
+    }
+
+    function _setUserGRSAtAddressStorage(address userAddr, uint value) public {
+        User storage user = users[userAddr];
+        user.globalReputationScore = value;
+    }
+
+    function _getUserGRSAtAddress(address userAddr) public view returns (uint) {
+        return users[userAddr].globalReputationScore;
     }
 }

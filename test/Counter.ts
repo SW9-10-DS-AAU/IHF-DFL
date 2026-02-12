@@ -25,12 +25,98 @@ describe("A test i think", function () {
       reputations: [1000000000000000000n, 1000000000000000000n, 1000000000000000000n],
       roundReps: [-1, 1, 1],
       nrOfVotesOfUser: [3, 3, 3],
-      round: 0,
-      votes: [[0, 1, 1], [0, 0, 1], [0, 1, 0]]
+      round: 0
     });
 
     await model.settle();
 
     expect(await model.__isPunished(a.address)).to.equal(true);
+  });
+});
+
+
+describe("Struct functionality", function () {
+  it("Tests whether setters and getters work as expected", async function () {
+    const model = await ethers.deployContract(
+      "OpenFLModelHarness",
+      [
+        ethers.ZeroHash,
+        1000000000000000000n,
+        1000000000000000000n,
+        1000000000000000000n,
+        8,
+        3,
+        3,
+        50
+      ]
+    );
+
+    await model._setUserGRSAtAddress(a.address, 20);
+    expect(await model._getUserGRSAtAddress(a.address)).to.equal(20);
+
+    await model._setUserGRSAtAddress(a.address, 30);
+    expect(await model._getUserGRSAtAddress(a.address)).to.equal(30);
+  });
+});
+
+describe("User storage user test", function () {
+  it("Tests whether setters and getters work as expected when using \"User storage user\"", async function () {
+    const model = await ethers.deployContract(
+      "OpenFLModelHarness",
+      [
+        ethers.ZeroHash,
+        1000000000000000000n,
+        1000000000000000000n,
+        1000000000000000000n,
+        8,
+        3,
+        3,
+        50
+      ]
+    );
+
+    await model._setUserGRSAtAddressStorage(a.address, 20);
+    expect(await model._getUserGRSAtAddress(a.address)).to.equal(20);
+
+    await model._setUserGRSAtAddressStorage(a.address, 30);
+    expect(await model._getUserGRSAtAddress(a.address)).to.equal(30);
+  });
+});
+
+describe("Feedback functionality test", function () {
+  it("Tests whether feedback updates roundReputation correctly", async function () {
+    const [owner, a, b] = await ethers.getSigners();
+
+    const model = await ethers.deployContract(
+      "OpenFLModelHarness",
+      [
+        ethers.ZeroHash,
+        1000000000000000000n,
+        1000000000000000000n,
+        1000000000000000000n,
+        8,
+        3,
+        3,
+        50
+      ]
+    );
+
+    // Register both users
+    await model.connect(a)["register()"]({
+      value: ethers.parseEther("1")
+    });
+
+    await ethers.provider.send("evm_increaseTime", [86400]);
+    await ethers.provider.send("evm_mine", []);
+
+    // A gives positive feedback to B
+    await model.connect(a).feedback(b.address, 1);
+
+    // roundReputation is index 3 in getUser return tuple
+    expect((await model.getUser(a.address))[5]).to.equal(1);
+
+    await model.connect(a).feedback(c.address, 0);
+
+    expect((await model.getUser(a.address))[5]).to.equal(2);
   });
 });

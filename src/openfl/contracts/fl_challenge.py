@@ -69,6 +69,9 @@ class FLChallenge(FLManager):
 
         self.disqualifiedUserEvents = []
 
+        print("Contract address:", self.model.address)
+        print("Contract ABI functions:", [f["name"] for f in self.model.abi if f["type"] == "function"])
+
     def _get_contribution_score_calculator(self):
         """
         Return the function used for contribution-score calculation,
@@ -128,11 +131,9 @@ class FLChallenge(FLManager):
     def get_hashed_weights_of(self, user):
         return self.model.functions.weightsOf(user.address,self.pytorch_model.round-1).call({"to": self.modelAddress})
     
-    
-    def get_global_reputation_of_user(self, user):
-        user_struct = self.model.functions.users(user).call()
-        return user_struct[1]
-        
+    def get_global_reputation_of_user(self, userAddr):
+        user = self.model.functions.getUser(userAddr).call()
+        return user[2]
     
     def get_round_reputation_of_user(self, user):
         user_struct = self.model.functions.users(user).call()
@@ -460,7 +461,6 @@ class FLChallenge(FLManager):
             if (self.model.functions.isFeedBackRoundDone().call()):
                 print("Feedback round completed")
                 break
-
             print("Feedback round not done, sleeping for 10 seconds...")
             time.sleep(10)
         else:
@@ -482,8 +482,7 @@ class FLChallenge(FLManager):
         if self.fork:
             tx = super().build_tx(self.w3.eth.default_account, self.modelAddress, 0)
             txHash = self.model.functions.settle().transact(tx)
-            
-        else:          
+        else:
             nonce = self.w3.eth.get_transaction_count(self.pytorch_model.participants[0].address, 'pending')
             cl = super().build_non_fork_tx(self.pytorch_model.participants[0].address, nonce)
             cl =  self.model.functions.settle().build_transaction(cl)
@@ -758,7 +757,8 @@ class FLChallenge(FLManager):
             if self.fork:
                 tx = super().build_tx(u.address, self.modelAddress)
                 tx_hash = self.model.functions.submitContributionScore(
-                    score,
+                    abs(score),
+                    score < 0,
                 ).transact(tx)
             else:  # TODO: Dobbeltjek at logic er rigtig her.
                 nonce = self.w3.eth.get_transaction_count(u.address)

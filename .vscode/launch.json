@@ -11,7 +11,9 @@
       "program": "experiment/experiments.py",
       "args": [
         "--skipFolder",
-        "experiment/data"
+        "experiment/data",
+        "--author",
+        "Nykjaer"
       ],
       "console": "integratedTerminal",
       "preLaunchTask": "compile-contracts"

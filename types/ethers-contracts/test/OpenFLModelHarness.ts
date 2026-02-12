@@ -13,12 +13,15 @@ export declare namespace OpenFLModelHarness {
     }
 
   export interface OpenFLModelHarnessInterface extends Interface {
-    getFunction(nameOrSignature: "__isPunished" | "__testInitSettleState" | "contributionScore" | "contributionStart" | "exitModel" | "feedback" | "freeriderPenalty" | "getAllAccuraciesAbout" | "getAllPreviousAccuraciesAndLosses" | "hasVoted" | "initTS" | "isContributionRoundDone" | "isFeedBackRoundDone" | "max_collateral" | "min_collateral" | "min_rounds" | "modelHash" | "nrOfContributionScores" | "nrOfParticipants" | "nrOfProvidedHashedWeights" | "participants" | "prev_accs" | "prev_losses" | "provideHashedWeights" | "punishfactor" | "punishfactorContrib" | "register()" | "register(address)" | "registerSlot" | "rewardLeft" | "rewardPerRound" | "round" | "roundStart" | "secretOf" | "settle" | "submitContributionScore" | "submitFeedbackBytes" | "submitFeedbackBytesAndAccuracies" | "totalReward" | "users" | "votedPositiveFor" | "votesPerRound" | "weightsOf"): FunctionFragment;
+    getFunction(nameOrSignature: "__isPunished" | "__testInitSettleState" | "_getUserGRSAtAddress" | "_setUserGRSAtAddress" | "_setUserGRSAtAddressStorage" | "contributionScore" | "contributionStart" | "exitModel" | "feedback" | "freeriderPenalty" | "getAllAccuraciesAbout" | "getAllPreviousAccuraciesAndLosses" | "getUser" | "hasVoted" | "initTS" | "isContributionRoundDone" | "isFeedBackRoundDone" | "max_collateral" | "min_collateral" | "min_rounds" | "modelHash" | "nrOfContributionScores" | "nrOfParticipants" | "nrOfProvidedHashedWeights" | "participants" | "prev_accs" | "prev_losses" | "provideHashedWeights" | "punishfactor" | "punishfactorContrib" | "register()" | "register(address)" | "registerSlot" | "rewardLeft" | "rewardPerRound" | "round" | "roundStart" | "secretOf" | "settle" | "submitContributionScore" | "submitFeedbackBytes" | "submitFeedbackBytesAndAccuracies" | "testing" | "totalReward" | "users" | "votedPositiveFor" | "votesPerRound" | "weightsOf"): FunctionFragment;
 
-    getEvent(nameOrSignatureOrTopic: "ContributionScoreSubmitted" | "Disqualification" | "EndRound" | "FederatedLerningModelDeployed" | "Feedback" | "PassivPunishment" | "Punishment" | "Registered" | "Reward"): EventFragment;
+    getEvent(nameOrSignatureOrTopic: "ContributionScoreSubmitted" | "DebugUser" | "Disqualification" | "EndRound" | "FederatedLerningModelDeployed" | "Feedback" | "PassivPunishment" | "Punishment" | "Registered" | "Reward"): EventFragment;
 
     encodeFunctionData(functionFragment: '__isPunished', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: '__testInitSettleState', values: [OpenFLModelHarness.InitParamsStruct]): string;
+encodeFunctionData(functionFragment: '_getUserGRSAtAddress', values: [AddressLike]): string;
+encodeFunctionData(functionFragment: '_setUserGRSAtAddress', values: [AddressLike, BigNumberish]): string;
+encodeFunctionData(functionFragment: '_setUserGRSAtAddressStorage', values: [AddressLike, BigNumberish]): string;
 encodeFunctionData(functionFragment: 'contributionScore', values: [BigNumberish, AddressLike]): string;
 encodeFunctionData(functionFragment: 'contributionStart', values?: undefined): string;
 encodeFunctionData(functionFragment: 'exitModel', values?: undefined): string;
@@ -26,6 +29,7 @@ encodeFunctionData(functionFragment: 'feedback', values: [AddressLike, BigNumber
 encodeFunctionData(functionFragment: 'freeriderPenalty', values?: undefined): string;
 encodeFunctionData(functionFragment: 'getAllAccuraciesAbout', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'getAllPreviousAccuraciesAndLosses', values?: undefined): string;
+encodeFunctionData(functionFragment: 'getUser', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'hasVoted', values: [AddressLike, AddressLike]): string;
 encodeFunctionData(functionFragment: 'initTS', values?: undefined): string;
 encodeFunctionData(functionFragment: 'isContributionRoundDone', values?: undefined): string;
@@ -55,6 +59,7 @@ encodeFunctionData(functionFragment: 'settle', values?: undefined): string;
 encodeFunctionData(functionFragment: 'submitContributionScore', values: [BigNumberish]): string;
 encodeFunctionData(functionFragment: 'submitFeedbackBytes', values: [BytesLike]): string;
 encodeFunctionData(functionFragment: 'submitFeedbackBytesAndAccuracies', values: [BytesLike, BigNumberish[], BigNumberish[], BigNumberish, BigNumberish]): string;
+encodeFunctionData(functionFragment: 'testing', values?: undefined): string;
 encodeFunctionData(functionFragment: 'totalReward', values?: undefined): string;
 encodeFunctionData(functionFragment: 'users', values: [AddressLike]): string;
 encodeFunctionData(functionFragment: 'votedPositiveFor', values: [AddressLike, AddressLike]): string;
@@ -63,6 +68,9 @@ encodeFunctionData(functionFragment: 'weightsOf', values: [AddressLike, BigNumbe
 
     decodeFunctionResult(functionFragment: '__isPunished', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: '__testInitSettleState', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: '_getUserGRSAtAddress', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: '_setUserGRSAtAddress', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: '_setUserGRSAtAddressStorage', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'contributionScore', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'contributionStart', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'exitModel', data: BytesLike): Result;
@@ -70,6 +78,7 @@ decodeFunctionResult(functionFragment: 'feedback', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'freeriderPenalty', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'getAllAccuraciesAbout', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'getAllPreviousAccuraciesAndLosses', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'getUser', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'hasVoted', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'initTS', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'isContributionRoundDone', data: BytesLike): Result;
@@ -99,6 +108,7 @@ decodeFunctionResult(functionFragment: 'settle', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'submitContributionScore', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'submitFeedbackBytes', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'submitFeedbackBytesAndAccuracies', data: BytesLike): Result;
+decodeFunctionResult(functionFragment: 'testing', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'totalReward', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'users', data: BytesLike): Result;
 decodeFunctionResult(functionFragment: 'votedPositiveFor', data: BytesLike): Result;
@@ -111,6 +121,18 @@ decodeFunctionResult(functionFragment: 'weightsOf', data: BytesLike): Result;
       export type InputTuple = [user: AddressLike, contributionScore: BigNumberish];
       export type OutputTuple = [user: string, contributionScore: bigint];
       export interface OutputObject {user: string, contributionScore: bigint };
+      export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
+      export type Filter = TypedDeferredTopicFilter<Event>
+      export type Log = TypedEventLog<Event>
+      export type LogDescription = TypedLogDescription<Event>
+    }
+
+  
+
+    export namespace DebugUserEvent {
+      export type InputTuple = [addr: AddressLike, weightedContribScore: BigNumberish, globalReputationScore: BigNumberish, roundReputation: BigNumberish, nrOfRoundsParticipated: BigNumberish, nrOfVotesFromUser: BigNumberish, isPunished: boolean, isRegistered: boolean, whitelistedForRewards: boolean, isDisqualified: boolean];
+      export type OutputTuple = [addr: string, weightedContribScore: bigint, globalReputationScore: bigint, roundReputation: bigint, nrOfRoundsParticipated: bigint, nrOfVotesFromUser: bigint, isPunished: boolean, isRegistered: boolean, whitelistedForRewards: boolean, isDisqualified: boolean];
+      export interface OutputObject {addr: string, weightedContribScore: bigint, globalReputationScore: bigint, roundReputation: bigint, nrOfRoundsParticipated: bigint, nrOfVotesFromUser: bigint, isPunished: boolean, isRegistered: boolean, whitelistedForRewards: boolean, isDisqualified: boolean };
       export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
       export type Filter = TypedDeferredTopicFilter<Event>
       export type Log = TypedEventLog<Event>
@@ -132,9 +154,9 @@ decodeFunctionResult(functionFragment: 'weightsOf', data: BytesLike): Result;
   
 
     export namespace EndRoundEvent {
-      export type InputTuple = [round: BigNumberish, validVotes: BigNumberish, sumOfWeights: BigNumberish, totalPunishment: BigNumberish];
-      export type OutputTuple = [round: bigint, validVotes: bigint, sumOfWeights: bigint, totalPunishment: bigint];
-      export interface OutputObject {round: bigint, validVotes: bigint, sumOfWeights: bigint, totalPunishment: bigint };
+      export type InputTuple = [round: BigNumberish, validVotes: BigNumberish, sumOfWeightedContribScore: BigNumberish, totalPunishment: BigNumberish];
+      export type OutputTuple = [round: bigint, validVotes: bigint, sumOfWeightedContribScore: bigint, totalPunishment: bigint];
+      export interface OutputObject {round: bigint, validVotes: bigint, sumOfWeightedContribScore: bigint, totalPunishment: bigint };
       export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
       export type Filter = TypedDeferredTopicFilter<Event>
       export type Log = TypedEventLog<Event>
@@ -156,9 +178,9 @@ decodeFunctionResult(functionFragment: 'weightsOf', data: BytesLike): Result;
   
 
     export namespace FeedbackEvent {
-      export type InputTuple = [target: AddressLike, user: AddressLike, globalReputation: BigNumberish, newRoundReputation: BigNumberish];
-      export type OutputTuple = [target: string, user: string, globalReputation: bigint, newRoundReputation: bigint];
-      export interface OutputObject {target: string, user: string, globalReputation: bigint, newRoundReputation: bigint };
+      export type InputTuple = [target: AddressLike, user: AddressLike, globalReputation: BigNumberish, newroundReputation: BigNumberish];
+      export type OutputTuple = [target: string, user: string, globalReputation: bigint, newroundReputation: bigint];
+      export interface OutputObject {target: string, user: string, globalReputation: bigint, newroundReputation: bigint };
       export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>
       export type Filter = TypedDeferredTopicFilter<Event>
       export type Log = TypedEventLog<Event>
@@ -265,6 +287,30 @@ decodeFunctionResult(functionFragment: 'weightsOf', data: BytesLike): Result;
     
 
     
+    _getUserGRSAtAddress: TypedContractMethod<
+      [userAddr: AddressLike, ],
+      [bigint],
+      'view'
+    >
+    
+
+    
+    _setUserGRSAtAddress: TypedContractMethod<
+      [userAddr: AddressLike, value: BigNumberish, ],
+      [void],
+      'nonpayable'
+    >
+    
+
+    
+    _setUserGRSAtAddressStorage: TypedContractMethod<
+      [userAddr: AddressLike, value: BigNumberish, ],
+      [void],
+      'nonpayable'
+    >
+    
+
+    
     contributionScore: TypedContractMethod<
       [arg0: BigNumberish, arg1: AddressLike, ],
       [bigint],
@@ -316,6 +362,14 @@ decodeFunctionResult(functionFragment: 'weightsOf', data: BytesLike): Result;
     getAllPreviousAccuraciesAndLosses: TypedContractMethod<
       [],
       [[bigint[], bigint[]] & {previous_accuracies: bigint[], previous_losses: bigint[] }],
+      'view'
+    >
+    
+
+    
+    getUser: TypedContractMethod<
+      [u: AddressLike, ],
+      [[string, bigint, bigint, bigint, bigint, bigint, boolean, boolean, boolean, boolean]],
       'view'
     >
     
@@ -553,6 +607,14 @@ decodeFunctionResult(functionFragment: 'weightsOf', data: BytesLike): Result;
     
 
     
+    testing: TypedContractMethod<
+      [],
+      [boolean],
+      'view'
+    >
+    
+
+    
     totalReward: TypedContractMethod<
       [],
       [bigint],
@@ -563,7 +625,7 @@ decodeFunctionResult(functionFragment: 'weightsOf', data: BytesLike): Result;
     
     users: TypedContractMethod<
       [arg0: AddressLike, ],
-      [[bigint, bigint, bigint, string, bigint, bigint, boolean, boolean, boolean] & {personalWeight: bigint, GlobalReputationOf: bigint, RoundReputationOf: bigint, addr: string, roundOfUser: bigint, nrOfVotesOfUser: bigint, isPunished: boolean, isRegistered: boolean, whitelistedForRewards: boolean }],
+      [[bigint, bigint, bigint, string, bigint, bigint, boolean, boolean, boolean, boolean] & {weightedContribScore: bigint, globalReputationScore: bigint, roundReputation: bigint, addr: string, nrOfRoundsParticipated: bigint, nrOfVotesFromUser: bigint, isPunished: boolean, isRegistered: boolean, whitelistedForRewards: boolean, isDisqualified: boolean }],
       'view'
     >
     
@@ -605,6 +667,21 @@ getFunction(nameOrSignature: '__testInitSettleState'): TypedContractMethod<
       [void],
       'nonpayable'
     >;
+getFunction(nameOrSignature: '_getUserGRSAtAddress'): TypedContractMethod<
+      [userAddr: AddressLike, ],
+      [bigint],
+      'view'
+    >;
+getFunction(nameOrSignature: '_setUserGRSAtAddress'): TypedContractMethod<
+      [userAddr: AddressLike, value: BigNumberish, ],
+      [void],
+      'nonpayable'
+    >;
+getFunction(nameOrSignature: '_setUserGRSAtAddressStorage'): TypedContractMethod<
+      [userAddr: AddressLike, value: BigNumberish, ],
+      [void],
+      'nonpayable'
+    >;
 getFunction(nameOrSignature: 'contributionScore'): TypedContractMethod<
       [arg0: BigNumberish, arg1: AddressLike, ],
       [bigint],
@@ -638,6 +715,11 @@ getFunction(nameOrSignature: 'getAllAccuraciesAbout'): TypedContractMethod<
 getFunction(nameOrSignature: 'getAllPreviousAccuraciesAndLosses'): TypedContractMethod<
       [],
       [[bigint[], bigint[]] & {previous_accuracies: bigint[], previous_losses: bigint[] }],
+      'view'
+    >;
+getFunction(nameOrSignature: 'getUser'): TypedContractMethod<
+      [u: AddressLike, ],
+      [[string, bigint, bigint, bigint, bigint, bigint, boolean, boolean, boolean, boolean]],
       'view'
     >;
 getFunction(nameOrSignature: 'hasVoted'): TypedContractMethod<
@@ -785,6 +867,11 @@ getFunction(nameOrSignature: 'submitFeedbackBytesAndAccuracies'): TypedContractM
       [void],
       'nonpayable'
     >;
+getFunction(nameOrSignature: 'testing'): TypedContractMethod<
+      [],
+      [boolean],
+      'view'
+    >;
 getFunction(nameOrSignature: 'totalReward'): TypedContractMethod<
       [],
       [bigint],
@@ -792,7 +879,7 @@ getFunction(nameOrSignature: 'totalReward'): TypedContractMethod<
     >;
 getFunction(nameOrSignature: 'users'): TypedContractMethod<
       [arg0: AddressLike, ],
-      [[bigint, bigint, bigint, string, bigint, bigint, boolean, boolean, boolean] & {personalWeight: bigint, GlobalReputationOf: bigint, RoundReputationOf: bigint, addr: string, roundOfUser: bigint, nrOfVotesOfUser: bigint, isPunished: boolean, isRegistered: boolean, whitelistedForRewards: boolean }],
+      [[bigint, bigint, bigint, string, bigint, bigint, boolean, boolean, boolean, boolean] & {weightedContribScore: bigint, globalReputationScore: bigint, roundReputation: bigint, addr: string, nrOfRoundsParticipated: bigint, nrOfVotesFromUser: bigint, isPunished: boolean, isRegistered: boolean, whitelistedForRewards: boolean, isDisqualified: boolean }],
       'view'
     >;
 getFunction(nameOrSignature: 'votedPositiveFor'): TypedContractMethod<
@@ -812,6 +899,7 @@ getFunction(nameOrSignature: 'weightsOf'): TypedContractMethod<
     >;
 
     getEvent(key: 'ContributionScoreSubmitted'): TypedContractEvent<ContributionScoreSubmittedEvent.InputTuple, ContributionScoreSubmittedEvent.OutputTuple, ContributionScoreSubmittedEvent.OutputObject>;
+getEvent(key: 'DebugUser'): TypedContractEvent<DebugUserEvent.InputTuple, DebugUserEvent.OutputTuple, DebugUserEvent.OutputObject>;
 getEvent(key: 'Disqualification'): TypedContractEvent<DisqualificationEvent.InputTuple, DisqualificationEvent.OutputTuple, DisqualificationEvent.OutputObject>;
 getEvent(key: 'EndRound'): TypedContractEvent<EndRoundEvent.InputTuple, EndRoundEvent.OutputTuple, EndRoundEvent.OutputObject>;
 getEvent(key: 'FederatedLerningModelDeployed'): TypedContractEvent<FederatedLerningModelDeployedEvent.InputTuple, FederatedLerningModelDeployedEvent.OutputTuple, FederatedLerningModelDeployedEvent.OutputObject>;
@@ -825,6 +913,10 @@ getEvent(key: 'Reward'): TypedContractEvent<RewardEvent.InputTuple, RewardEvent.
       
       'ContributionScoreSubmitted(address,int256)': TypedContractEvent<ContributionScoreSubmittedEvent.InputTuple, ContributionScoreSubmittedEvent.OutputTuple, ContributionScoreSubmittedEvent.OutputObject>;
       ContributionScoreSubmitted: TypedContractEvent<ContributionScoreSubmittedEvent.InputTuple, ContributionScoreSubmittedEvent.OutputTuple, ContributionScoreSubmittedEvent.OutputObject>;
+    
+
+      'DebugUser(address,int256,uint256,int256,uint8,uint8,bool,bool,bool,bool)': TypedContractEvent<DebugUserEvent.InputTuple, DebugUserEvent.OutputTuple, DebugUserEvent.OutputObject>;
+      DebugUser: TypedContractEvent<DebugUserEvent.InputTuple, DebugUserEvent.OutputTuple, DebugUserEvent.OutputObject>;
     
 
       'Disqualification(address,int256,uint256,uint256)': TypedContractEvent<DisqualificationEvent.InputTuple, DisqualificationEvent.OutputTuple, DisqualificationEvent.OutputObject>;
