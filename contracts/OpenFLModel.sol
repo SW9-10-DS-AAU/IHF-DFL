@@ -23,7 +23,7 @@ contract OpenFLModel {
     uint8 public min_rounds;
     uint8 public punishfactorContrib;
 
-    uint public nrOfParticipants;
+    uint public nrOfActiveParticipants;
     uint public nrOfProvidedHashedWeights;
     uint public initTS;
     uint public min_collateral;
@@ -86,7 +86,7 @@ contract OpenFLModel {
 
     modifier feedbackRoundOpened() {
         require(
-            nrOfProvidedHashedWeights == nrOfParticipants ||
+            nrOfProvidedHashedWeights == nrOfActiveParticipants ||
                 roundStart + ONE_DAY < block.timestamp,
             "FRC"
         );
@@ -95,7 +95,7 @@ contract OpenFLModel {
 
     modifier feedbackRoundClosed() {
         require(
-            nrOfProvidedHashedWeights != nrOfParticipants &&
+            nrOfProvidedHashedWeights != nrOfActiveParticipants &&
                 roundStart + ONE_DAY > block.timestamp,
             "NA"
         );
@@ -244,13 +244,13 @@ contract OpenFLModel {
         user.globalReputationScore = msg.value;
         user.nrOfRoundsParticipated = 1;
         user.addr = userAddr;
-        nrOfParticipants += 1;
+        nrOfActiveParticipants += 1;
         participants.push(userAddr);
         emit Registered(
             user.addr,
             msg.value,
             address(this).balance,
-            nrOfParticipants
+            nrOfActiveParticipants
         );
     }
 
@@ -327,15 +327,15 @@ contract OpenFLModel {
     }
 
     function isFeedBackRoundDone() public view returns (bool roundClosed) {
-        if (nrOfParticipants == 0) {
+        if (nrOfActiveParticipants == 0) {
             return false; // no participants => not done
         }
 
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             // If a particaipant hasnt voted for everyone else wait
-            if (user.isRegistered) {
-                if (user.nrOfVotesFromUser < nrOfParticipants - 1) {
+            if (user.isRegistered && !user.isDisqualified) {
+                if (user.nrOfVotesFromUser < nrOfActiveParticipants - 1) {
                     return false;
                 }
             }
@@ -346,7 +346,10 @@ contract OpenFLModel {
     function isContributionRoundDone() public returns (bool roundClosed) {
         uint mergedUsers = 0;
         for (uint i = 0; i < participants.length; i++) {
-            if (users[participants[i]].roundReputation < 0) {
+            if (
+                users[participants[i]].roundReputation < 0 &&
+                !users[participants[i]].isDisqualified
+            ) {
                 mergedUsers++;
             }
         }
@@ -375,7 +378,7 @@ contract OpenFLModel {
         // Punish malicious users
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
-            if (user.isRegistered) {
+            if (user.isRegistered && !user.isDisqualified) {
                 if (user.roundReputation < 0) {
                     votesPerRound -= user.nrOfVotesFromUser;
 
@@ -413,14 +416,14 @@ contract OpenFLModel {
                         totalPunishment += user.globalReputationScore;
 
                         emit Disqualification(
-                            participants[i],
+                            user.addr,
                             user.roundReputation,
                             user.globalReputationScore,
                             0
                         );
                         user.globalReputationScore = 0;
-                        nrOfParticipants -= 1;
-                        delete participants[i];
+                        nrOfActiveParticipants -= 1;
+                        user.isDisqualified = true;
                     }
                 } else {
                     user.whitelistedForRewards = true;
@@ -431,7 +434,7 @@ contract OpenFLModel {
         // Punish helpers of malicious users
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
-            if (user.isRegistered) {
+            if (user.isRegistered && !user.isDisqualified) {
                 for (uint j = 0; j < punishedAddresses.length; j++) {
                     if (
                         votedPositiveFor[participants[i]][punishedAddresses[j]]
@@ -455,7 +458,7 @@ contract OpenFLModel {
         // Pay back freerider 1st round stake to good users
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
-            if (user.isRegistered) {
+            if (user.isRegistered && !user.isDisqualified) {
                 if (user.nrOfRoundsParticipated == 1) {
                     if (user.whitelistedForRewards) {
                         user.globalReputationScore =
@@ -490,7 +493,8 @@ contract OpenFLModel {
                 if (
                     user.isRegistered &&
                     user.whitelistedForRewards &&
-                    !user.isPunished
+                    !user.isPunished &&
+                    !user.isDisqualified
                 ) {
                     uint weight = user.nrOfVotesFromUser *
                         contributionScore[round][user.addr];
@@ -511,7 +515,8 @@ contract OpenFLModel {
                 if (
                     user.isRegistered &&
                     user.whitelistedForRewards &&
-                    !user.isPunished
+                    !user.isPunished &&
+                    !user.isDisqualified
                 ) {
                     BoundedSumOfWeightedContribScore = sumOfWeightedContribScore <=
                         0
@@ -538,8 +543,8 @@ contract OpenFLModel {
                         );
 
                         user.globalReputationScore = 0;
-                        nrOfParticipants -= 1;
-                        delete participants[i];
+                        nrOfActiveParticipants -= 1;
+                        user.isDisqualified = true;
                     }
                 }
             }
@@ -556,7 +561,8 @@ contract OpenFLModel {
                     user.isRegistered &&
                     user.whitelistedForRewards &&
                     !user.isPunished &&
-                    isContribScoreNegative[round][user.addr]
+                    isContribScoreNegative[round][user.addr] &&
+                    !user.isDisqualified
                 ) {
                     uint personalReward = (reward * user.weightedContribScore) /
                         BoundedSumOfWeightedContribScore;
@@ -584,7 +590,8 @@ contract OpenFLModel {
                     user.isRegistered &&
                     user.whitelistedForRewards &&
                     !user.isPunished &&
-                    !isContribScoreNegative[round][user.addr]
+                    !isContribScoreNegative[round][user.addr] &&
+                    !user.isDisqualified
                 ) {
                     positiveSumOfWeights += user.weightedContribScore;
                 }
@@ -630,7 +637,7 @@ contract OpenFLModel {
         // Reset variables
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
-            if (user.isRegistered) {
+            if (user.isRegistered && !user.isDisqualified) {
                 user.nrOfVotesFromUser = 0;
                 user.roundReputation = 0;
                 user.nrOfRoundsParticipated += 1;
@@ -647,7 +654,7 @@ contract OpenFLModel {
         delete punishedAddresses;
     }
 
-    // Exit contract
+    // Exit contract - Not safe, gaurds exists but will crash the contract if not met, exits should be queued?
     function exitModel() public onlyRegisteredUsers feedbackRoundClosed {
         require(users[msg.sender].globalReputationScore > 0, "NEF");
         uint val = users[msg.sender].globalReputationScore;
@@ -801,7 +808,8 @@ contract OpenFLModel {
     {
         uint8 count_merged_participants = 0;
         for (uint i = 0; i < participants.length; i++) {
-            if (users[participants[i]].roundReputation >= 0) {
+            User storage u = users[participants[i]];
+            if (u.isRegistered && !u.isDisqualified && u.roundReputation >= 0) {
                 count_merged_participants += 1;
             }
         }
@@ -810,7 +818,8 @@ contract OpenFLModel {
         previous_losses = new uint256[](count_merged_participants);
         uint8 j = 0;
         for (uint i = 0; i < participants.length; i++) {
-            if (users[participants[i]].roundReputation >= 0) {
+            User storage u = users[participants[i]];
+            if (u.isRegistered && !u.isDisqualified && u.roundReputation >= 0) {
                 previous_accuracies[j] = prev_accs[round][participants[i]];
                 previous_losses[j] = prev_losses[round][participants[i]];
                 j++;
@@ -844,7 +853,11 @@ contract OpenFLModel {
                 for (uint k = 0; k < sub.adrs.length; k++) {
                     if (sub.adrs[k] == target) {
                         // TODO: GØR whitelisted eller lign. ACCESSIBLE OG CLEAR DEN EFTER ROUND END!
-                        if (sender.roundReputation >= 0) {
+                        if (
+                            sender.isRegistered &&
+                            !sender.isDisqualified &&
+                            sender.roundReputation >= 0
+                        ) {
                             totalCount++;
                         }
                     }
@@ -871,7 +884,11 @@ contract OpenFLModel {
 
                 for (uint k = 0; k < sub.adrs.length; k++) {
                     if (sub.adrs[k] == target) {
-                        if (sender.roundReputation >= 0) {
+                        if (
+                            sender.isRegistered &&
+                            !sender.isDisqualified &&
+                            sender.roundReputation >= 0
+                        ) {
                             voters[idx] = sender.addr;
                             accuracies[idx] = sub.acc[k];
                             losses[idx] = sub.loss[k];
