@@ -757,8 +757,7 @@ class FLChallenge(FLManager):
             if self.fork:
                 tx = super().build_tx(u.address, self.modelAddress)
                 tx_hash = self.model.functions.submitContributionScore(
-                    abs(score),
-                    score < 0,
+                    score
                 ).transact(tx)
             else:  # TODO: Dobbeltjek at logic er rigtig her.
                 nonce = self.w3.eth.get_transaction_count(u.address)
