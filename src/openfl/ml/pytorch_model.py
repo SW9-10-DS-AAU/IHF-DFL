@@ -17,6 +17,10 @@ from collections import OrderedDict
 from torchvision import transforms
 from torchvision.datasets import CIFAR10, MNIST
 from torch.utils.data import DataLoader, random_split
+torch._dynamo.config.cache_size_limit = 512
+import logging
+logging.getLogger("torch._inductor").setLevel(logging.ERROR)
+logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
 
 
 RNG = np.random.default_rng()
@@ -30,6 +34,8 @@ AMP = USE_CUDA # Optional: mixed precision on CUDA
 
 # cuDNN autotune for fixed-size inputs (both MNIST 28x28 and CIFAR-10 32x32)
 torch.backends.cudnn.benchmark = USE_CUDA
+if DEVICE.type == "cuda":
+    torch.set_float32_matmul_precision("high")
 
 def model_to_device(net: nn.Module) -> nn.Module:
     # Move model once; keep it on the chosen device
@@ -525,6 +531,7 @@ class PytorchModel:
         print("-----------------------------------------------------------------------------------\n")
     
     
+        
     def exchange_models(self):
         print("Users exchanging models...")
         for user in self.participants:
@@ -674,28 +681,33 @@ def train(
     epochs: int,
     device: torch.device,
 ) -> None:
-    """Train the network."""
-    # Define loss and optimizer
+
+    # Compile ONCE per process (not per batch)
+    if device.type == "cuda":
+        try:
+            net = torch.compile(net, mode="reduce-overhead")
+        except Exception:
+            pass
+
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
-    #print("User {}  |  Epoche {}  |  Batches {}".format(user, epochs, len(trainloader)))
-    #print(f"Training {epochs} epoch(s) w/ {len(trainloader)} batches each")
 
-    scaler = torch.amp.GradScaler('cuda', enabled=AMP)
+    use_amp = device.type == "cuda"
+    scaler = torch.amp.GradScaler(enabled=use_amp)
+
     net.train()
 
-    # Train the network
-    for epoch in range(epochs):  # loop over the dataset multiple times
-        running_loss = 0.0
+    for _ in range(epochs):
         for images, labels in trainloader:
             images = images.to(device, non_blocking=NON_BLOCKING)
             labels = labels.to(device, non_blocking=NON_BLOCKING)
 
-            # zero the parameter gradients
             optimizer.zero_grad(set_to_none=True)
-            with torch.amp.autocast('cuda', enabled=AMP):
+
+            with torch.amp.autocast("cuda", enabled=use_amp):
                 outputs = net(images)
                 loss = criterion(outputs, labels)
+
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
@@ -706,28 +718,33 @@ def test(
     testloader: torch.utils.data.DataLoader,
     device: torch.device,
 ) -> Tuple[float, float]:
-    """Validate the network on the entire test set."""
+
     criterion = nn.CrossEntropyLoss()
     net.eval()
+
     correct = 0
     total = 0
     loss = 0.0
+
+    use_amp = device.type == "cuda"
+
     with torch.no_grad():
         for images, labels in testloader:
             images = images.to(device, non_blocking=NON_BLOCKING)
             labels = labels.to(device, non_blocking=NON_BLOCKING)
-            with torch.amp.autocast('cuda', enabled=AMP):
+
+            with torch.amp.autocast("cuda", enabled=use_amp):
                 outputs = net(images)
                 loss += criterion(outputs, labels).item()
                 _, predicted = torch.max(outputs, 1)
+
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
+
     accuracy = correct / total
-    
     loss = min(sys.float_info.max, loss)
 
     return loss, accuracy
-
     
 def green(text):
     return colored(text, "green")
