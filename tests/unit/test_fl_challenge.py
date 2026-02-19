@@ -106,6 +106,69 @@ class TestCalcContributionScore:
         expected_score = int(Decimal(1) / Decimal(num_mergers) * Decimal('1e18'))
         assert score == expected_score
 
+    def test_calculate_accuracy(self):
+        user1 = {"accuracies": [87, 86, 84, 0, 87], "losses":[12,14,15,10000,13]}
+        user2 = {"accuracies": [87, 87, 85, 0 ,87], "losses":[11, 13, 14, 10000, 13]}
+        user3 = {"accuracies": [88, 87, 85, 0, 87], "losses":[12, 13, 14, 10000, 13]}
+        user4 = {"accuracies": [90, 89, 90, 0, 87], "losses": [11, 12, 12, 10000, 13]}
+        user5 = {"accuracies": [87, 87, 87, 85, 87], "losses": [13, 13, 14, 15, 13]}
+        user6 = {"accuracies": [87, 87, 87, 85, 0], "losses": [13, 13, 14, 15, 10000]}
+        users = [user1, user2, user3, user4, user5, user6]
+        mad_threshold = 1.1
+        previous_accuracis = [87, 87, 87, 85, 87, 87]
+        previous_losses = [13, 13, 14, 15, 13, 13]
+        mad_prev_accuracies = remove_outliers_mad(previous_accuracis, mad_threshold)
+        mad_prev_losses = remove_outliers_mad(previous_losses, mad_threshold)
+
+        avg_prev_acc = np.mean(mad_prev_accuracies)
+        avg_prev_loss = np.mean(mad_prev_losses)
+        # Lav en fælles mad
+
+        avg_accuracies = []  # after loop: [30, 20, 30, 40]
+        avg_losses = []  # after loop: [60, 70, 50, 80]
+
+        for u in users:  # For loop to extract accuracies and loses.
+            # Vi kan åbenbart ikke nøjes med kune dette, da vi skal bruge global accuracies, loses.
+
+            # All accuracies and loses per user
+            accuracies = u["accuracies"]
+            losses = u["losses"]
+
+            try:
+                # Multiple accuracies and losses per user
+                mad_accuracies = remove_outliers_mad(accuracies, mad_threshold)
+                mad_losses = remove_outliers_mad(losses, mad_threshold)
+
+                # One average accuracy and loss per user
+                avg_acc = np.mean(mad_accuracies)
+                avg_loss = np.mean(mad_losses)
+
+                avg_accuracies.append(avg_acc)  # int
+                avg_losses.append(avg_loss)  # int
+            except ValueError:
+                print("An error occured")
+
+        scores = []
+
+        norm_accuracies = calc_contribution_scores_accuracy(avg_accuracies, avg_prev_acc)
+        print(f"normalized accuracies: {norm_accuracies}")
+
+        norm_losses = calc_contribution_scores_accuracy(avg_losses, avg_prev_loss)
+        print(f"normalized losses: {norm_losses}")
+
+        sum_na = sum(norm_accuracies)
+        sum_nl = sum(norm_losses)
+
+        print(f"sum_na: {sum_na}")
+        print(f"sum_nl: {sum_nl}")
+
+        for i in range(len(norm_accuracies)):
+            res = (norm_accuracies[i] + norm_losses[i]) / (sum_na + sum_nl)
+            score = int(Decimal(res) * Decimal('1e18'))
+            scores.append(score)
+        print(f"scores = {scores}")
+        assert scores != []
+
 
 class TestCalcContributionScoresMAD:
     @pytest.mark.parametrize(
