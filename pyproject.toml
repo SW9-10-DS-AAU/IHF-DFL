@@ -3,13 +3,12 @@ name = "openfl2.0"
 version = "0.1.0"
 description = "OpenFL 2.0"
 readme = "README.md"
-requires-python = "==3.10.*"
+requires-python = "==3.13.*"
 license = { text = "MIT" }
 
 # requirements
 dependencies = [
   "torch==2.10.0",
-  "torchvision==0.25.0",
   "numpy==2.2.6",
   "web3==7.14.0",
   "termcolor==3.1.0",

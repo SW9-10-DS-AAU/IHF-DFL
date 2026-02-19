@@ -29,7 +29,7 @@ USE_CUDA = (DEVICE.type == "cuda")
 PIN_MEMORY = USE_CUDA
 NON_BLOCKING = USE_CUDA
 NUM_WORKERS = min(4, os.cpu_count() // 2) if torch.cuda.is_available() else 0
-PERSISTENT_WORKERS = USE_CUDA and NUM_WORKERS > 0
+PERSISTENT_WORKERS = True#USE_CUDA and NUM_WORKERS > 0
 AMP = USE_CUDA # Optional: mixed precision on CUDA
 
 # cuDNN autotune for fixed-size inputs (both MNIST 28x28 and CIFAR-10 32x32)
@@ -352,9 +352,11 @@ class PytorchModel:
 
         start_total = time.perf_counter()
 
-        with ctx.Pool(processes=num_processes) as pool:
-            start_pool = time.perf_counter()
+        pool = ctx.Pool(processes=num_processes)
 
+        start_pool = time.perf_counter()
+
+        try:
             async_results = []
             for idx, user in enumerate(self.participants):
                 device_id = idx % max(1, num_gpus)
@@ -377,6 +379,9 @@ class PytorchModel:
                 else: # test
                     val_loss, val_acc = test(user.model, user.val, DEVICE)
                     self.finalize_user_evaluation(user, val_loss, val_acc)
+        finally:
+            pool.close()
+            pool.join()
 
             results = [r.get() for r in async_results]
         end_pool = time.perf_counter()

@@ -36,9 +36,9 @@ Build the abi and bytecode files from the smart contracts
 
 Install ROCM(AMD) or CUDA(NVIDIA):
 ROCM:
-``pip3 install torch torchvision --index-url https://download.pytorch.org/whl/rocm7.1``
+``pip install torch torchvision --index-url https://download.pytorch.org/whl/rocm7.1``
 CUDA:
-``pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu130``
+``pip install torch torchvision``
 
 ## 4. Running an Experiment
 The Experiment folder contains files for running experiments on different datasets.
