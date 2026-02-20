@@ -1,5 +1,4 @@
 from datetime import datetime
-import multiprocessing as mp
 from pathlib import Path
 import experiment_runner as ExperimentRunner
 from experiment_configuration import ExperimentConfiguration
@@ -54,9 +53,5 @@ def getPath(experimentConfig: ExperimentConfiguration):
     return path
 
 if __name__ == "__main__":
-    mp.freeze_support()
     main()
-    for p in mp.active_children():
-        #print("Terminating:", p.pid)
-        p.terminate()
     print("Done :)")

@@ -1,6 +1,5 @@
 from datetime import datetime
 import json
-import multiprocessing as mp
 from pathlib import Path
 import re
 import traceback
@@ -209,9 +208,5 @@ def shouldSkip(config: Skip):
 
 if __name__ == "__main__":
     author = args.author if args.author is not None else input("Author?\n")
-    mp.freeze_support()
     main(author)
-    for p in mp.active_children():
-        print("Terminating:", p.pid)
-        p.terminate()
     print("Done :)")

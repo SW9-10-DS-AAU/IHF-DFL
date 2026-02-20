@@ -7,7 +7,6 @@ import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
-import torch.multiprocessing as mp
 import os
 import time
 from web3 import Web3
@@ -28,8 +27,8 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 USE_CUDA = (DEVICE.type == "cuda")
 PIN_MEMORY = USE_CUDA
 NON_BLOCKING = USE_CUDA
-NUM_WORKERS = min(4, os.cpu_count() // 2) if torch.cuda.is_available() else 0
-PERSISTENT_WORKERS = True#USE_CUDA and NUM_WORKERS > 0
+NUM_WORKERS = 0#min(4, os.cpu_count() // 2) if torch.cuda.is_available() else 0
+PERSISTENT_WORKERS = False#USE_CUDA and NUM_WORKERS > 0
 AMP = USE_CUDA # Optional: mixed precision on CUDA
 
 # cuDNN autotune for fixed-size inputs (both MNIST 28x28 and CIFAR-10 32x32)
@@ -342,56 +341,44 @@ class PytorchModel:
 
 
     def federated_training(self):
-        print(b("\n================ PARALLEL FEDERATED TRAINING START ================"))
+        print(b("\n================ FEDERATED TRAINING START ================"))
 
         num_gpus = torch.cuda.device_count()
-        ctx = mp.get_context("spawn")
-        num_processes = min(len(self.participants), num_gpus if num_gpus > 0 else os.cpu_count())
-
-        print_training_mode(num_gpus, num_processes)
+        print_training_mode(num_gpus, 1)
 
         start_total = time.perf_counter()
 
-        pool = ctx.Pool(processes=num_processes)
+        for idx, user in enumerate(self.participants):
 
-        start_pool = time.perf_counter()
+            # Non-good users → only evaluate
+            if user.attitude != "good":
+                val_loss, val_acc = test(user.model, user.val, DEVICE)
+                self.finalize_user_evaluation(user, val_loss, val_acc)
+                continue
 
-        try:
-            async_results = []
-            for idx, user in enumerate(self.participants):
-                device_id = idx % max(1, num_gpus)
-                sd_cpu = {k: v.cpu() for k, v in user.model.state_dict().items()}  # safe copy
+            # Select device (1 or 2 GPUs supported cleanly)
+            if num_gpus > 1:
+                device = torch.device(f"cuda:{idx % num_gpus}")
+            else:
+                device = DEVICE
 
-                if user.attitude=="good": # train
-                    async_results.append(pool.apply_async(
-                        train_user_proc,
-                        (user.id,
-                        sd_cpu,
-                        user.train.dataset,
-                        user.val.dataset,
-                        self.EPOCHS,
-                        device_id,
-                        self.DATASET,
-                        self.BATCHSIZE,
-                        PIN_MEMORY,
-                        False)
-                    ))
-                else: # test
-                    val_loss, val_acc = test(user.model, user.val, DEVICE)
-                    self.finalize_user_evaluation(user, val_loss, val_acc)
-        finally:
-            pool.close()
-            pool.join()
+            user.model.to(device)
 
-            results = [r.get() for r in async_results]
-        end_pool = time.perf_counter()
+            train(user.model, user.train, self.EPOCHS, device)
+            val_loss, val_acc = test(user.model, user.val, device)
 
-        self.apply_training_results(results)
+            user.currentAcc = val_acc
+            self.finalize_user_evaluation(user, val_loss, val_acc)
+
+            # Move back to main device to keep models consistent
+            user.model.to(DEVICE)
+
+            print(f"[{device_label(device)}] User {user.id} done | "
+                f"Acc: {val_acc:.3f}, Loss: {val_loss:.3f}")
+
         total_time = time.perf_counter() - start_total
-        parallel_time = end_pool - start_pool
 
-        print(b("=================== PARALLEL TRAINING END ===================\n"))
-        print(green(f"Parallel execution time: {parallel_time:.2f} seconds"))
+        print(b("=================== TRAINING END ===================\n"))
         print(green(f"Total federated training time: {total_time:.2f} seconds\n"))
 
     def finalize_user_evaluation(self, user, loss, acc):
