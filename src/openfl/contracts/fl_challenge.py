@@ -20,6 +20,7 @@ from openfl.utils import printer, config
 from openfl.api.connection_helper import ConnectionHelper
 from openfl.utils.async_writer import AsyncWriter, NullWriter
 import openfl.utils.config
+import torch.profiler
 
 # Smart-contract–backed federated learning simulation.
 # Handles:
@@ -550,7 +551,7 @@ class FLChallenge(FLManager):
     
     
     def exit_system(self):
-      
+        self.pytorch_model.cleanup()
         print(b(f"Terminating Model..."))
        
         txs = []

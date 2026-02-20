@@ -27,8 +27,8 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 USE_CUDA = (DEVICE.type == "cuda")
 PIN_MEMORY = USE_CUDA
 NON_BLOCKING = USE_CUDA
-NUM_WORKERS = 0#min(4, os.cpu_count() // 2) if torch.cuda.is_available() else 0
-PERSISTENT_WORKERS = False#USE_CUDA and NUM_WORKERS > 0
+NUM_WORKERS = min(4, os.cpu_count() // 2) if torch.cuda.is_available() else 0
+PERSISTENT_WORKERS = True#USE_CUDA and NUM_WORKERS > 0
 AMP = USE_CUDA # Optional: mixed precision on CUDA
 
 # cuDNN autotune for fixed-size inputs (both MNIST 28x28 and CIFAR-10 32x32)
@@ -59,13 +59,16 @@ colors.remove(free_c)
 
 class Participant:
     def __init__(self, _id, _train, _val, _model, _optimizer, _criterion,
-                 _attitude, _default_collateral, _max_collateral,
+                 _attitude, _default_collateral, _max_collateral, device,
                  _attitudeSwitch=1, number_of_participants=None):
         self.id = _id
         self.train = _train
         self.val  = _val
         self.model = _model
-        self.previousModel = copy.deepcopy(_model)
+        self.previousModel = {
+            k: v.detach().clone()
+            for k, v in _model.state_dict().items()
+        } # Deepcody not necessary. Only keep weights
         self.modelHash = Web3.solidity_keccak(['string'],[str(_model)]).hex()
         self.optimizer = _optimizer
         self.criterion = _criterion
@@ -78,6 +81,7 @@ class Participant:
         self.address = None
         self.privateKey = None
         self.isRegistered = False
+        self.device = device
         # Old:  self.collateral = _default_collateral + np.random.randint(0,int(_max_collateral-_default_collateral))
         # ---- collateral (handles huge ranges; avoids int32 cap) ----
         lo = int(_default_collateral)
@@ -164,7 +168,7 @@ class PytorchModel:
         self.NUMBER_OF_BAD_CONTRIBUTORS = 0
         self.NUMBER_OF_FREERIDER_CONTRIBUTORS = 0
         self.NUMBER_OF_INACTIVE_CONTRIBUTORS = 0
-        self.DATA = None
+        self.DATASUBSETCACHE = None
         self.participants = []
         self.disqualified = []
         self.EPOCHS = epochs
@@ -206,10 +210,15 @@ class PytorchModel:
 
 
         for i in range(_goodParticipants):
-            if self.DATASET == "mnist":
-                _model = Net_MNIST().to(DEVICE)
+            if torch.cuda.device_count() > 1:
+                device = torch.device(f"cuda:{i % torch.cuda.device_count()}")
             else:
-                _model = Net_CIFAR().to(DEVICE)
+                device = DEVICE
+
+            if self.DATASET == "mnist":
+                _model = Net_MNIST().to(device)
+            else:
+                _model = Net_CIFAR().to(device)
             
             optimizer = optim.SGD(_model.parameters(), lr=0.001, momentum=0.9)
             criterion = nn.CrossEntropyLoss()
@@ -224,6 +233,7 @@ class PytorchModel:
                                                  _attitude,
                                                  self.default_collateral,
                                                  self.max_collateral,
+                                                 device,
                                                  None,
                                                  len(self.participants)
                                                 ))
@@ -232,12 +242,17 @@ class PytorchModel:
             
     def add_participant(self, _attitude, _attitudeSwitch=1):
         
+        if torch.cuda.device_count() > 1:
+            device = torch.device(f"cuda:{len(self.participants) % torch.cuda.device_count()}")
+        else:
+            device = DEVICE
+
         _train, _val, _test = self.load_data(self.NUMBER_OF_CONTRIBUTERS)
         
         if self.DATASET == "mnist":
-            _model = Net_MNIST().to(DEVICE)
+            _model = Net_MNIST().to(device)
         else:
-            _model = Net_CIFAR().to(DEVICE)
+            _model = Net_CIFAR().to(device)
             
         optimizer = optim.SGD(_model.parameters(), lr=0.001, momentum=0.9)
         criterion = nn.CrossEntropyLoss()
@@ -260,6 +275,7 @@ class PytorchModel:
                                              _attitude,
                                              self.default_collateral,
                                              self.max_collateral,
+                                             device,
                                              _attitudeSwitch,
                                              len(self.participants)
                                             ))
@@ -268,8 +284,8 @@ class PytorchModel:
         
 
     def load_data(self, NUM_CLIENTS, _print=False):
-        if self.DATA:
-            return self.DATA
+        if self.DATASUBSETCACHE:
+            return self.DATASUBSETCACHE
         
         if self.DATASET == "cifar-10":
             transform = transforms.Compose([
@@ -312,6 +328,7 @@ class PytorchModel:
             len_train = len(ds) - len_val
             lengths = [len_train, len_val]
             ds_train, ds_val = random_split(ds, lengths, torch.Generator().manual_seed(42))
+
             trainloaders.append(DataLoader(
                 ds_train,
                 batch_size=self.BATCHSIZE,
@@ -328,6 +345,8 @@ class PytorchModel:
                 num_workers=NUM_WORKERS,
                 persistent_workers=PERSISTENT_WORKERS,
             ))
+
+
         testloader = DataLoader(
             testset,
             batch_size=self.BATCHSIZE,
@@ -336,7 +355,7 @@ class PytorchModel:
             num_workers=NUM_WORKERS,
             persistent_workers=PERSISTENT_WORKERS,
         )
-        self.DATA = (trainloaders, valloaders, testloader)
+        self.DATASUBSETCACHE = (trainloaders, valloaders, testloader)
         return trainloaders, valloaders, testloader
 
 
@@ -352,28 +371,20 @@ class PytorchModel:
 
             # Non-good users → only evaluate
             if user.attitude != "good":
-                val_loss, val_acc = test(user.model, user.val, DEVICE)
+                val_loss, val_acc = test(user.model, user.val, user.device)
+
                 self.finalize_user_evaluation(user, val_loss, val_acc)
                 continue
 
-            # Select device (1 or 2 GPUs supported cleanly)
-            if num_gpus > 1:
-                device = torch.device(f"cuda:{idx % num_gpus}")
-            else:
-                device = DEVICE
 
-            user.model.to(device)
+            train(user.model, user.train, self.EPOCHS, user.device)
+            val_loss, val_acc = test(user.model, user.val, user.device)
 
-            train(user.model, user.train, self.EPOCHS, device)
-            val_loss, val_acc = test(user.model, user.val, device)
 
             user.currentAcc = val_acc
             self.finalize_user_evaluation(user, val_loss, val_acc)
 
-            # Move back to main device to keep models consistent
-            user.model.to(DEVICE)
-
-            print(f"[{device_label(device)}] User {user.id} done | "
+            print(f"[{device_label(user.device)}] User {user.id} done | "
                 f"Acc: {val_acc:.3f}, Loss: {val_loss:.3f}")
 
         total_time = time.perf_counter() - start_total
@@ -382,7 +393,7 @@ class PytorchModel:
         print(green(f"Total federated training time: {total_time:.2f} seconds\n"))
 
     def finalize_user_evaluation(self, user, loss, acc):
-        test_loss, test_acc = test(user.model, self.test, DEVICE)
+        test_loss, test_acc = test(user.model, self.test, user.device)
         user._accuracy.append(test_acc)
         user._loss.append(test_loss)
         user.hashedModel = self.get_hash(user.model.state_dict())
@@ -517,7 +528,10 @@ class PytorchModel:
         print(b("Merged Model: Accuracy {:>3.0f} % | Loss {:>6,.2f}".format(accuracy*100,loss)))
 
         for u in self.participants:
-            u.previousModel = copy.deepcopy(u.model) #the model from this round
+            u.previousModel = {
+                k: v.detach().clone()
+                for k, v in u.model.state_dict().items()
+            } #the model from this round - Only weights
             u.model.load_state_dict(self.global_model.state_dict()) #the global model
            
         print("-----------------------------------------------------------------------------------\n")
@@ -583,15 +597,14 @@ class PytorchModel:
         prev_losses = [0 for _ in range(n)]
 
         for feedbackGiver in self.participants:
-            valloader = feedbackGiver.val
             bad_att = feedbackGiver.attitude == "bad"
             free_att = feedbackGiver.attitude == "freerider"
             accuracy_last_round = -1
 
             for ix, user in enumerate(feedbackGiver.userToEvaluate):
                 if not bad_att and not free_att:
-                    loss, accuracy = test(user.model, valloader, DEVICE)
-                    prev_loss, prev_acc = test(self.global_model, valloader, DEVICE)
+                    loss, accuracy = test(user.model, user.val, DEVICE)
+                    prev_loss, prev_acc = test(self.global_model, user.val, DEVICE)
                     prev_acc = round(prev_acc * 100)
                     prev_loss = round(prev_loss)
 
@@ -599,14 +612,14 @@ class PytorchModel:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
                     accuracy_matrix[feedbackGiver.id][user.id] = 0
                     loss_matrix[feedbackGiver.id][user.id] = 100000
-                    prev_loss, prev_acc = test(self.global_model, valloader, DEVICE)
+                    prev_loss, prev_acc = test(self.global_model, user.val, DEVICE)
                     prev_accs[feedbackGiver.id] = round(prev_acc * 100)
                     prev_losses[feedbackGiver.id] = round(prev_loss)
 
                 elif free_att:
                     feedback_matrix[feedbackGiver.id][user.id] = 0
                     if accuracy_last_round == -1:
-                        loss_last_round, accuracy_last_round = test(self.global_model, valloader, DEVICE)  # TODO: Unitest her
+                        loss_last_round, accuracy_last_round = test(self.global_model, user.val, DEVICE)  # TODO: Unitest her
                         accuracy_last_round *= 100
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy_last_round)
                     loss_matrix[feedbackGiver.id][user.id] = round(loss_last_round)
@@ -644,7 +657,6 @@ class PytorchModel:
 
                 if self.force_merge_all:
                     feedback_matrix[feedbackGiver.id][user.id] = 0
-
             # RESET
             feedbackGiver.userToEvaluate = []
         
@@ -664,6 +676,24 @@ class PytorchModel:
         print(prev_losses)
         print("-----------------------------------------------------------------------------------")
         return feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses
+    
+    def cleanup(self):
+        print("Cleaning up dataloaders...")
+
+        if self.DATASUBSETCACHE is not None:
+            trainloaders, valloaders, testloader = self.DATASUBSETCACHE
+
+            for loader in trainloaders + valloaders + [testloader]:
+                if hasattr(loader, "_iterator") and loader._iterator is not None:
+                    loader._iterator._shutdown_workers()
+
+            del trainloaders
+            del valloaders
+            del testloader
+
+            self.DATASUBSETCACHE = None
+
+        torch.cuda.empty_cache()
 
     
 # PYTORCH FUNCTIONS
@@ -674,10 +704,10 @@ def train(
     device: torch.device,
 ) -> None:
 
-    # Compile ONCE per process (not per batch)
-    if device.type == "cuda":
+    if device.type == "cuda" and not hasattr(net, "_compiled"):
         try:
             net = torch.compile(net, mode="reduce-overhead")
+            net._compiled = True
         except Exception:
             pass
 
@@ -801,37 +831,37 @@ def get_color(i, a):
         return None
 
 
-def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, dataset, batchsize, pin_memory, shuffle):
-        # Multi-GPU Support
-        # Select device
-        use_cuda = torch.cuda.is_available()
-        device = torch.device(f"cuda:{device_id}" if use_cuda else "cpu")
+# def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, dataset, batchsize, pin_memory, shuffle):
+#         # Multi-GPU Support
+#         # Select device
+#         use_cuda = torch.cuda.is_available()
+#         device = torch.device(f"cuda:{device_id}" if use_cuda else "cpu")
 
-        # Recreate model based on dataset
-        if dataset == "mnist":
-            model = Net_MNIST()
-        else:
-            model = Net_CIFAR()
+#         # Recreate model based on dataset
+#         if dataset == "mnist":
+#             model = Net_MNIST()
+#         else:
+#             model = Net_CIFAR()
 
-        model.load_state_dict(model_state)
-        model.to(device)
+#         model.load_state_dict(model_state)
+#         model.to(device)
 
-        # Rebuild dataloaders inside the process
-        train_loader = DataLoader(train_ds, batch_size=batchsize, shuffle=shuffle, pin_memory=pin_memory)
-        val_loader = DataLoader(val_ds, batch_size=batchsize, shuffle=False, pin_memory=pin_memory)
+#         # Rebuild dataloaders inside the process
+#         train_loader = DataLoader(train_ds, batch_size=batchsize, shuffle=shuffle, pin_memory=pin_memory)
+#         val_loader = DataLoader(val_ds, batch_size=batchsize, shuffle=False, pin_memory=pin_memory)
 
-        train(model, train_loader, epochs, device)
-        loss, acc = test(model, val_loader, device)
+#         train(model, train_loader, epochs, device)
+#         loss, acc = test(model, val_loader, device)
 
-        del train_loader
-        del val_loader
+#         del train_loader
+#         del val_loader
 
-        print(f"[{device_label(device, device_id)}] User {user_id} done | Acc: {acc:.3f}, Loss: {loss:.3f}")
+#         print(f"[{device_label(device, device_id)}] User {user_id} done | Acc: {acc:.3f}, Loss: {loss:.3f}")
         
-        # Ensure all GPU work is complete before worker exits
-        if device.type == "cuda":
-            torch.cuda.synchronize(device)
-        return user_id, model.state_dict(), loss, acc
+#         # Ensure all GPU work is complete before worker exits
+#         if device.type == "cuda":
+#             torch.cuda.synchronize(device)
+#         return user_id, model.state_dict(), loss, acc
 
 
 def print_training_mode(num_gpus: int, num_processes: int):
@@ -861,3 +891,4 @@ def device_label(device: torch.device, device_id: int = 0) -> str:
         return f"GPU {device_id}"
     else:
         return "CPU"
+    
