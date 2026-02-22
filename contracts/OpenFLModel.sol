@@ -504,12 +504,7 @@ contract OpenFLModel {
             for (uint i = 0; i < participants.length; i++) {
                 User storage user = users[participants[i]];
 
-                if (
-                    user.isRegistered &&
-                    user.whitelistedForRewards &&
-                    !user.isPunished &&
-                    !user.isDisqualified
-                ) {
+                if (_isEligibleForRewards(user)) {
                     int256 weight = int256(uint(user.nrOfVotesFromUser)) *
                         contributionScore[round][user.addr];
                     user.weightedContribScore = weight;
@@ -522,12 +517,7 @@ contract OpenFLModel {
             for (uint i = 0; i < participants.length; i++) {
                 User storage user = users[participants[i]];
 
-                if (
-                    user.isRegistered &&
-                    user.whitelistedForRewards &&
-                    !user.isPunished &&
-                    !user.isDisqualified
-                ) {
+                if (_isEligibleForRewards(user)) {
                     BoundedSumOfWeightedContribScore = sumOfWeightedContribScore <=
                         0
                         ? 1
@@ -604,13 +594,7 @@ contract OpenFLModel {
             for (uint i = 0; i < participants.length; i++) {
                 User storage user = users[participants[i]];
 
-                if (
-                    user.isRegistered &&
-                    user.whitelistedForRewards &&
-                    !user.isPunished &&
-                    contributionScore[round][user.addr] >= 0 &&
-                    !user.isDisqualified
-                ) {
+                if (_isEligibleForRewards(user) && contributionScore[round][user.addr] >= 0) {
                     positiveSumOfWeights += uint(user.weightedContribScore);
                 }
             }
@@ -622,12 +606,7 @@ contract OpenFLModel {
             for (uint i = 0; i < participants.length; i++) {
                 User storage user = users[participants[i]];
 
-                if (
-                    user.isRegistered &&
-                    user.whitelistedForRewards &&
-                    !user.isPunished &&
-                    contributionScore[round][user.addr] >= 0
-                ) {
+                if (_isEligibleForRewards(user) && contributionScore[round][user.addr] >= 0) { // NOTE: This refactor adds the case of !user.Disqualified, in contrast to before)
                     uint personalReward = (reward *
                         uint(user.weightedContribScore)) / positiveSumOfWeights;
 
@@ -692,49 +671,6 @@ contract OpenFLModel {
 
         (ads, ints) = parseRaw(raw);
 
-//        assembly {
-//            let tmp := 0
-//            let tmp2 := 0
-//
-//            // offset inside `raw` starts at raw.offset
-//            let offset := raw.offset
-//            // adsCount = calldatasize / 0x34
-//            let adsCount := div(raw.length, 0x34)
-//
-//            // allocate memory for addresses array
-//            ads := mload(0x40)
-//            mstore(0x40, add(ads, add(0x20, mul(adsCount, 0x20))))
-//            mstore(ads, adsCount)
-//
-//            // load addresses (20 bytes each)
-//            for {
-//                let i := 0
-//            } lt(i, adsCount) {
-//                i := add(i, 1)
-//            } {
-//                tmp := calldataload(offset)
-//                tmp := shr(96, tmp)
-//                mstore(add(add(ads, 0x20), mul(i, 0x20)), tmp)
-//                offset := add(offset, 0x14)
-//            }
-//
-//            // allocate memory for ints array
-//            ints := mload(0x40)
-//            mstore(0x40, add(ints, add(0x20, mul(adsCount, 0x20))))
-//            mstore(ints, adsCount)
-//
-//            // load int256 values (32 bytes each)
-//            for {
-//                let i := 0
-//            } lt(i, adsCount) {
-//                i := add(i, 1)
-//            } {
-//                tmp2 := calldataload(offset)
-//                mstore(add(add(ints, 0x20), mul(i, 0x20)), tmp2)
-//                offset := add(offset, 0x20)
-//            }
-//        }
-
         // EXACT same for-loop as fallback
         for (uint i = 0; i < ads.length; i++) {
             if (!testing) {
@@ -754,49 +690,6 @@ contract OpenFLModel {
         int256[] memory ints;
 
         (ads, ints) = parseRaw(raw);
-
-//        assembly {
-//            let tmp := 0
-//            let tmp2 := 0
-//
-//            // offset inside `raw` starts at raw.offset
-//            let offset := raw.offset
-//            // adsCount = calldatasize / 0x34
-//            let adsCount := div(raw.length, 0x34)
-//
-//            // allocate memory for addresses array
-//            ads := mload(0x40)
-//            mstore(0x40, add(ads, add(0x20, mul(adsCount, 0x20))))
-//            mstore(ads, adsCount)
-//
-//            // load addresses (20 bytes each)
-//            for {
-//                let i := 0
-//            } lt(i, adsCount) {
-//                i := add(i, 1)
-//            } {
-//                tmp := calldataload(offset)
-//                tmp := shr(96, tmp)
-//                mstore(add(add(ads, 0x20), mul(i, 0x20)), tmp)
-//                offset := add(offset, 0x14)
-//            }
-//
-//            // allocate memory for ints array
-//            ints := mload(0x40)
-//            mstore(0x40, add(ints, add(0x20, mul(adsCount, 0x20))))
-//            mstore(ints, adsCount)
-//
-//            // load int256 values (32 bytes each)
-//            for {
-//                let i := 0
-//            } lt(i, adsCount) {
-//                i := add(i, 1)
-//            } {
-//                tmp2 := calldataload(offset)
-//                mstore(add(add(ints, 0x20), mul(i, 0x20)), tmp2)
-//                offset := add(offset, 0x20)
-//            }
-//        }
 
         require(
             accuracies.length == ads.length,
@@ -833,49 +726,6 @@ contract OpenFLModel {
 
          (ads, ints) = parseRaw(raw);
 
-//        assembly {
-//            let tmp := 0
-//            let tmp2 := 0
-//
-//            // offset inside `raw` starts at raw.offset
-//            let offset := raw.offset
-//            // adsCount = calldatasize / 0x34
-//            let adsCount := div(raw.length, 0x34)
-//
-//            // allocate memory for addresses array
-//            ads := mload(0x40)
-//            mstore(0x40, add(ads, add(0x20, mul(adsCount, 0x20))))
-//            mstore(ads, adsCount)
-//
-//            // load addresses (20 bytes each)
-//            for {
-//                let i := 0
-//            } lt(i, adsCount) {
-//                i := add(i, 1)
-//            } {
-//                tmp := calldataload(offset)
-//                tmp := shr(96, tmp)
-//                mstore(add(add(ads, 0x20), mul(i, 0x20)), tmp)
-//                offset := add(offset, 0x14)
-//            }
-//
-//            // allocate memory for ints array
-//            ints := mload(0x40)
-//            mstore(0x40, add(ints, add(0x20, mul(adsCount, 0x20))))
-//            mstore(ints, adsCount)
-//
-//            // load int256 values (32 bytes each)
-//            for {
-//                let i := 0
-//            } lt(i, adsCount) {
-//                i := add(i, 1)
-//            } {
-//                tmp2 := calldataload(offset)
-//                mstore(add(add(ints, 0x20), mul(i, 0x20)), tmp2)
-//                offset := add(offset, 0x20)
-//            }
-//        }
-
         require(
             accuracies.length == ads.length,
             "INVALID_LENGTH OF ACCURACY ARRAY"
@@ -908,48 +758,6 @@ contract OpenFLModel {
         int256[] memory ints;
 
         (ads, ints) = parseRaw(raw);
-//        assembly {
-//            let tmp := 0
-//            let tmp2 := 0
-//
-//            // offset inside `raw` starts at raw.offset
-//            let offset := raw.offset
-//            // adsCount = calldatasize / 0x34
-//            let adsCount := div(raw.length, 0x34)
-//
-//            // allocate memory for addresses array
-//            ads := mload(0x40)
-//            mstore(0x40, add(ads, add(0x20, mul(adsCount, 0x20))))
-//            mstore(ads, adsCount)
-//
-//            // load addresses (20 bytes each)
-//            for {
-//                let i := 0
-//            } lt(i, adsCount) {
-//                i := add(i, 1)
-//            } {
-//                tmp := calldataload(offset)
-//                tmp := shr(96, tmp)
-//                mstore(add(add(ads, 0x20), mul(i, 0x20)), tmp)
-//                offset := add(offset, 0x14)
-//            }
-//
-//            // allocate memory for ints array
-//            ints := mload(0x40)
-//            mstore(0x40, add(ints, add(0x20, mul(adsCount, 0x20))))
-//            mstore(ints, adsCount)
-//
-//            // load int256 values (32 bytes each)
-//            for {
-//                let i := 0
-//            } lt(i, adsCount) {
-//                i := add(i, 1)
-//            } {
-//                tmp2 := calldataload(offset)
-//                mstore(add(add(ints, 0x20), mul(i, 0x20)), tmp2)
-//                offset := add(offset, 0x20)
-//            }
-//        }
 
         require(
             losses.length == ads.length, "INVALID_LENGTH OF LOSS ARRAY");
@@ -972,7 +780,6 @@ contract OpenFLModel {
         pure
         returns (address[] memory ads, int256[] memory ints)
     {
-
 
         assembly {
             let tmp := 0
@@ -1227,6 +1034,19 @@ contract OpenFLModel {
 
     function _isEligibleVoter(User storage sender) internal view returns (bool) {
         return sender.isRegistered && !sender.isDisqualified && sender.roundReputation >= 0;
+    }
+
+    function _isEligibleForRewards(User storage user)
+        internal
+        view
+        returns (bool)
+    {
+        return (
+            user.isRegistered &&
+            user.whitelistedForRewards &&
+            !user.isPunished &&
+            !user.isDisqualified
+        );
     }
 
 

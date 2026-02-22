@@ -74,8 +74,6 @@ class FLManager(ConnectionHelper):
         return 
 
 
-    
-    
     def get_model_of(self, p, c):
         return self.manager.functions.ModelOf(p.address, c).call({"to": self.manager.address,
                                                                   "from": p.address})
@@ -91,8 +89,6 @@ class FLManager(ConnectionHelper):
             "from": p.address
         })
 
-
-    
     
     def deploy_challenge_contract(self, *args):
         print(b("Starting simulation..."))
