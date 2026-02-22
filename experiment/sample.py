@@ -5,7 +5,7 @@ import experiment_runner as ExperimentRunner
 from experiment_configuration import ExperimentConfiguration
 from openfl.utils.async_writer import AsyncWriter
 
-config = ExperimentConfiguration(contribution_score_strategy="accuracy", minimum_rounds=5, force_merge_all=True) # OVERSKRIV variabler her for testing. eksempel: config = ExperimentConfiguration(minimum_rounds=1), hvis du kun vil køre een round
+config = ExperimentConfiguration(contribution_score_strategy="loss_only", minimum_rounds=5, force_merge_all=False) # OVERSKRIV variabler her for testing. eksempel: config = ExperimentConfiguration(minimum_rounds=1), hvis du kun vil køre een round
 
 #DATASET = "cifar-10"
 RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/sample")
@@ -33,7 +33,7 @@ WRITERBUFFERSIZE = 200
 
 def main():
     path = getPath(config)
-    writer = AsyncWriter(path, OUTPUTHEADERS, WRITERBUFFERSIZE, config, "reb")
+    writer = AsyncWriter(path, OUTPUTHEADERS, WRITERBUFFERSIZE, config, "sample")
 
     experiment = ExperimentRunner.run_experiment(DATASET, config, writer)
 

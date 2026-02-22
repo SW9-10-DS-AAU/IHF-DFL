@@ -64,18 +64,36 @@ contract OpenFLModel {
     mapping(uint8 => mapping(address => int256)) public contributionScore; // round => user => score
     mapping(uint8 => uint256) public nrOfContributionScores; // round => number of submissions
 
-    struct AccuracySubmission {
+    struct AccuracyLossSubmission {
         address[] adrs;
         uint8[] acc;
         uint256[] loss;
     }
 
+    struct AccuracySubmission {
+        address[] adrs;
+        uint8[] acc;
+    }
+
+    struct LossSubmission {
+        address[] adrs;
+        uint256[] loss;
+    }
+
+
     mapping(uint8 => mapping(address => uint8)) public prev_accs;
     mapping(uint8 => mapping(address => uint256)) public prev_losses;
 
     // Mapping from sender to all their submissions
+    mapping(uint8 => mapping(address => AccuracyLossSubmission[]))
+        private accuracyLossSubmissions;
+
     mapping(uint8 => mapping(address => AccuracySubmission[]))
         private accuracySubmissions;
+
+    mapping(uint8 => mapping(address => LossSubmission[]))
+        private lossSubmissions;
+
 
     modifier onlyRegisteredUsers() {
         require(users[msg.sender].isRegistered, "SNR");
@@ -672,48 +690,50 @@ contract OpenFLModel {
         address[] memory ads;
         int256[] memory ints;
 
-        assembly {
-            let tmp := 0
-            let tmp2 := 0
+        (ads, ints) = parseRaw(raw);
 
-            // offset inside `raw` starts at raw.offset
-            let offset := raw.offset
-            // adsCount = calldatasize / 0x34
-            let adsCount := div(raw.length, 0x34)
-
-            // allocate memory for addresses array
-            ads := mload(0x40)
-            mstore(0x40, add(ads, add(0x20, mul(adsCount, 0x20))))
-            mstore(ads, adsCount)
-
-            // load addresses (20 bytes each)
-            for {
-                let i := 0
-            } lt(i, adsCount) {
-                i := add(i, 1)
-            } {
-                tmp := calldataload(offset)
-                tmp := shr(96, tmp)
-                mstore(add(add(ads, 0x20), mul(i, 0x20)), tmp)
-                offset := add(offset, 0x14)
-            }
-
-            // allocate memory for ints array
-            ints := mload(0x40)
-            mstore(0x40, add(ints, add(0x20, mul(adsCount, 0x20))))
-            mstore(ints, adsCount)
-
-            // load int256 values (32 bytes each)
-            for {
-                let i := 0
-            } lt(i, adsCount) {
-                i := add(i, 1)
-            } {
-                tmp2 := calldataload(offset)
-                mstore(add(add(ints, 0x20), mul(i, 0x20)), tmp2)
-                offset := add(offset, 0x20)
-            }
-        }
+//        assembly {
+//            let tmp := 0
+//            let tmp2 := 0
+//
+//            // offset inside `raw` starts at raw.offset
+//            let offset := raw.offset
+//            // adsCount = calldatasize / 0x34
+//            let adsCount := div(raw.length, 0x34)
+//
+//            // allocate memory for addresses array
+//            ads := mload(0x40)
+//            mstore(0x40, add(ads, add(0x20, mul(adsCount, 0x20))))
+//            mstore(ads, adsCount)
+//
+//            // load addresses (20 bytes each)
+//            for {
+//                let i := 0
+//            } lt(i, adsCount) {
+//                i := add(i, 1)
+//            } {
+//                tmp := calldataload(offset)
+//                tmp := shr(96, tmp)
+//                mstore(add(add(ads, 0x20), mul(i, 0x20)), tmp)
+//                offset := add(offset, 0x14)
+//            }
+//
+//            // allocate memory for ints array
+//            ints := mload(0x40)
+//            mstore(0x40, add(ints, add(0x20, mul(adsCount, 0x20))))
+//            mstore(ints, adsCount)
+//
+//            // load int256 values (32 bytes each)
+//            for {
+//                let i := 0
+//            } lt(i, adsCount) {
+//                i := add(i, 1)
+//            } {
+//                tmp2 := calldataload(offset)
+//                mstore(add(add(ints, 0x20), mul(i, 0x20)), tmp2)
+//                offset := add(offset, 0x20)
+//            }
+//        }
 
         // EXACT same for-loop as fallback
         for (uint i = 0; i < ads.length; i++) {
@@ -723,7 +743,7 @@ contract OpenFLModel {
         }
     }
 
-    function submitFeedbackBytesAndAccuracies(
+    function submitFeedbackBytesAndAccuraciesLosses(
         bytes calldata raw,
         uint8[] calldata accuracies,
         uint256[] calldata losses,
@@ -733,56 +753,59 @@ contract OpenFLModel {
         address[] memory ads;
         int256[] memory ints;
 
-        assembly {
-            let tmp := 0
-            let tmp2 := 0
+        (ads, ints) = parseRaw(raw);
 
-            // offset inside `raw` starts at raw.offset
-            let offset := raw.offset
-            // adsCount = calldatasize / 0x34
-            let adsCount := div(raw.length, 0x34)
-
-            // allocate memory for addresses array
-            ads := mload(0x40)
-            mstore(0x40, add(ads, add(0x20, mul(adsCount, 0x20))))
-            mstore(ads, adsCount)
-
-            // load addresses (20 bytes each)
-            for {
-                let i := 0
-            } lt(i, adsCount) {
-                i := add(i, 1)
-            } {
-                tmp := calldataload(offset)
-                tmp := shr(96, tmp)
-                mstore(add(add(ads, 0x20), mul(i, 0x20)), tmp)
-                offset := add(offset, 0x14)
-            }
-
-            // allocate memory for ints array
-            ints := mload(0x40)
-            mstore(0x40, add(ints, add(0x20, mul(adsCount, 0x20))))
-            mstore(ints, adsCount)
-
-            // load int256 values (32 bytes each)
-            for {
-                let i := 0
-            } lt(i, adsCount) {
-                i := add(i, 1)
-            } {
-                tmp2 := calldataload(offset)
-                mstore(add(add(ints, 0x20), mul(i, 0x20)), tmp2)
-                offset := add(offset, 0x20)
-            }
-        }
+//        assembly {
+//            let tmp := 0
+//            let tmp2 := 0
+//
+//            // offset inside `raw` starts at raw.offset
+//            let offset := raw.offset
+//            // adsCount = calldatasize / 0x34
+//            let adsCount := div(raw.length, 0x34)
+//
+//            // allocate memory for addresses array
+//            ads := mload(0x40)
+//            mstore(0x40, add(ads, add(0x20, mul(adsCount, 0x20))))
+//            mstore(ads, adsCount)
+//
+//            // load addresses (20 bytes each)
+//            for {
+//                let i := 0
+//            } lt(i, adsCount) {
+//                i := add(i, 1)
+//            } {
+//                tmp := calldataload(offset)
+//                tmp := shr(96, tmp)
+//                mstore(add(add(ads, 0x20), mul(i, 0x20)), tmp)
+//                offset := add(offset, 0x14)
+//            }
+//
+//            // allocate memory for ints array
+//            ints := mload(0x40)
+//            mstore(0x40, add(ints, add(0x20, mul(adsCount, 0x20))))
+//            mstore(ints, adsCount)
+//
+//            // load int256 values (32 bytes each)
+//            for {
+//                let i := 0
+//            } lt(i, adsCount) {
+//                i := add(i, 1)
+//            } {
+//                tmp2 := calldataload(offset)
+//                mstore(add(add(ints, 0x20), mul(i, 0x20)), tmp2)
+//                offset := add(offset, 0x20)
+//            }
+//        }
 
         require(
             accuracies.length == ads.length,
             "INVALID_LENGTH OF ACCURACY ARRAY"
         );
-        require(losses.length == ads.length, "INVALID_LENGTH OF LOSS ARRAY");
-        accuracySubmissions[round][msg.sender].push(
-            AccuracySubmission({adrs: ads, acc: accuracies, loss: losses})
+        require(
+            losses.length == ads.length, "INVALID_LENGTH OF LOSS ARRAY");
+            accuracyLossSubmissions[round][msg.sender].push(
+            AccuracyLossSubmission({adrs: ads, acc: accuracies, loss: losses})
         );
         require(
             prev_acc >= 0 && prev_acc <= 100,
@@ -798,6 +821,204 @@ contract OpenFLModel {
             }
         }
     }
+
+
+     function submitFeedbackBytesAndAccuracies(
+        bytes calldata raw,
+        uint8[] calldata accuracies,
+        uint8 prev_acc
+    ) external {
+        address[] memory ads;
+        int256[] memory ints;
+
+         (ads, ints) = parseRaw(raw);
+
+//        assembly {
+//            let tmp := 0
+//            let tmp2 := 0
+//
+//            // offset inside `raw` starts at raw.offset
+//            let offset := raw.offset
+//            // adsCount = calldatasize / 0x34
+//            let adsCount := div(raw.length, 0x34)
+//
+//            // allocate memory for addresses array
+//            ads := mload(0x40)
+//            mstore(0x40, add(ads, add(0x20, mul(adsCount, 0x20))))
+//            mstore(ads, adsCount)
+//
+//            // load addresses (20 bytes each)
+//            for {
+//                let i := 0
+//            } lt(i, adsCount) {
+//                i := add(i, 1)
+//            } {
+//                tmp := calldataload(offset)
+//                tmp := shr(96, tmp)
+//                mstore(add(add(ads, 0x20), mul(i, 0x20)), tmp)
+//                offset := add(offset, 0x14)
+//            }
+//
+//            // allocate memory for ints array
+//            ints := mload(0x40)
+//            mstore(0x40, add(ints, add(0x20, mul(adsCount, 0x20))))
+//            mstore(ints, adsCount)
+//
+//            // load int256 values (32 bytes each)
+//            for {
+//                let i := 0
+//            } lt(i, adsCount) {
+//                i := add(i, 1)
+//            } {
+//                tmp2 := calldataload(offset)
+//                mstore(add(add(ints, 0x20), mul(i, 0x20)), tmp2)
+//                offset := add(offset, 0x20)
+//            }
+//        }
+
+        require(
+            accuracies.length == ads.length,
+            "INVALID_LENGTH OF ACCURACY ARRAY"
+        );
+
+         accuracySubmissions[round][msg.sender].push(
+            AccuracySubmission({adrs: ads, acc: accuracies})
+        );
+        require(
+            prev_acc >= 0 && prev_acc <= 100,
+            "PREVIOUS ACCURACY NOT BETWEEN 0 AND 100"
+        );
+        prev_accs[round][msg.sender] = prev_acc;
+
+        // EXACT same for-loop as fallback
+        for (uint i = 0; i < ads.length; i++) {
+            if (!testing) {
+                feedback(ads[i], ints[i]);
+            }
+        }
+    }
+
+
+    function submitFeedbackBytesAndLosses(
+        bytes calldata raw,
+        uint256[] calldata losses,
+        uint256 prev_loss
+    ) external {
+        address[] memory ads;
+        int256[] memory ints;
+
+        (ads, ints) = parseRaw(raw);
+//        assembly {
+//            let tmp := 0
+//            let tmp2 := 0
+//
+//            // offset inside `raw` starts at raw.offset
+//            let offset := raw.offset
+//            // adsCount = calldatasize / 0x34
+//            let adsCount := div(raw.length, 0x34)
+//
+//            // allocate memory for addresses array
+//            ads := mload(0x40)
+//            mstore(0x40, add(ads, add(0x20, mul(adsCount, 0x20))))
+//            mstore(ads, adsCount)
+//
+//            // load addresses (20 bytes each)
+//            for {
+//                let i := 0
+//            } lt(i, adsCount) {
+//                i := add(i, 1)
+//            } {
+//                tmp := calldataload(offset)
+//                tmp := shr(96, tmp)
+//                mstore(add(add(ads, 0x20), mul(i, 0x20)), tmp)
+//                offset := add(offset, 0x14)
+//            }
+//
+//            // allocate memory for ints array
+//            ints := mload(0x40)
+//            mstore(0x40, add(ints, add(0x20, mul(adsCount, 0x20))))
+//            mstore(ints, adsCount)
+//
+//            // load int256 values (32 bytes each)
+//            for {
+//                let i := 0
+//            } lt(i, adsCount) {
+//                i := add(i, 1)
+//            } {
+//                tmp2 := calldataload(offset)
+//                mstore(add(add(ints, 0x20), mul(i, 0x20)), tmp2)
+//                offset := add(offset, 0x20)
+//            }
+//        }
+
+        require(
+            losses.length == ads.length, "INVALID_LENGTH OF LOSS ARRAY");
+            lossSubmissions[round][msg.sender].push(
+            LossSubmission({adrs: ads, loss: losses})
+        );
+
+        prev_losses[round][msg.sender] = prev_loss;
+
+        // EXACT same for-loop as fallback
+        for (uint i = 0; i < ads.length; i++) {
+            if (!testing) {
+                feedback(ads[i], ints[i]);
+            }
+        }
+    }
+
+    function parseRaw(bytes calldata raw)
+        internal
+        pure
+        returns (address[] memory ads, int256[] memory ints)
+    {
+
+
+        assembly {
+            let tmp := 0
+            let tmp2 := 0
+
+            // offset inside `raw` starts at raw.offset
+            let offset := raw.offset
+            // adsCount = calldatasize / 0x34
+            let adsCount := div(raw.length, 0x34)
+
+            // allocate memory for addresses array
+            ads := mload(0x40)
+            mstore(0x40, add(ads, add(0x20, mul(adsCount, 0x20))))
+            mstore(ads, adsCount)
+
+            // load addresses (20 bytes each)
+            for {
+                let i := 0
+            } lt(i, adsCount) {
+                i := add(i, 1)
+            } {
+                tmp := calldataload(offset)
+                tmp := shr(96, tmp)
+                mstore(add(add(ads, 0x20), mul(i, 0x20)), tmp)
+                offset := add(offset, 0x14)
+            }
+
+            // allocate memory for ints array
+            ints := mload(0x40)
+            mstore(0x40, add(ints, add(0x20, mul(adsCount, 0x20))))
+            mstore(ints, adsCount)
+
+            // load int256 values (32 bytes each)
+            for {
+                let i := 0
+            } lt(i, adsCount) {
+                i := add(i, 1)
+            } {
+                tmp2 := calldataload(offset)
+                mstore(add(add(ints, 0x20), mul(i, 0x20)), tmp2)
+                offset := add(offset, 0x20)
+            }
+        }
+    }
+
+
     function getAllPreviousAccuraciesAndLosses()
         external
         view
@@ -827,7 +1048,7 @@ contract OpenFLModel {
         }
     }
 
-    function getAllAccuraciesAbout(
+    function getAllAccuraciesLossesAbout(
         address target
     )
         external
@@ -840,39 +1061,68 @@ contract OpenFLModel {
     {
         uint totalCount = 0;
 
-        // 1️⃣ First, count total matching entries to size arrays
+        // 1️. First, count total matching entries to size arrays
         for (uint i = 0; i < participants.length; i++) {
             User storage sender = users[participants[i]];
-            uint subCount = accuracySubmissions[round][sender.addr].length;
+            uint subCount = accuracyLossSubmissions[round][sender.addr].length;
 
             for (uint j = 0; j < subCount; j++) {
-                AccuracySubmission storage sub = accuracySubmissions[round][
+                AccuracyLossSubmission storage sub = accuracyLossSubmissions[round][
                     sender.addr
                 ][j];
 
                 for (uint k = 0; k < sub.adrs.length; k++) {
-                    if (sub.adrs[k] == target) {
-                        // TODO: GØR whitelisted eller lign. ACCESSIBLE OG CLEAR DEN EFTER ROUND END!
-                        if (
-                            sender.isRegistered &&
-                            !sender.isDisqualified &&
-                            sender.roundReputation >= 0
-                        ) {
-                            totalCount++;
-                        }
+                    if (sub.adrs[k] == target && _isEligibleVoter(sender)) { // TODO: GØR whitelisted eller lign. ACCESSIBLE OG CLEAR DEN EFTER ROUND END!
+                        totalCount++;
                     }
                 }
             }
         }
 
-        // 2️⃣ Allocate arrays
+        // 2. Allocate arrays
         voters = new address[](totalCount);
         accuracies = new uint8[](totalCount);
         losses = new uint256[](totalCount);
 
         uint idx = 0;
 
-        // 3️⃣ Fill arrays
+        // 3. Fill arrays
+        for (uint i = 0; i < participants.length; i++) {
+            User storage sender = users[participants[i]];
+            uint subCount = accuracyLossSubmissions[round][sender.addr].length;
+
+            for (uint j = 0; j < subCount; j++) {
+                AccuracyLossSubmission storage sub = accuracyLossSubmissions[round][
+                    sender.addr
+                ][j];
+
+                for (uint k = 0; k < sub.adrs.length; k++) {
+                    if (sub.adrs[k] == target && _isEligibleVoter(sender)) {
+                            voters[idx] = sender.addr;
+                            accuracies[idx] = sub.acc[k];
+                            losses[idx] = sub.loss[k];
+                            idx++;
+                    }
+                }
+            }
+        }
+    }
+
+
+
+    function getAllAccuraciesAbout(
+        address target
+    )
+        external
+        view
+        returns (
+            address[] memory voters,
+            uint8[] memory accuracies
+        )
+    {
+        uint totalCount = 0;
+
+        // 1️. First, count total matching entries to size arrays
         for (uint i = 0; i < participants.length; i++) {
             User storage sender = users[participants[i]];
             uint subCount = accuracySubmissions[round][sender.addr].length;
@@ -883,22 +1133,102 @@ contract OpenFLModel {
                 ][j];
 
                 for (uint k = 0; k < sub.adrs.length; k++) {
-                    if (sub.adrs[k] == target) {
-                        if (
-                            sender.isRegistered &&
-                            !sender.isDisqualified &&
-                            sender.roundReputation >= 0
-                        ) {
+                    if (sub.adrs[k] == target && _isEligibleVoter(sender)) {
+                            totalCount++;
+                    }
+                }
+            }
+        }
+
+        // 2. Allocate arrays
+        voters = new address[](totalCount);
+        accuracies = new uint8[](totalCount);
+
+        uint idx = 0;
+
+        // 3. Fill arrays
+        for (uint i = 0; i < participants.length; i++) {
+            User storage sender = users[participants[i]];
+            uint subCount = accuracySubmissions[round][sender.addr].length;
+
+            for (uint j = 0; j < subCount; j++) {
+                AccuracySubmission storage sub = accuracySubmissions[round][
+                    sender.addr
+                ][j];
+
+                for (uint k = 0; k < sub.adrs.length; k++) {
+                    if (sub.adrs[k] == target && _isEligibleVoter(sender)) {
                             voters[idx] = sender.addr;
                             accuracies[idx] = sub.acc[k];
-                            losses[idx] = sub.loss[k];
                             idx++;
-                        }
                     }
                 }
             }
         }
     }
+
+
+    function getAllLossesAbout(
+        address target
+    )
+        external
+        view
+        returns (
+            address[] memory voters,
+            uint256[] memory losses
+        )
+    {
+        uint totalCount = 0;
+
+        // 1️. First, count total matching entries to size arrays
+        for (uint i = 0; i < participants.length; i++) {
+            User storage sender = users[participants[i]];
+            uint subCount = lossSubmissions[round][sender.addr].length;
+
+            for (uint j = 0; j < subCount; j++) {
+                LossSubmission storage sub = lossSubmissions[round][
+                    sender.addr
+                ][j];
+
+                for (uint k = 0; k < sub.adrs.length; k++) {
+                    if (sub.adrs[k] == target && _isEligibleVoter(sender)) {
+                            totalCount++;
+                    }
+                }
+            }
+        }
+
+        // 2. Allocate arrays
+        voters = new address[](totalCount);
+        losses = new uint256[](totalCount);
+
+        uint idx = 0;
+
+        // 3. Fill arrays
+        for (uint i = 0; i < participants.length; i++) {
+            User storage sender = users[participants[i]];
+            uint subCount = lossSubmissions[round][sender.addr].length;
+
+            for (uint j = 0; j < subCount; j++) {
+                LossSubmission storage sub = lossSubmissions[round][
+                    sender.addr
+                ][j];
+
+                for (uint k = 0; k < sub.adrs.length; k++) {
+                    if (sub.adrs[k] == target && _isEligibleVoter(sender)) {
+                            voters[idx] = sender.addr;
+                            losses[idx] = sub.loss[k];
+                            idx++;
+                    }
+                }
+            }
+        }
+    }
+
+    function _isEligibleVoter(User storage sender) internal view returns (bool) {
+        return sender.isRegistered && !sender.isDisqualified && sender.roundReputation >= 0;
+    }
+
 
     // Fallback function parses dynamic size feedback arrays
     // @dev This allows the contract to have an arbitrary number of participants
@@ -969,6 +1299,7 @@ contract OpenFLModel {
             }
         }
     }
+
     function getUser(
         address u
     )

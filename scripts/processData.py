@@ -131,13 +131,13 @@ def minist_graph_seven_four(usePreviousTests: bool = True):
     plot_contribution_score_variance("Variance Of Contribution Score - Naive", [Method.NAIVE], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph74{DATASET}", RESULTDATAFOLDER)#, y_range=(0.16e18, 0.26e18))
 
 
-graph_one_one()
+# graph_one_one()
 graph_one_two()
-graph_one_three()
+# graph_one_three()
 
-graph_two_one()
+# graph_two_one()
 #graph_two_two() # Does not work for Forced true
-graph_two_three()
+# graph_two_three()
 
 graph_three_one()
 graph_three_two()

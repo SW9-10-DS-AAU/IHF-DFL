@@ -63,7 +63,9 @@ class FLChallenge(FLManager):
         self._contribution_score_calculators = {
             "dotproduct": self._calculate_scores_dotproduct,
             "naive": self._calculate_scores_naive,
-            "accuracy": self._calculate_scores_accuracy
+            "accuracy_loss": self._calculate_scores_accuracy_loss,
+            "accuracy_only": self._calculate_scores_accuracy_only,
+            "loss_only": self._calculate_scores_loss_only,
         }
         self.experiment_config = experiment_config
 
@@ -313,8 +315,11 @@ class FLChallenge(FLManager):
             user_votes = fbm[user.id]
             filtered_accs = []
             filtered_losses = []
+
+            # Add null.check
             accs = am[idx]
             losses = lm[idx]
+
             for ix, vote in enumerate(user_votes):
                 if user.id == ix:
                     continue
@@ -330,48 +335,79 @@ class FLChallenge(FLManager):
                 filtered_accs.append(accs[ix])
                 filtered_losses.append(min(UINT256_MAX, losses[ix]))
 
-
-
-            fbb = self.build_feedback_bytes(addrs, votes)
+            fbb = self.build_feedback_bytes(addrs, votes) # hex-encoded
+            rb_fbb = Web3.to_bytes(hexstr="0x" + fbb)
 
             if self.experiment_config.contribution_score_strategy in [ "naive", "dotproduct" ]:
                 if self.fork:
                     tx = super().build_tx(user.address, self.modelAddress)
-                    tx_hash = self.model.functions.submitFeedbackBytes(Web3.to_bytes(hexstr="0x" + fbb)).transact(tx)
+                    tx_hash = self.model.functions.submitFeedbackBytes(
+                        rb_fbb
+                    ).transact(tx)
                 else:  # TODO: Dobbeltjek at logic er rigtig her.
-                    nonce = self.w3.eth.get_transaction_count(user.address)
-                    cl = super().build_non_fork_tx(user.address, nonce)
-                    cl = self.model.functions.submitFeedbackBytes(
-                        fbb
-                    ).build_transaction(cl)
-                    pk = user.privateKey
-                    signed = self.w3.eth.account.sign_transaction(cl, private_key=pk)
-                    tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
+                    # nonce = self.w3.eth.get_transaction_count(user.address) #1
+                    # cl = super().build_non_fork_tx(user.address, nonce) #2
+                    # cl = self.model.functions.submitFeedbackBytes(
+                    #     fbb
+                    # ).build_transaction(cl)
+                    # pk = user.privateKey #3
+                    # signed = self.w3.eth.account.sign_transaction(cl, private_key=pk) #4
+                    # tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction) #5
+
+                    tx_hash = self.sign_and_send_tx(
+                        user,
+                        self.model.functions.submitFeedbackBytes(rb_fbb)
+                    )
                 txs.append(tx_hash)
-            elif self.experiment_config.contribution_score_strategy == "accuracy":
+
+            elif self.experiment_config.contribution_score_strategy == "accuracy_loss":
+                prev_acc = prev_accs[idx]
+                prev_loss = prev_losses[idx]
                 if self.fork:
                     tx = super().build_tx(user.address, self.modelAddress)
-                    row_am = am[idx]
-                    row_lm = lm[idx]
-                    filtered_row_am = row_am[:idx] + row_am[idx + 1:]
-                    filtered_row_lm = row_lm[:idx] + row_lm[idx + 1:]
-                    prev_acc = prev_accs[idx]
-                    prev_loss = prev_losses[idx]
-                    #print(f"filtered_row_am: {filtered_accs}")
-                    #print(f"filtered_loss: {filtered_losses}")
-                    #print(f"prev_acc: {prev_acc}")
-                    #print(f"prev_loss: {prev_loss}")
-                    tx_hash = self.model.functions.submitFeedbackBytesAndAccuracies(Web3.to_bytes(hexstr="0x" + fbb), filtered_accs, filtered_losses, prev_acc, prev_loss).transact(tx)
+                    tx_hash = self.model.functions.submitFeedbackBytesAndAccuraciesLosses(rb_fbb, filtered_accs, filtered_losses, prev_acc, prev_loss).transact(tx)
                 else:  # TODO: Dobbeltjek at logic er rigtig her.
-                    nonce = self.w3.eth.get_transaction_count(user.address)
-                    cl = super().build_non_fork_tx(user.address, nonce)
-                    cl = self.model.functions.submitFeedbackBytesAndAccuracies(
-                        Web3.to_bytes(hexstr="0x" + fbb), am[idx]
-                    ).build_transaction(cl)
-                    pk = user.privateKey
-                    signed = self.w3.eth.account.sign_transaction(cl, private_key=pk)
-                    tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
+                    # nonce = self.w3.eth.get_transaction_count(user.address) #1
+                    # cl = super().build_non_fork_tx(user.address, nonce)
+                    # cl = self.model.functions.submitFeedbackBytesAndAccuracies(
+                    #     Web3.to_bytes(hexstr="0x" + fbb), am[idx]
+                    # ).build_transaction(cl)
+                    # pk = user.privateKey #3
+                    # signed = self.w3.eth.account.sign_transaction(cl, private_key=pk) #4
+                    # tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction) #5
+
+                    tx_hash = self.sign_and_send_tx(
+                        user,
+                        self.model.functions.submitFeedbackBytesAndAccuraciesLosses(rb_fbb, filtered_accs, filtered_losses, prev_acc, prev_loss)
+                    )
                 txs.append(tx_hash)
+
+            elif self.experiment_config.contribution_score_strategy == "accuracy_only":
+                prev_acc = prev_accs[idx]
+                if self.fork:
+                    tx = super().build_tx(user.address, self.modelAddress)
+                    tx_hash = self.model.functions.submitFeedbackBytesAndAccuracies(rb_fbb, filtered_accs, prev_acc).transact(tx)
+
+                else:
+                    tx_hash = self.sign_and_send_tx(
+                        user,
+                        self.model.functions.submitFeedbackBytesAndAccuracies(rb_fbb, filtered_accs, prev_acc)
+                    )
+                txs.append(tx_hash)
+
+            elif self.experiment_config.contribution_score_strategy == "loss_only":
+                prev_loss = prev_losses[idx]
+                if self.fork:
+                    tx = super().build_tx(user.address, self.modelAddress)
+                    tx_hash = self.model.functions.submitFeedbackBytesAndLosses(rb_fbb, filtered_losses, prev_loss).transact(tx)
+
+                else:
+                    tx_hash = self.sign_and_send_tx(
+                        user,
+                        self.model.functions.submitFeedbackBytesAndLosses(rb_fbb, filtered_losses, prev_loss)
+                    )
+                txs.append(tx_hash)
+
             else:
                 warnings.warn("INVALID FEEDBACK TYPE")
 
@@ -391,6 +427,18 @@ class FLChallenge(FLManager):
 
         printer._print("                                                   ")
         print("\n-----------------------------------------------------------------------------------")
+
+
+    def sign_and_send_tx(self, user, contract_fn_call):
+        nonce = self.w3.eth.get_transaction_count(user.address)
+        tx = super().build_non_fork_tx(user.address, nonce)
+        tx = contract_fn_call.build_transaction(tx)
+
+        signed = self.w3.eth.account.sign_transaction(tx, private_key=user.privateKey)
+        return self.w3.eth.send_raw_transaction(signed.raw_transaction)
+
+
+
 
     def log_receipt(self, i, tx_hash, len_txs, receipt_type: str):
         printer.print_bar(i, len_txs)
@@ -814,6 +862,202 @@ class FLChallenge(FLManager):
         return [calc_contribution_score_naive(num_mergers) for _ in users]
 
 
+    def _calculate_scores_accuracy_loss(self, users, mad_threshold = 1.1):
+        """
+        Accuracy-Loss-based scoring: use accuracy and loss directly as contribution score.
+        """
+
+        # accuracies: 1d array
+        # losses: 1d array
+        # prev_acc, prev_loss: int
+
+        # Array of previous accuracies and losses from all users: A tuple of arrays
+        prev_accuracies, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses().call()
+
+        # use mad on these and average them
+
+        mad_prev_accuracies = remove_outliers_mad(prev_accuracies, mad_threshold)
+        mad_prev_losses = remove_outliers_mad(prev_losses, mad_threshold)
+
+        avg_prev_acc = np.mean(mad_prev_accuracies)
+        avg_prev_loss = np.mean(mad_prev_losses)
+
+        avg_accuracies = [] # after loop: [30, 20, 30, 40]
+        avg_losses = [] # after loop: [60, 70, 50, 80]
+
+        for u in users: # For loop to extract accuracies and loses.
+
+            # All accuracies and loses per user
+            _, accuracies, losses = self.model.functions.getAllAccuraciesLossesAbout(u.address).call()
+
+            try:
+                # Multiple accuracies and losses per user
+                mad_accuracies = remove_outliers_mad(accuracies, mad_threshold)
+                mad_losses = remove_outliers_mad(losses, mad_threshold)
+
+                # One average accuracy and loss per user
+                avg_acc = np.mean(mad_accuracies)
+                avg_loss = np.mean(mad_losses)
+
+                avg_accuracies.append(avg_acc) # int
+                avg_losses.append(avg_loss) # int
+            except ValueError:
+                print("An error occured")
+
+        scores = []
+
+        norm_accuracies = calc_contribution_scores_accuracy(avg_accuracies, avg_prev_acc)
+        print(f"normalized accuracies: {norm_accuracies}")
+
+        norm_losses = calc_contribution_scores_accuracy(avg_losses, avg_prev_loss)
+        print(f"normalized losses: {norm_losses}")
+
+
+        sum_na = sum(norm_accuracies)
+        sum_nl = sum(norm_losses)
+
+        print(f"sum_na: {sum_na}")
+        print(f"sum_nl: {sum_nl}")
+
+        for i in range(len(norm_accuracies)):
+            res = (norm_accuracies[i] + norm_losses[i]) / (sum_na + sum_nl)
+            score = int(Decimal(res) * Decimal('1e18'))
+            scores.append(score)
+        print(f"scores = {scores}")
+        return scores
+    # Output: An array of user scores
+    # Find out who was merged
+
+
+    def _calculate_scores_accuracy_only(self, users, mad_threshold = 1.1):
+        """
+        Accuracy-based scoring: use accuracy directly as contribution score.
+        """
+
+        # accuracies: 1d array
+        # prev_acc: int
+
+        # Array of previous accuracies and losses from all users: A tuple of arrays
+        prev_accuracies, _ = self.model.functions.getAllPreviousAccuraciesAndLosses().call()
+
+        # use mad on these and average them
+
+        mad_prev_accuracies = remove_outliers_mad(prev_accuracies, mad_threshold)
+        # mad_prev_losses = remove_outliers_mad(prev_losses, mad_threshold)
+
+        avg_prev_acc = np.mean(mad_prev_accuracies)
+        # avg_prev_loss = np.mean(mad_prev_losses)
+
+        avg_accuracies = [] # after loop: [30, 20, 30, 40]
+        # avg_losses = [] # after loop: [60, 70, 50, 80]
+
+        for u in users: # For loop to extract accuracies and loses.
+
+            # All accuracies and loses per user
+            _, accuracies = self.model.functions.getAllAccuraciesAbout(u.address).call()
+
+            try:
+                # Multiple accuracies and losses per user
+                mad_accuracies = remove_outliers_mad(accuracies, mad_threshold)
+                # mad_losses = remove_outliers_mad(losses, mad_threshold)
+
+                # One average accuracy and loss per user
+                avg_acc = np.mean(mad_accuracies)
+                # avg_loss = np.mean(mad_losses)
+
+                avg_accuracies.append(avg_acc) # int
+                # avg_losses.append(avg_loss) # int
+            except ValueError:
+                print("An error occured")
+
+        scores = []
+
+        norm_accuracies = calc_contribution_scores_accuracy(avg_accuracies, avg_prev_acc)
+        print(f"normalized accuracies: {norm_accuracies}")
+
+        # norm_losses = calc_contribution_scores_accuracy(avg_losses, avg_prev_loss)
+        # print(f"normalized losses: {norm_losses}")
+
+
+        sum_na = sum(norm_accuracies)
+        # sum_nl = sum(norm_losses)
+
+        print(f"sum_na: {sum_na}")
+        # print(f"sum_nl: {sum_nl}")
+
+        for i in range(len(norm_accuracies)):
+            res = (norm_accuracies[i] / sum_na)
+            score = int(Decimal(res) * Decimal('1e18'))
+            scores.append(score)
+        print(f"scores = {scores}")
+        return scores
+
+
+    def _calculate_scores_loss_only(self, users, mad_threshold = 1.1):
+        """
+        Loss-based scoring: use loss directly as contribution score.
+        """
+
+        # losses: 1d array
+        # prev_loss: int
+
+        # Array of previous accuracies and losses from all users: A tuple of arrays
+        _, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses().call()
+
+        # use mad on these and average them
+
+        # mad_prev_accuracies = remove_outliers_mad(prev_accuracies, mad_threshold)
+        mad_prev_losses = remove_outliers_mad(prev_losses, mad_threshold)
+
+        # avg_prev_acc = np.mean(mad_prev_accuracies)
+        avg_prev_loss = np.mean(mad_prev_losses)
+
+        # avg_accuracies = [] # after loop: [30, 20, 30, 40]
+        avg_losses = [] # after loop: [60, 70, 50, 80]
+
+        for u in users: # For loop to extract accuracies and loses.
+
+            # All accuracies and loses per user
+            _, losses = self.model.functions.getAllLossesAbout(u.address).call()
+
+            try:
+                # Multiple accuracies and losses per user
+                # mad_accuracies = remove_outliers_mad(accuracies, mad_threshold)
+                mad_losses = remove_outliers_mad(losses, mad_threshold)
+
+                # One average accuracy and loss per user
+                # avg_acc = np.mean(mad_accuracies)
+                avg_loss = np.mean(mad_losses)
+
+                # avg_accuracies.append(avg_acc) # int
+                avg_losses.append(avg_loss) # int
+            except ValueError:
+                print("An error occured")
+
+        scores = []
+
+        # norm_accuracies = calc_contribution_scores_accuracy(avg_accuracies, avg_prev_acc)
+        # print(f"normalized accuracies: {norm_accuracies}")
+
+        norm_losses = calc_contribution_scores_accuracy(avg_losses, avg_prev_loss)
+        print(f"normalized losses: {norm_losses}")
+
+
+        # sum_na = sum(norm_accuracies)
+        sum_nl = sum(norm_losses)
+
+        # print(f"sum_na: {sum_na}")
+        print(f"sum_nl: {sum_nl}")
+
+        for i in range(len(norm_losses)):
+            res = (norm_losses[i] / sum_nl)
+            score = int(Decimal(res) * Decimal('1e18'))
+            scores.append(score)
+        print(f"scores = {scores}")
+        return scores
+
+
+
     def trim_global_update_using_mad(self,
                                      local_updates: torch.Tensor,
                                      global_update: torch.Tensor,
@@ -860,79 +1104,6 @@ class FLChallenge(FLManager):
 
         return filtered_global_update
 
-    def _calculate_scores_accuracy(self, users, mad_threshold = 1.1):
-        """
-        Accuracy-based scoring: use accuracy directly as contribution score.
-        """
-
-        # accuracies: 1d array
-        # losses: 1d array
-        # prev_acc: int
-
-        # Array of previous accuracies and losses from all users: A tuple of arrays
-        prev_accuracies, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses.call()
-
-        # use mad on these and average them
-
-        mad_prev_accuracies = remove_outliers_mad(prev_accuracies, mad_threshold)
-        mad_prev_losses = remove_outliers_mad(prev_losses, mad_threshold)
-
-        avg_prev_acc = np.mean(mad_prev_accuracies)
-        avg_prev_loss = np.mean(mad_prev_losses)
-        # Lav en fælles mad
-
-        avg_accuracies = [] # after loop: [30, 20, 30, 40]
-        avg_losses = [] # after loop: [60, 70, 50, 80]
-
-        for u in users: # For loop to extract accuracies and loses.
-            # Vi kan åbenbart ikke nøjes med kune dette, da vi skal bruge global accuracies, loses.
-
-            # All accuracies and loses per user
-            _, accuracies, losses = self.model.functions.getAllAccuraciesAbout(u.address).call()
-
-            try:
-                # Multiple accuracies and losses per user
-                mad_accuracies = remove_outliers_mad(accuracies, mad_threshold)
-                mad_losses = remove_outliers_mad(losses, mad_threshold)
-
-                # One average accuracy and loss per user
-                avg_acc = np.mean(mad_accuracies)
-                avg_loss = np.mean(mad_losses)
-
-                avg_accuracies.append(avg_acc) # int
-                avg_losses.append(avg_loss) # int
-            except ValueError:
-                print("An error occured")
-
-        scores = []
-
-        norm_accuracies = calc_contribution_scores_accuracy(avg_accuracies, avg_prev_acc)
-        print(f"normalized accuracies: {norm_accuracies}")
-
-        norm_losses = calc_contribution_scores_accuracy(avg_losses, avg_prev_loss)
-        print(f"normalized losses: {norm_losses}")
-
-
-        sum_na = sum(norm_accuracies)
-        sum_nl = sum(norm_losses)
-
-        print(f"sum_na: {sum_na}")
-        print(f"sum_nl: {sum_nl}")
-
-        for i in range(len(norm_accuracies)):
-            res = (norm_accuracies[i] + norm_losses[i]) / (sum_na + sum_nl)
-            score = int(Decimal(res) * Decimal('1e18'))
-            scores.append(score)
-        print(f"scores = {scores}")
-        return scores
-
-
-        # return scores
-    # Output: An array of user scores
-    # Find out who was merged
-
-
-
 
     def get_round_rewards(self, receipt):
         events = self.get_events(
@@ -971,7 +1142,6 @@ class FLChallenge(FLManager):
           9) Close round, print summary
         At the end, all users exit the system.
         """
-        hashedWeights = []
         print(self.modelAddress)
         self.register_all_users()
         

@@ -21,7 +21,7 @@ class ExperimentConfiguration:
                  freerider_start_round=3,
                  malicious_start_round=3,
                  malicious_noise_scale=1.0,
-                 force_merge_all=False):
+                 force_merge_all=False): # Sets all entries in fbb to zeroes
 
         # Store the fork mode
         self.fork = fork
