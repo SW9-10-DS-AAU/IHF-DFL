@@ -19,7 +19,7 @@ RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData
 
 datasets = [ DATASETFAST ]
 #strategy_options = ["dotproduct", "naive", "accuracy"]
-strategy_options = [ "accuracy" ]
+strategy_options = [ "accuracy_only", "loss_ony", "accuracy_loss" ]
 outlier_detection_options = [ True, False ]
 free_rider_activation_round_options = [1, 3, 5]
 #malicious_activation_round_options = [1, 3, 5]
