@@ -557,12 +557,7 @@ contract OpenFLModel {
             for (uint i = 0; i < participants.length; i++) {
                 User storage user = users[participants[i]];
 
-                if (
-                    user.isRegistered &&
-                    user.whitelistedForRewards &&
-                    !user.isPunished &&
-                    contributionScore[round][user.addr] < 0 &&
-                    !user.isDisqualified
+                if (_isEligibleForRewards(user) && contributionScore[round][user.addr] < 0
                 ) {
                     uint personalPunishment = (reward *
                         absUint(user.weightedContribScore)) /
@@ -602,7 +597,7 @@ contract OpenFLModel {
                 ? 1
                 : positiveSumOfWeights;
 
-            // Give rewards (or negative rewards) based on contribution score
+            // Give rewards based on positive contribution score
             for (uint i = 0; i < participants.length; i++) {
                 User storage user = users[participants[i]];
 

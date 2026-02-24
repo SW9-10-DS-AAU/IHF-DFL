@@ -1264,33 +1264,33 @@ class FLChallenge(FLManager):
         return plt
 
 
-def calc_contribution_score(local_model, global_model, num_mergers, eps=1e-12) -> int:
-    """
-    FedAvg-normalized dot product score so that sum = 1.
-
-    Args:
-        u: local model
-        U: global model found by FedAvg
-        num_clients: int, number of clients that merged this round
-        eps: float, small tolerance to avoid division by zero
-
-    Returns:
-        contribution score in WEI.
-        1 * 1e18 is 100% contribution score
-    """
-
-    # Flatten parameters
-    local_update = torch.cat([p.data.view(-1) for p in local_model.parameters()])
-    global_update = torch.cat([p.data.view(-1) for p in global_model.parameters()])
-
-    norm_U_sq = torch.dot(global_update, global_update)
-
-    if norm_U_sq.abs() < eps:
-        score = Decimal(1) / Decimal(num_mergers)
-        return int(score * Decimal('1e18'))
-    score = torch.dot(local_update, global_update) / (num_mergers * norm_U_sq)
-
-    return int(Decimal(score.item()) * Decimal('1e18'))
+# def calc_contribution_score(local_model, global_model, num_mergers, eps=1e-12) -> int:
+#     """
+#     FedAvg-normalized dot product score so that sum = 1.
+#
+#     Args:
+#         u: local model
+#         U: global model found by FedAvg
+#         num_clients: int, number of clients that merged this round
+#         eps: float, small tolerance to avoid division by zero
+#
+#     Returns:
+#         contribution score in WEI.
+#         1 * 1e18 is 100% contribution score
+#     """
+#
+#     # Flatten parameters
+#     local_update = torch.cat([p.data.view(-1) for p in local_model.parameters()])
+#     global_update = torch.cat([p.data.view(-1) for p in global_model.parameters()])
+#
+#     norm_U_sq = torch.dot(global_update, global_update)
+#
+#     if norm_U_sq.abs() < eps:
+#         score = Decimal(1) / Decimal(num_mergers)
+#         return int(score * Decimal('1e18'))
+#     score = torch.dot(local_update, global_update) / (num_mergers * norm_U_sq)
+#
+#     return int(Decimal(score.item()) * Decimal('1e18'))
 
 
 def calc_contribution_score_naive(num_mergers) -> int:
