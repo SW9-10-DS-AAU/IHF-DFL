@@ -792,7 +792,10 @@ class FLChallenge(FLManager):
         merged_model = users[0].model
         global_update = torch.cat([p.data.view(-1) for p in merged_model.parameters()])
         local_updates = [
-            torch.cat([p.data.view(-1) for p in u.previousModel.parameters()]) for u in users
+            torch.cat([
+                v.view(-1)
+                for v in u.previousModel.values()
+            ]) for u in users
         ]
         local_updates = torch.stack(local_updates)
 
@@ -957,7 +960,7 @@ class FLChallenge(FLManager):
                     )
                 )
         return result
-    def simulate(self, rounds):
+    def simulate(self, rounds, force_multi_gpu_pipe = False):
         """
         Run a full FL simulation for a given number of rounds.
         High-level flow per round:
@@ -1002,7 +1005,7 @@ class FLChallenge(FLManager):
             print(b(f"Round {self.pytorch_model.round} starts..."))
             self.pytorch_model.update_users_attitude()
 
-            self.pytorch_model.federated_training()
+            self.pytorch_model.federated_training(force_multi_gpu_pipe)
 
             self.pytorch_model.let_malicious_users_do_their_work()
             self.pytorch_model.let_freerider_users_do_their_work()

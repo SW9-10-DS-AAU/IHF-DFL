@@ -16,10 +16,8 @@ from collections import OrderedDict
 from torchvision import transforms
 from torchvision.datasets import CIFAR10, MNIST
 from torch.utils.data import DataLoader, random_split
+import torch.multiprocessing as mp 
 torch._dynamo.config.cache_size_limit = 512
-import logging
-logging.getLogger("torch._inductor").setLevel(logging.ERROR)
-logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
 
 
 RNG = np.random.default_rng()
@@ -29,7 +27,8 @@ PIN_MEMORY = USE_CUDA
 NON_BLOCKING = USE_CUDA
 NUM_WORKERS = min(4, os.cpu_count() // 2) if torch.cuda.is_available() else 0
 PERSISTENT_WORKERS = True#USE_CUDA and NUM_WORKERS > 0
-AMP = USE_CUDA # Optional: mixed precision on CUDA
+IS_ROCM = torch.version.hip is not None
+AMP = USE_CUDA and not IS_ROCM
 
 # cuDNN autotune for fixed-size inputs (both MNIST 28x28 and CIFAR-10 32x32)
 torch.backends.cudnn.benchmark = USE_CUDA
@@ -358,39 +357,94 @@ class PytorchModel:
         self.DATASUBSETCACHE = (trainloaders, valloaders, testloader)
         return trainloaders, valloaders, testloader
 
-
-    def federated_training(self):
-        print(b("\n================ FEDERATED TRAINING START ================"))
+        
+    
+    
+    
+    def federated_training(self, force_multigpu_pipe = False):
+        print("\n================ FEDERATED TRAINING START ================")
 
         num_gpus = torch.cuda.device_count()
+        start_total = time.perf_counter()
         print_training_mode(num_gpus, 1)
 
-        start_total = time.perf_counter()
+        if num_gpus < 2 and not force_multigpu_pipe:
+            for idx, user in enumerate(self.participants):
 
-        for idx, user in enumerate(self.participants):
+                # Non-good users → only evaluate
+                if user.attitude != "good":
+                    val_loss, val_acc = test(user.model, user.val, user.device)
 
-            # Non-good users → only evaluate
-            if user.attitude != "good":
+                    self.finalize_user_evaluation(user, val_loss, val_acc)
+                    continue
+
+
+                train(user.model, user.train, user.optimizer, self.EPOCHS, user.device)
                 val_loss, val_acc = test(user.model, user.val, user.device)
 
+
+                user.currentAcc = val_acc
                 self.finalize_user_evaluation(user, val_loss, val_acc)
-                continue
 
+                print(f"[{device_label(user.device)}] User {user.id} done | "
+                    f"Acc: {val_acc:.3f}, Loss: {val_loss:.3f}")
 
-            train(user.model, user.train, self.EPOCHS, user.device)
-            val_loss, val_acc = test(user.model, user.val, user.device)
+            total_time = time.perf_counter() - start_total
 
+            print(b("=================== TRAINING END ===================\n"))
+            print(green(f"Total federated training time: {total_time:.2f} seconds\n"))
+            return
+        
+        # MultiGPU
+        job_queue = mp.Queue()
+        result_queue = mp.Queue()
 
-            user.currentAcc = val_acc
-            self.finalize_user_evaluation(user, val_loss, val_acc)
+        # Start one worker per GPU
+        workers = []
+        for gpu_id in range(num_gpus):
+            p = mp.Process(
+                target=gpu_worker,
+                args=(
+                    gpu_id,
+                    job_queue,
+                    result_queue,
+                    self.EPOCHS,
+                    self.DATASET,
+                    self.BATCHSIZE
+                )
+            )
+            p.start()
+            workers.append(p)
 
-            print(f"[{device_label(user.device)}] User {user.id} done | "
-                f"Acc: {val_acc:.3f}, Loss: {val_loss:.3f}")
+        # Enqueue users
+        for user in self.participants:
+            state_dict = {k: v.cpu() for k, v in user.model.state_dict().items()}
+            job_queue.put((
+                user.id,
+                state_dict,
+                user.train.dataset,
+                user.val.dataset
+            ))
+
+        # Stop signals
+        for _ in workers:
+            job_queue.put(None)
+
+        # Collect results
+        results = []
+        for _ in self.participants:
+            results.append(result_queue.get())
+
+        self.apply_training_results(results)
+
+        # Join workers
+        for p in workers:
+            p.join()
 
         total_time = time.perf_counter() - start_total
 
-        print(b("=================== TRAINING END ===================\n"))
-        print(green(f"Total federated training time: {total_time:.2f} seconds\n"))
+        print("=================== TRAINING END ===================")
+        print(f"Total federated training time: {total_time:.2f} seconds\n")
 
     def finalize_user_evaluation(self, user, loss, acc):
         test_loss, test_acc = test(user.model, self.test, user.device)
@@ -405,6 +459,7 @@ class PytorchModel:
         for user_id, state_dict, val_loss, val_acc in results:
             user = user_map[user_id]
             user.model.load_state_dict(state_dict)
+            user.model.to(user.device)
             user.currentAcc = val_acc
 
             self.finalize_user_evaluation(user, val_loss, val_acc)
@@ -700,11 +755,12 @@ class PytorchModel:
 def train(
     net,
     trainloader: torch.utils.data.DataLoader,
+    optimizer: torch.optim.SGD,
     epochs: int,
     device: torch.device,
 ) -> None:
 
-    if device.type == "cuda" and not hasattr(net, "_compiled"):
+    if device.type == "cuda" and not hasattr(net, "_compiled") and False:
         try:
             net = torch.compile(net, mode="reduce-overhead")
             net._compiled = True
@@ -712,9 +768,8 @@ def train(
             pass
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 
-    use_amp = device.type == "cuda"
+    use_amp = AMP
     scaler = torch.amp.GradScaler(enabled=use_amp)
 
     net.train()
@@ -748,7 +803,7 @@ def test(
     total = 0
     loss = 0.0
 
-    use_amp = device.type == "cuda"
+    use_amp = AMP
 
     with torch.no_grad():
         for images, labels in testloader:
@@ -892,3 +947,54 @@ def device_label(device: torch.device, device_id: int = 0) -> str:
     else:
         return "CPU"
     
+def gpu_worker(gpu_id, job_queue, result_queue, epochs, dataset, batchsize):
+    torch.cuda.set_device(gpu_id)
+    device = torch.device(f"cuda:{gpu_id}")
+
+    while True:
+        job = job_queue.get()
+        if job is None:
+            break
+
+        user_id, model_state, train_ds, val_ds = job
+
+        # recreate model
+        if dataset == "mnist":
+            model = Net_MNIST()
+        else:
+            model = Net_CIFAR()
+
+        model.load_state_dict(model_state)
+        model.to(device)
+
+        # recreate optimizer
+        optimizer = torch.optim.SGD(
+            model.parameters(),
+            lr=0.001,
+            momentum=0.9
+        )
+
+        train_loader = DataLoader(
+            train_ds,
+            batch_size=batchsize,
+            shuffle=True,
+            pin_memory=True,
+            num_workers=2
+        )
+
+        val_loader = DataLoader(
+            val_ds,
+            batch_size=batchsize,
+            shuffle=False,
+            pin_memory=True,
+            num_workers=2
+        )
+        print("Train start")
+        train(model, train_loader, optimizer, epochs, device)
+        print("Train end, test start")
+        loss, acc = test(model, val_loader, device)
+        print("Test end")
+        del train_loader
+        del val_loader
+
+        result_queue.put((user_id, model.state_dict(), loss, acc))

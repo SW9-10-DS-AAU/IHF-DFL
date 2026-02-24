@@ -3,6 +3,9 @@ import json
 from pathlib import Path
 import re
 import traceback
+
+import torch
+import torch.multiprocessing as mp
 import experiment_runner as ExperimentRunner
 from experiment_configuration import ExperimentConfiguration
 from itertools import product
@@ -11,6 +14,8 @@ import argparse
 
 from openfl.utils.async_writer import AsyncWriter
 from selector import choose_from_list 
+
+FORCE_MULTIGPU_PIPELINE = True
 
 DATASETSLOW = "cifar.10"
 DATASETFAST = "mnist"
@@ -120,7 +125,7 @@ def main(author):
         path = getPath(config, startTime, dataset)
         try:
             writer = AsyncWriter(path, OUTPUTHEADERS, WRITERBUFFERSIZE, config, author)
-            experiment = ExperimentRunner.run_experiment(dataset, config, writer)
+            experiment = ExperimentRunner.run_experiment(dataset, config, writer, FORCE_MULTIGPU_PIPELINE)
             writer.finish()
         except Exception as e:
             ts = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
@@ -211,5 +216,7 @@ def shouldSkip(config: Skip):
 
 if __name__ == "__main__":
     author = args.author if args.author is not None else input("Author?\n")
+    if torch.cuda.device_count() > 1 or FORCE_MULTIGPU_PIPELINE:
+        mp.set_start_method("spawn", force=True)
     main(author)
     print("Done :)")

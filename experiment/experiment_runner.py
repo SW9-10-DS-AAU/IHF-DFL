@@ -10,7 +10,7 @@ from web3 import Web3, Account
 from openfl.utils.async_writer import AsyncWriter
 
 
-def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=None):
+def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=None, force_multi_gpu_pipe = False):
 
   dataset_name = dataset_name.replace(".", "-")
 
@@ -94,7 +94,7 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
                       writer)
 
 
-  model.simulate(rounds=experiment_config.minimum_rounds)
+  model.simulate(experiment_config.minimum_rounds, force_multi_gpu_pipe)
   experiment_end = time.perf_counter()
   total_experiment_time = experiment_end - experiment_start
 
