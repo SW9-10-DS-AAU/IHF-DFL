@@ -850,10 +850,10 @@ class FLChallenge(FLManager):
 
         scores = []
 
-        norm_accuracies = normalize_relative_to_baseline(avg_accuracies, avg_prev_acc)
+        norm_accuracies = normalize_contribution_scores_old(avg_accuracies, avg_prev_acc)
         print(f"normalized accuracies: {norm_accuracies}")
 
-        norm_losses = normalize_relative_to_baseline(avg_losses, avg_prev_loss)
+        norm_losses = normalize_contribution_scores_old(avg_losses, avg_prev_loss)
         print(f"normalized losses: {norm_losses}")
 
         sum_na = sum(norm_accuracies)
@@ -862,10 +862,7 @@ class FLChallenge(FLManager):
         print(f"sum_na: {sum_na}")
         print(f"sum_nl: {sum_nl}")
 
-        for i in range(len(norm_accuracies)):
-            res = (norm_accuracies[i] + norm_losses[i]) / (sum_na + sum_nl)
-            score = int(Decimal(res) * Decimal('1e18'))
-            scores.append(score)
+        scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in scores]
         print(f"scores = {scores}")
         return scores
     # Output: An array of user scores
@@ -902,17 +899,10 @@ class FLChallenge(FLManager):
 
         scores = []
 
-        norm_accuracies = normalize_relative_to_baseline(avg_accuracies, avg_prev_acc)
+        norm_accuracies = normalize_contribution_scores_old(avg_accuracies, avg_prev_acc)
         print(f"normalized accuracies: {norm_accuracies}")
 
-        sum_na = sum(norm_accuracies)
-
-        print(f"sum_na: {sum_na}")
-
-        for i in range(len(norm_accuracies)):
-            res = (norm_accuracies[i] / sum_na)
-            score = int(Decimal(res) * Decimal('1e18'))
-            scores.append(score)
+        scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in scores]
         print(f"scores = {scores}")
         return scores
 
@@ -947,17 +937,15 @@ class FLChallenge(FLManager):
 
         scores = []
 
-        norm_losses = normalize_relative_to_baseline(avg_losses, avg_prev_loss)
+        norm_losses = normalize_contribution_scores_old(avg_losses, avg_prev_loss)
         print(f"normalized losses: {norm_losses}")
 
         sum_nl = sum(norm_losses)
 
         print(f"sum_nl: {sum_nl}")
 
-        for i in range(len(norm_losses)):
-            res = (norm_losses[i] / sum_nl)
-            score = int(Decimal(res) * Decimal('1e18'))
-            scores.append(score)
+        scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in scores]
+
         print(f"scores = {scores}")
         return scores
 
@@ -1350,7 +1338,7 @@ def calc_contribution_scores_dotproduct(local_updates: torch.Tensor,
     ]
 
 
-def normalize_relative_to_baseline(arr, prev_val):
+def normalize_contribution_scores_old(arr, prev_val):
     # This method takes a 1d array of an array (accuracy or loss), a scalar of previous accuracy or loss
     # Output is an array of normalized input array values
     # Takes a list of values
@@ -1360,13 +1348,18 @@ def normalize_relative_to_baseline(arr, prev_val):
     norm_arr = []
     sum_val = 0.0
 
+
+
     for i in range(len(arr)):
         norm_arr.append(arr[i] - prev_val)
         sum_val += norm_arr[i]
 
+    # norm_arr = [2, 1, 0]
+    # sum = 3
+    # [2/3, 1/3, 0/3]
+
     if len(norm_arr) == 0:
         raise Exception("No values to normalize")
-
     for i in range(len(norm_arr)):
         if sum_val == 0.0:
             return [1.0 / len(norm_arr)] * len(norm_arr)
