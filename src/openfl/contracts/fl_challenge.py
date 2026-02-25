@@ -848,6 +848,7 @@ class FLChallenge(FLManager):
             except ValueError:
                 print("An error occured")
 
+
         scores = []
 
         norm_accuracies = normalize_contribution_scores_old(avg_accuracies, avg_prev_acc)
@@ -862,7 +863,11 @@ class FLChallenge(FLManager):
         print(f"sum_na: {sum_na}")
         print(f"sum_nl: {sum_nl}")
 
-        scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in scores]
+        for i in range(len(norm_accuracies)):
+            res = (norm_accuracies[i] + norm_losses[i]) / (sum_na + sum_nl)
+            score = int(Decimal(res) * Decimal('1e18'))
+            scores.append(score)
+
         print(f"scores = {scores}")
         return scores
     # Output: An array of user scores
@@ -897,12 +902,11 @@ class FLChallenge(FLManager):
             except ValueError:
                 print("An error occured")
 
-        scores = []
-
-        norm_accuracies = normalize_contribution_scores_old(avg_accuracies, avg_prev_acc)
+        norm_accuracies = normalize_contribution_scores_new(avg_accuracies, avg_prev_acc, 'accuracy')
         print(f"normalized accuracies: {norm_accuracies}")
 
-        scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in scores]
+
+        scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in norm_accuracies]
         print(f"scores = {scores}")
         return scores
 
@@ -937,14 +941,14 @@ class FLChallenge(FLManager):
 
         scores = []
 
-        norm_losses = normalize_contribution_scores_old(avg_losses, avg_prev_loss)
+        norm_losses = normalize_contribution_scores_new(avg_losses, avg_prev_loss, 'loss')
         print(f"normalized losses: {norm_losses}")
 
         sum_nl = sum(norm_losses)
 
         print(f"sum_nl: {sum_nl}")
 
-        scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in scores]
+        scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in norm_losses]
 
         print(f"scores = {scores}")
         return scores
@@ -1175,8 +1179,6 @@ class FLChallenge(FLManager):
                     markevery=1,
                 )
 
-
-
         pun = {}
         for i, j, y in self._punishments:
             if i in pun.keys():
@@ -1340,23 +1342,21 @@ def calc_contribution_scores_dotproduct(local_updates: torch.Tensor,
 
 def normalize_contribution_scores_old(arr, prev_val):
     # This method takes a 1d array of an array (accuracy or loss), a scalar of previous accuracy or loss
-    # Output is an array of normalized input array values
+    # Output is an array of normalized (according to sum) input array values
     # Takes a list of values
     # Subtracts a baseline (prev_val)
     # Normalizes them so they sum to 1
+    # Example:
+    # -- arr - prev_val => norm_arr = [2, 1, 0]
+    # -- sum = 3
+    # -- [2/3, 1/3, 0/3]
 
     norm_arr = []
     sum_val = 0.0
 
-
-
     for i in range(len(arr)):
         norm_arr.append(arr[i] - prev_val)
         sum_val += norm_arr[i]
-
-    # norm_arr = [2, 1, 0]
-    # sum = 3
-    # [2/3, 1/3, 0/3]
 
     if len(norm_arr) == 0:
         raise Exception("No values to normalize")
@@ -1365,6 +1365,64 @@ def normalize_contribution_scores_old(arr, prev_val):
             return [1.0 / len(norm_arr)] * len(norm_arr)
         norm_arr[i] /= sum_val
     return norm_arr
+
+
+def normalize_contribution_scores_new(vals: list, prev_val: float, evaluation_metric: str) -> list:
+    """
+    4-step normalization for contribution scores.
+
+    1. Subtract baseline, then negate if metric is 'loss' (lower=better → flip sign).
+    2. Edge cases: if max==0 replace zeros with 1; if all negative compute sum/val ratios.
+    3. Clamp negatives so the minimum is exactly -1.
+    4. Final normalization to sum=1: divide by sum if all-positive, otherwise
+       redistribute the excess proportionally across positive values.
+    """
+
+    # Step 1: subtract baseline, flip sign for loss
+    vals = [v - prev_val for v in vals] # Handle the subtraction of new minus prev here
+    if evaluation_metric == "loss":
+        vals = [-1 * val for val in vals]
+    sum_ = sum(vals)
+    print("vals", vals)
+    print("sum: ", sum_)
+
+
+    # Step 2: edge cases  TODO: 0 og -0.5
+    max_val = max(vals)
+    if max_val == 0:
+        vals = [1 if val == 0 else val for val in vals]
+    elif max_val < 0:
+        vals = [sum_ / val for val in vals]
+    # elif sum_ < 0:
+    # vals = [val / -sum_ for val in vals]
+    sum_ = sum(vals)
+    print("vals", vals)
+    print("sum: ", sum_)
+
+
+    # Step 3: clamp negatives to minimum -1
+    if min(vals) < -1:
+        divisor = -min(vals)
+        vals = [val / divisor if val < 0 else val for val in vals]
+    sum_ = sum(vals)
+    print("vals", vals)
+    print("sum: ", sum_)
+
+
+    # Step 4: normalize to sum = 1
+    if not sum == 1:  #
+        if min(vals) >= 0:  # if all positive
+            vals = [val / sum_ for val in vals]
+        else:
+            sum_of_positives = sum(val for val in vals if val > 0)
+            excess_sum = sum_ - 1
+            vals = [val + (val / sum_of_positives) * -excess_sum if val > 0 else val for val in vals]
+        sum_ = sum(vals)
+
+    print("vals", vals)
+    print("sum: ", sum_)
+
+    return vals
 
 
 def remove_outliers_mad(arr, threshold=0.70, return_mask=False):
