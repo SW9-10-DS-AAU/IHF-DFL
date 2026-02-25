@@ -66,32 +66,32 @@ contract OpenFLModel {
 
     struct AccuracyLossSubmission {
         address[] adrs;
-        uint8[] acc;
-        uint256[] loss;
+        uint16[] acc;
+        uint16[] loss;
     }
 
     struct AccuracySubmission {
         address[] adrs;
-        uint8[] acc;
+        uint16[] acc;
     }
 
     struct LossSubmission {
         address[] adrs;
-        uint256[] loss;
+        uint16[] loss;
     }
 
 
-    mapping(uint8 => mapping(address => uint8)) public prev_accs;
-    mapping(uint8 => mapping(address => uint256)) public prev_losses;
+    mapping(uint8 => mapping(address => uint16)) public prev_accs;
+    mapping(uint8 => mapping(address => uint16)) public prev_losses;
 
     // Mapping from sender to all their submissions
-    mapping(uint8 => mapping(address => AccuracyLossSubmission[]))
+    mapping(uint16 => mapping(address => AccuracyLossSubmission[]))
         private accuracyLossSubmissions;
 
-    mapping(uint8 => mapping(address => AccuracySubmission[]))
+    mapping(uint16 => mapping(address => AccuracySubmission[]))
         private accuracySubmissions;
 
-    mapping(uint8 => mapping(address => LossSubmission[]))
+    mapping(uint16 => mapping(address => LossSubmission[]))
         private lossSubmissions;
 
 
@@ -662,7 +662,7 @@ contract OpenFLModel {
 
     function submitFeedbackBytes(bytes calldata raw) external {
         address[] memory ads;
-        int256[] memory ints;
+        int16[] memory ints;
 
         (ads, ints) = parseRaw(raw);
 
@@ -676,13 +676,13 @@ contract OpenFLModel {
 
     function submitFeedbackBytesAndAccuraciesLosses(
         bytes calldata raw,
-        uint8[] calldata accuracies,
-        uint256[] calldata losses,
-        uint8 prev_acc,
-        uint256 prev_loss
+        uint16[] calldata accuracies,
+        uint16[] calldata losses,
+        uint16 prev_acc,
+        uint16 prev_loss
     ) external {
         address[] memory ads;
-        int256[] memory ints;
+        int16[] memory ints;
 
         (ads, ints) = parseRaw(raw);
 
@@ -696,12 +696,13 @@ contract OpenFLModel {
             AccuracyLossSubmission({adrs: ads, acc: accuracies, loss: losses})
         );
         require(
-            prev_acc >= 0 && prev_acc <= 100,
-            "PREVIOUS ACCURACY NOT BETWEEN 0 AND 100"
+            prev_acc >= 0 && prev_acc <= 10000,
+            "PREVIOUS ACCURACY NOT BETWEEN 0 AND 10000 in submitFeedbackBytesAndAccuraciesLosses"
         );
-        prev_accs[round][msg.sender] = prev_acc;
-        prev_losses[round][msg.sender] = prev_loss;
-
+        require (
+            prev_loss >= 0 && prev_loss <= 10000,
+            "PREVIOUS LOSS NOT BETWEEN 0 AND 10000 in submitFeedbackBytesAndAccuraciesLosses"
+        );
         // EXACT same for-loop as fallback
         for (uint i = 0; i < ads.length; i++) {
             if (!testing) {
@@ -713,11 +714,11 @@ contract OpenFLModel {
 
      function submitFeedbackBytesAndAccuracies(
         bytes calldata raw,
-        uint8[] calldata accuracies,
-        uint8 prev_acc
+        uint16[] calldata accuracies,
+        uint16 prev_acc
     ) external {
         address[] memory ads;
-        int256[] memory ints;
+        int16[] memory ints;
 
          (ads, ints) = parseRaw(raw);
 
@@ -730,8 +731,8 @@ contract OpenFLModel {
             AccuracySubmission({adrs: ads, acc: accuracies})
         );
         require(
-            prev_acc >= 0 && prev_acc <= 100,
-            "PREVIOUS ACCURACY NOT BETWEEN 0 AND 100"
+            prev_acc >= 0 && prev_acc <= 10000,
+            "PREVIOUS ACCURACY NOT BETWEEN 0 AND 10000 submitFeedbackBytesAndAccuracies"
         );
         prev_accs[round][msg.sender] = prev_acc;
 
@@ -746,11 +747,11 @@ contract OpenFLModel {
 
     function submitFeedbackBytesAndLosses(
         bytes calldata raw,
-        uint256[] calldata losses,
-        uint256 prev_loss
+        uint16[] calldata losses,
+        uint16 prev_loss
     ) external {
         address[] memory ads;
-        int256[] memory ints;
+        int16[] memory ints;
 
         (ads, ints) = parseRaw(raw);
 
@@ -761,6 +762,11 @@ contract OpenFLModel {
         );
 
         prev_losses[round][msg.sender] = prev_loss;
+
+        require(
+            prev_loss >= 0 && prev_loss <= 10000,
+            "PREVIOUS LOSS NOT BETWEEN 0 AND 10000 in submitFeedbackBytesAndLosses"
+        );
 
         // EXACT same for-loop as fallback
         for (uint i = 0; i < ads.length; i++) {
@@ -773,7 +779,7 @@ contract OpenFLModel {
     function parseRaw(bytes calldata raw)
         internal
         pure
-        returns (address[] memory ads, int256[] memory ints)
+        returns (address[] memory ads, int16[] memory ints)
     {
 
         assembly {
@@ -825,8 +831,8 @@ contract OpenFLModel {
         external
         view
         returns (
-            uint8[] memory previous_accuracies,
-            uint256[] memory previous_losses
+            uint16[] memory previous_accuracies,
+            uint16[] memory previous_losses
         )
     {
         uint8 count_merged_participants = 0;
@@ -837,8 +843,8 @@ contract OpenFLModel {
             }
         }
 
-        previous_accuracies = new uint8[](count_merged_participants);
-        previous_losses = new uint256[](count_merged_participants);
+        previous_accuracies = new uint16[](count_merged_participants);
+        previous_losses = new uint16[](count_merged_participants);
         uint8 j = 0;
         for (uint i = 0; i < participants.length; i++) {
             User storage u = users[participants[i]];
@@ -857,8 +863,8 @@ contract OpenFLModel {
         view
         returns (
             address[] memory voters,
-            uint8[] memory accuracies,
-            uint256[] memory losses
+            uint16[] memory accuracies,
+            uint16[] memory losses
         )
     {
         uint totalCount = 0;
@@ -883,8 +889,8 @@ contract OpenFLModel {
 
         // 2. Allocate arrays
         voters = new address[](totalCount);
-        accuracies = new uint8[](totalCount);
-        losses = new uint256[](totalCount);
+        accuracies = new uint16[](totalCount);
+        losses = new uint16[](totalCount);
 
         uint idx = 0;
 
@@ -919,7 +925,7 @@ contract OpenFLModel {
         view
         returns (
             address[] memory voters,
-            uint8[] memory accuracies
+            uint16[] memory accuracies
         )
     {
         uint totalCount = 0;
@@ -944,7 +950,7 @@ contract OpenFLModel {
 
         // 2. Allocate arrays
         voters = new address[](totalCount);
-        accuracies = new uint8[](totalCount);
+        accuracies = new uint16[](totalCount);
 
         uint idx = 0;
 
@@ -977,7 +983,7 @@ contract OpenFLModel {
         view
         returns (
             address[] memory voters,
-            uint256[] memory losses
+            uint16[] memory losses
         )
     {
         uint totalCount = 0;
@@ -1002,7 +1008,7 @@ contract OpenFLModel {
 
         // 2. Allocate arrays
         voters = new address[](totalCount);
-        losses = new uint256[](totalCount);
+        losses = new uint16[](totalCount);
 
         uint idx = 0;
 
@@ -1049,7 +1055,7 @@ contract OpenFLModel {
     // @dev This allows the contract to have an arbitrary number of participants
     fallback() external {
         address[] memory ads;
-        int256[] memory ints;
+        int16[] memory ints;
 
         assembly {
             let tmp := 0

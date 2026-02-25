@@ -577,13 +577,14 @@ class PytorchModel:
         blob = b"".join(parts)
         return Web3.keccak(blob)  #remove hex to match old, with improved algo.
 
-    
     def evaluation(self):
         print("Users evaluating models...")
-                
+
+        scalar = 100 # Adds more decimals for precision (Adding 0 gives another decimal, vice versa)
+
         count_dq = len(self.disqualified)
-        
-        feedback_matrix = np.zeros((1,len(self.participants)+count_dq,len(self.participants)+count_dq))[0]
+
+        feedback_matrix = np.zeros((1, len(self.participants) + count_dq, len(self.participants) + count_dq))[0]
         n = len(self.participants) + count_dq
         accuracy_matrix = [[0 for _ in range(n)] for _ in range(n)]
         loss_matrix = [[0 for _ in range(n)] for _ in range(n)]
@@ -600,62 +601,66 @@ class PytorchModel:
                 if not bad_att and not free_att:
                     loss, accuracy = test(user.model, valloader, DEVICE)
                     prev_loss, prev_acc = test(self.global_model, valloader, DEVICE)
-                    prev_acc = round(prev_acc * 100)
-                    prev_loss = round(prev_loss)
+                    prev_acc = round(prev_acc * 100 * scalar)
+                    prev_loss = round(prev_loss * scalar)
 
                 if bad_att:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
                     accuracy_matrix[feedbackGiver.id][user.id] = 0
-                    loss_matrix[feedbackGiver.id][user.id] = 100000
+                    loss_matrix[feedbackGiver.id][user.id] = 65535
                     prev_loss, prev_acc = test(self.global_model, valloader, DEVICE)
-                    prev_accs[feedbackGiver.id] = round(prev_acc * 100)
-                    prev_losses[feedbackGiver.id] = round(prev_loss)
+                    prev_accs[feedbackGiver.id] = round(prev_acc * 100 * scalar)
+                    prev_losses[feedbackGiver.id] = round(prev_loss * scalar)
 
                 elif free_att:
                     feedback_matrix[feedbackGiver.id][user.id] = 0
                     if accuracy_last_round == -1:
-                        loss_last_round, accuracy_last_round = test(self.global_model, valloader, DEVICE)  # TODO: Unitest her
-                        accuracy_last_round *= 100
-                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy_last_round)
-                    loss_matrix[feedbackGiver.id][user.id] = round(loss_last_round)
-                    prev_accs[feedbackGiver.id] = round(accuracy_last_round)
-                    prev_losses[feedbackGiver.id] = round(loss_last_round)
+                        loss_last_round, accuracy_last_round = test(self.global_model, valloader, DEVICE)
+                        accuracy_last_round = round(accuracy_last_round * 100 * scalar)
+                        loss_last_round = round(loss_last_round * scalar)
+                    accuracy_matrix[feedbackGiver.id][user.id] = accuracy_last_round
+                    loss_matrix[feedbackGiver.id][user.id] = loss_last_round
+                    prev_accs[feedbackGiver.id] = accuracy_last_round
+                    prev_losses[feedbackGiver.id] = loss_last_round
 
                 elif user in feedbackGiver.cheater:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
-                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
-                    loss_matrix[feedbackGiver.id][user.id] = round(loss)
+                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
+                    loss_matrix[feedbackGiver.id][user.id] = round(loss * scalar)
                     prev_accs[feedbackGiver.id] = prev_acc
                     prev_losses[feedbackGiver.id] = prev_loss
 
-
-                elif accuracy > feedbackGiver.currentAcc - 0.07: # 7% Worse TODO: Evt tweak
+                elif accuracy > feedbackGiver.currentAcc - 0.07: # 7% Worse
                     feedback_matrix[feedbackGiver.id][user.id] = 1
-                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
-                    loss_matrix[feedbackGiver.id][user.id] = round(loss)
+                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
+                    loss_matrix[feedbackGiver.id][user.id] = round(loss * scalar)
                     prev_accs[feedbackGiver.id] = prev_acc
                     prev_losses[feedbackGiver.id] = prev_loss
 
-                elif accuracy > feedbackGiver.currentAcc - 0.14: # 14% Worse TODO: Evt tweak
+                elif accuracy > feedbackGiver.currentAcc - 0.14: # 14% Worse
                     feedback_matrix[feedbackGiver.id][user.id] = 0
-                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
-                    loss_matrix[feedbackGiver.id][user.id] = round(loss)
+                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
+                    loss_matrix[feedbackGiver.id][user.id] = round(loss * scalar)
                     prev_accs[feedbackGiver.id] = prev_acc
                     prev_losses[feedbackGiver.id] = prev_loss
 
-                else : # Even Worse
+                else:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
-                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
-                    loss_matrix[feedbackGiver.id][user.id] = round(loss)
+                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
+                    loss_matrix[feedbackGiver.id][user.id] = round(loss * scalar)
                     prev_accs[feedbackGiver.id] = prev_acc
                     prev_losses[feedbackGiver.id] = prev_loss
 
                 if self.force_merge_all:
                     feedback_matrix[feedbackGiver.id][user.id] = 0
 
-            # RESET
+            # Reset
             feedbackGiver.userToEvaluate = []
-        
+        # acc_mat = [[x / 10 for x in sublist] for sublist in accuracy_matrix]
+        # loss_mat = [[x / 10 for x in sublist] for sublist in loss_matrix]
+        # prev_accs_divided = [x / 10 for x in prev_accs]
+        # prev_losses_divided = [x / 10 for x in prev_losses]
+
         print("FEEDBACK MATRIX:")
         print(feedback_matrix)
         print("-----------------------------------------------------------------------------------")
@@ -671,6 +676,7 @@ class PytorchModel:
         print("PREVIOUS LOSSES:")
         print(prev_losses)
         print("-----------------------------------------------------------------------------------")
+
         return feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses
 
     
