@@ -19,7 +19,7 @@ RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData
 
 datasets = [ DATASETFAST ]
 #strategy_options = ["dotproduct", "naive", "accuracy"]
-strategy_options = [ "accuracy_only", "loss_ony", "accuracy_loss" ]
+strategy_options = [ "accuracy_only", "loss_only", "accuracy_loss" ]
 outlier_detection_options = [ True ]
 free_rider_activation_round_options = [1, 3, 5]
 #malicious_activation_round_options = [1, 3, 5]
@@ -112,7 +112,9 @@ def main(author):
             freerider_noise_scale = free_rider_noise,
             malicious_start_round = malicious_activation_round,
             malicious_noise_scale = malicious_noise,
-            force_merge_all = forced
+            force_merge_all = forced,
+            punish_factor= 3,
+            punish_factor_contrib= 3
         )
         
         path = getPath(config, startTime, dataset)
