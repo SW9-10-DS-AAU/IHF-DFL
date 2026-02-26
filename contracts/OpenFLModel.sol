@@ -188,7 +188,7 @@ contract OpenFLModel {
         uint newReputation
     );
 
-    event Reward(address user, int256 roundScore, uint win, uint newReputation);
+    event Reward(address user, int256 roundScore, uint win, uint newReputation, bool is_reward);
 
     constructor(
         bytes32 _modelHash,
@@ -393,14 +393,9 @@ contract OpenFLModel {
                 if (user.roundReputation < 0) {
                     votesPerRound -= user.nrOfVotesFromUser;
 
-                    uint punishment = uint(
-                        user.globalReputationScore / punishfactor
-                    );
+                    uint punishment = uint(user.globalReputationScore / punishfactor);
 
-                    if (
-                        user.globalReputationScore >
-                        min_collateral / punishfactor
-                    ) {
+                    if (user.globalReputationScore > min_collateral / punishfactor) {
                         user.isPunished = true;
                         punishedAddresses.push(participants[i]);
                         user.whitelistedForRewards = false;
@@ -488,7 +483,7 @@ contract OpenFLModel {
         // Pay back freeriderLock funds to good users
         // First round users pay their anti-freerider fee
         int256 sumOfWeightedContribScore = 0;
-        uint BoundedSumOfWeightedContribScore = 0;
+        uint256 positiveSumOfWeightedContribScore;
         if (votesPerRound > 0 && rewardLeft >= rewardPerRound) {
             rewardLeft -= rewardPerRound;
 
@@ -505,28 +500,20 @@ contract OpenFLModel {
                     int256 weight = int256(uint(user.nrOfVotesFromUser)) *
                         contributionScore[round][user.addr];
                     user.weightedContribScore = weight;
-
                     sumOfWeightedContribScore += weight;
                 }
             }
+            require(sumOfWeightedContribScore > 0, "sumOfWeightedContribScore is <= 0 in settle!");
+            positiveSumOfWeightedContribScore = uint256(sumOfWeightedContribScore);
 
-            // check if a user should be disqualified
+            // check if a user should be disqualified or punished
             for (uint i = 0; i < participants.length; i++) {
                 User storage user = users[participants[i]];
 
-                if (_isEligibleForRewards(user)) {
-                    BoundedSumOfWeightedContribScore = sumOfWeightedContribScore <=
-                        0
-                        ? 1
-                        : uint(sumOfWeightedContribScore);
-                    uint personalReward = (reward *
-                        absUint(user.weightedContribScore)) /
-                        BoundedSumOfWeightedContribScore;
-                    if (
-                        contributionScore[round][user.addr] < 0 &&
-                        (user.globalReputationScore <=
-                            personalReward * punishfactorContrib)
-                    ) {
+                if (_isEligibleForRewards(user) && contributionScore[round][user.addr] < 0) {
+                    uint punishment = (user.globalReputationScore / punishfactorContrib) * (absUint(user.weightedContribScore) / positiveSumOfWeightedContribScore);
+
+                    if (user.globalReputationScore <= min_collateral / punishfactorContrib || user.globalReputationScore <= punishment) {
                         reward += user.globalReputationScore;
 
                         emit Disqualification(
@@ -535,72 +522,33 @@ contract OpenFLModel {
                             user.globalReputationScore,
                             0
                         );
-                        sumOfWeightedContribScore +=
-                            int(uint256(user.nrOfVotesFromUser)) *
-                            contributionScore[round][user.addr];
+                        // positiveSumOfWeightedContribScore += absUint(user.weightedContribScore);
 
                         user.globalReputationScore = 0;
                         nrOfActiveParticipants -= 1;
                         user.isDisqualified = true;
                     }
-                }
-            }
-            BoundedSumOfWeightedContribScore = sumOfWeightedContribScore <= 0
-                ? 1
-                : uint(sumOfWeightedContribScore);
-            uint redistributedPenalty = 0;
-            uint positiveSumOfWeights = 0;
-            // Give punishmentts (negative rewards) based on contribution score
-            for (uint i = 0; i < participants.length; i++) {
-                User storage user = users[participants[i]];
+                    else { // this is a punishment
+                        user.globalReputationScore -= punishment;
+                        reward += punishment;
 
-                if (_isEligibleForRewards(user) && contributionScore[round][user.addr] < 0
-                ) {
-                    uint personalPunishment = (reward *
-                        absUint(user.weightedContribScore)) /
-                        BoundedSumOfWeightedContribScore;
-
-                    uint penalty = personalPunishment * punishfactorContrib;
-
-                    // Todo: Penalty can become huge. This sets it to only ever empty GRS, but this is probably problematic
-                    // Should probably be clamped to buyIn(not a variable)/punishfactor or an alternative penalty
-                    // calculation that does not exceed buyIn
-                    if (penalty >= user.globalReputationScore) {
-                        penalty = user.globalReputationScore;
+                        emit Reward(
+                            user.addr,
+                            user.roundReputation,
+                            0,
+                            user.globalReputationScore,
+                            false
+                        );
                     }
-
-                    user.globalReputationScore -= penalty;
-                    redistributedPenalty += penalty;
-
-                    emit Reward(
-                        user.addr,
-                        user.roundReputation,
-                        0,
-                        user.globalReputationScore
-                    );
                 }
             }
-            reward += redistributedPenalty;
-
-            // Compute total weight of positive contributors
-            for (uint i = 0; i < participants.length; i++) {
-                User storage user = users[participants[i]];
-
-                if (_isEligibleForRewards(user) && contributionScore[round][user.addr] >= 0) {
-                    positiveSumOfWeights += uint(user.weightedContribScore);
-                }
-            }
-            positiveSumOfWeights = positiveSumOfWeights == 0
-                ? 1
-                : positiveSumOfWeights;
 
             // Give rewards based on positive contribution score
             for (uint i = 0; i < participants.length; i++) {
                 User storage user = users[participants[i]];
 
                 if (_isEligibleForRewards(user) && contributionScore[round][user.addr] >= 0) { // NOTE: This refactor adds the case of !user.Disqualified, in contrast to before)
-                    uint personalReward = (reward *
-                        uint(user.weightedContribScore)) / positiveSumOfWeights;
+                    uint personalReward = (reward * uint(user.weightedContribScore)) / positiveSumOfWeightedContribScore;
 
                     user.globalReputationScore += personalReward;
 
@@ -608,7 +556,8 @@ contract OpenFLModel {
                         user.addr,
                         user.roundReputation,
                         personalReward,
-                        user.globalReputationScore
+                        user.globalReputationScore,
+                        true
                     );
                 }
 
@@ -619,7 +568,7 @@ contract OpenFLModel {
         emit EndRound(
             round,
             votesPerRound,
-            BoundedSumOfWeightedContribScore,
+            positiveSumOfWeightedContribScore,
             totalPunishment
         );
 

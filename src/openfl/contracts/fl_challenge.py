@@ -1021,6 +1021,7 @@ class FLChallenge(FLManager):
                         args["roundScore"],
                         args["win"],
                         args["newReputation"],
+                        args["is_reward"]
                     )
                 )
         return result
