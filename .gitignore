@@ -223,3 +223,27 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Node / NPM
+node_modules/
+package-lock.json
+npm-debug.log*
+yarn-error.log*
+yarn-debug.log*
+.pnp.*
+.pnpm-debug.log*
+
+# Hardhat
+artifacts/
+cache/
+typechain/
+hh-debug.log
+
+# Optional: ignore local dotenv files for Hardhat
+.env
+.env.local
+.env.*.local
+
+# Optional: ignore temp testing folders
+coverage/
+.solcover.js
