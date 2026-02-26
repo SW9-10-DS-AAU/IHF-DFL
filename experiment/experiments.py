@@ -86,7 +86,6 @@ def main(author):
         (strategy, outlier_detection, free_rider_activation_round, free_rider_noise, dataset, forced)
         for (strategy, outlier_detection, free_rider_activation_round, free_rider_noise, dataset, forced)
         in oldProduct
-        if not (outlier_detection and strategy in {"accuracy_loss", "naive"})
     ]
     total = len(productVar)
     skipsCount = len(skips)
