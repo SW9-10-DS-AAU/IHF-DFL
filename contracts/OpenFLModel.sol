@@ -522,7 +522,7 @@ contract OpenFLModel {
                             user.globalReputationScore,
                             0
                         );
-                        // positiveSumOfWeightedContribScore += absUint(user.weightedContribScore);
+                        positiveSumOfWeightedContribScore += absUint(user.weightedContribScore);
 
                         user.globalReputationScore = 0;
                         nrOfActiveParticipants -= 1;
@@ -535,10 +535,13 @@ contract OpenFLModel {
                         emit Reward(
                             user.addr,
                             user.roundReputation,
-                            0,
+                            punishment,
                             user.globalReputationScore,
                             false
                         );
+
+                        delete user.whitelistedForRewards;
+                        delete user.weightedContribScore;
                     }
                 }
             }
@@ -551,6 +554,7 @@ contract OpenFLModel {
                     uint personalReward = (reward * uint(user.weightedContribScore)) / positiveSumOfWeightedContribScore;
 
                     user.globalReputationScore += personalReward;
+                    positiveSumOfWeightedContribScore += absUint(user.weightedContribScore);
 
                     emit Reward(
                         user.addr,
