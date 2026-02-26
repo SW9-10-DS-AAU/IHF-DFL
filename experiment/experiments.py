@@ -86,7 +86,7 @@ def main(author):
         (strategy, outlier_detection, free_rider_activation_round, free_rider_noise, dataset, forced)
         for (strategy, outlier_detection, free_rider_activation_round, free_rider_noise, dataset, forced)
         in oldProduct
-        if not (outlier_detection and strategy in {"accuracy_loss", "naive", "accuracy_only", "loss_only"})
+        if not (outlier_detection and strategy in {"accuracy_loss", "naive",})
     ]
     total = len(productVar)
     skipsCount = len(skips)
@@ -95,6 +95,8 @@ def main(author):
         #malicious_activation_round, malicious_noise, -- removed
         malicious_activation_round = free_rider_activation_round
         malicious_noise = free_rider_noise
+
+        progress_bar(i, skipsCount, total)
         
         
         # Auto skips
@@ -114,7 +116,8 @@ def main(author):
             malicious_noise_scale = malicious_noise,
             force_merge_all = forced,
             punish_factor= 3,
-            punish_factor_contrib= 3
+            punish_factor_contrib= 3,
+            minimum_rounds=1
         )
         
         path = getPath(config, startTime, dataset)
@@ -140,10 +143,8 @@ def main(author):
 
         #experiment.model.visualize_simulation("experiment/figures")
 
-        #ExperimentRunner.print_transactions(experiment)
-        percent = (i / total) * 100
-        totalPercent = ((i + skipsCount) / total) * 100
-        print(f"Progress: {i}/{total} ({percent:.2f}%)\nTotal Progress: {i + skipsCount}/{total} ({totalPercent:.2f}%)\n", flush=True)
+    #ExperimentRunner.print_transactions(experiment)
+
 
 def getPath(experimentConfig: ExperimentConfiguration, time: datetime, dataset):
 
@@ -209,10 +210,18 @@ def shouldSkip(config: Skip):
     print("not skipping")
     return False
 
+def progress_bar(i, skipsCount, total):
+    percent = (i / total) * 100
+    totalPercent = ((i + skipsCount) / total) * 100
+    print(
+        f"Progress: {i}/{total} ({percent:.2f}%)\nTotal Progress: {i + skipsCount}/{total} ({totalPercent:.2f}%)\n",
+        flush=True)
+
 if __name__ == "__main__":
     author = args.author if args.author is not None else input("Author?\n")
     mp.freeze_support()
     main(author)
+    print("active children: ", mp.active_children())
     for p in mp.active_children():
         print("Terminating:", p.pid)
         p.terminate()
