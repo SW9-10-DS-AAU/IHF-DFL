@@ -1021,6 +1021,7 @@ class FLChallenge(FLManager):
                         args["roundScore"],
                         args["win"],
                         args["newReputation"],
+                        args["is_reward"]
                     )
                 )
         return result
@@ -1410,7 +1411,7 @@ def normalize_contribution_scores_new(vals: list, prev_val: float, evaluation_me
 
 
     # Step 4: normalize to sum = 1
-    if not sum == 1:  #
+    if not sum_ == 1:  #
         if min(vals) >= 0:  # if all positive
             vals = [val / sum_ for val in vals]
         else:
