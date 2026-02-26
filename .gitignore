@@ -247,3 +247,6 @@ hh-debug.log
 # Optional: ignore temp testing folders
 coverage/
 .solcover.js
+
+# remove jupyter notebooks for graphs that we have never used anyway
+notebooks/
