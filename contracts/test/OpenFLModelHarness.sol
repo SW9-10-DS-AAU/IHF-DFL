@@ -34,6 +34,7 @@ contract OpenFLModelHarness is OpenFLModel {
         int256[] roundReps;
         uint8[] nrOfVotesOfUser;
         uint8 round;
+        int256[] contributionScores;
     }
 
     function __testInitSettleState(InitParams calldata p) external {
@@ -50,22 +51,23 @@ contract OpenFLModelHarness is OpenFLModel {
                 voter,
                 p.reputations[i],
                 p.roundReps[i],
-                p.nrOfVotesOfUser[i]
+                p.nrOfVotesOfUser[i],
+                p.contributionScores[i]
             );
-
+            contributionScore[p.round][voter] = p.contributionScores[i];
             //_initVotes(p.participants, voterVotes, voter, p.round);
         }
 
         votesPerRound = uint8(len);
-
-        nrOfParticipants = len;
+        nrOfActiveParticipants = len;
     }
 
     function _initUser(
         address u,
         uint reputation,
         int roundRep,
-        uint8 votesCount
+        uint8 votesCount,
+        int256 contributionScore
     ) internal {
         participants.push(u);
 
@@ -78,7 +80,6 @@ contract OpenFLModelHarness is OpenFLModel {
         user.roundReputation = roundRep;
         user.nrOfVotesFromUser = votesCount;
         user.nrOfRoundsParticipated = 1;
-        user.weightedContribScore = 0;
         user.addr = u;
     }
 

@@ -669,10 +669,13 @@ class FLChallenge(FLManager):
             for ev in reward_events:
                 args = ev["args"]
                 if args["roundScore"] > 0:
-                    print(green(f"USER @ {args['user']}"))
-                    print(green(f"ROUND SCORE:      {args['roundScore']:,}"))
-                    print(green(f"TOTAL REWARD:     {args['win']:,} - (NOT ENTIRE REWARD!)"))
-                    print(green(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
+                        print(green(f"USER @ {args['user']}"))
+                        print(green(f"ROUND SCORE:      {args['roundScore']:,}"))
+                        total_reward = args['win']
+                        if not args.get('is_reward', True):  # default True if key missing
+                            total_reward = -total_reward
+                        print(green(f"TOTAL REWARD:     {args['win']:,}"))
+                        print(green(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
             print("-----------------------------------------------------------------------------------\n")
 
         # Punished users

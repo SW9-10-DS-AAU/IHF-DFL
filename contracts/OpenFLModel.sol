@@ -488,17 +488,15 @@ contract OpenFLModel {
             rewardLeft -= rewardPerRound;
 
             uint reward = rewardPerRound;
-            if (totalPunishment > 0) {
-                reward += totalPunishment;
-            }
+            reward += totalPunishment;
+
 
             // Compute weights
             for (uint i = 0; i < participants.length; i++) {
                 User storage user = users[participants[i]];
 
-                if (_isEligibleForRewards(user)) {
-                    int256 weight = int256(uint(user.nrOfVotesFromUser)) *
-                        contributionScore[round][user.addr];
+                if (_isEligibleForRewards(user) && contributionScore[round][user.addr] > 0) {
+                    int256 weight = int256(uint(user.nrOfVotesFromUser)) * contributionScore[round][user.addr];
                     user.weightedContribScore = weight;
                     sumOfWeightedContribScore += weight;
                 }
@@ -511,8 +509,13 @@ contract OpenFLModel {
                 User storage user = users[participants[i]];
 
                 if (_isEligibleForRewards(user) && contributionScore[round][user.addr] < 0) {
-                    uint punishment = (user.globalReputationScore / punishfactorContrib) * (absUint(user.weightedContribScore) / positiveSumOfWeightedContribScore);
-
+                    require(punishfactorContrib > 0, "punishfactorcontrib <= 0");
+                    require(user.globalReputationScore > 0, "user.globalreputation <= 0");
+                    require(contributionScore[round][user.addr] < 0, "contrib >= 0");
+                    uint punishment = (user.globalReputationScore / punishfactorContrib) * absUint((contributionScore[round][user.addr]));
+                    require(punishment > 0, "punishment is <= 0 in settle! 1");
+                    punishment /= 1e18;
+                    require(punishment > 0, "punishment is <= 0 in settle! 2");
                     if (user.globalReputationScore <= min_collateral / punishfactorContrib || user.globalReputationScore <= punishment) {
                         reward += user.globalReputationScore;
 
@@ -522,7 +525,6 @@ contract OpenFLModel {
                             user.globalReputationScore,
                             0
                         );
-                        positiveSumOfWeightedContribScore += absUint(user.weightedContribScore);
 
                         user.globalReputationScore = 0;
                         nrOfActiveParticipants -= 1;
@@ -554,7 +556,6 @@ contract OpenFLModel {
                     uint personalReward = (reward * uint(user.weightedContribScore)) / positiveSumOfWeightedContribScore;
 
                     user.globalReputationScore += personalReward;
-                    positiveSumOfWeightedContribScore += absUint(user.weightedContribScore);
 
                     emit Reward(
                         user.addr,

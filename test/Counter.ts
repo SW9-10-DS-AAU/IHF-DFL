@@ -23,14 +23,21 @@ describe("A test i think", function () {
     await model.__testInitSettleState({
       participants: [a.address, b.address, c.address],
       reputations: [1000000000000000000n, 1000000000000000000n, 1000000000000000000n],
-      roundReps: [-1, 1, 1],
+      roundReps: [1, 1, 1],
       nrOfVotesOfUser: [3, 3, 3],
-      round: 0
+      round: 2,
+      contributionScores: [-1000000000000000000n, -1000000000000000000n, 3000000000000000000n]
     });
 
     await model.settle();
+    let a_rep = await model._getUserGRSAtAddress(a.address)
+    console.log("a_rep: ", a_rep)
+    let b_rep = await model._getUserGRSAtAddress(b.address)
+    console.log("b_rep: ", b_rep)
+    let c_rep = await model._getUserGRSAtAddress(c.address)
+    console.log("c_rep: ", c_rep)
 
-    expect(await model.__isPunished(a.address)).to.equal(true);
+    expect(await model._getUserGRSAtAddress(a.address)).to.equal(a_rep);
   });
 });
 
