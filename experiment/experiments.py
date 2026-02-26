@@ -86,7 +86,7 @@ def main(author):
         (strategy, outlier_detection, free_rider_activation_round, free_rider_noise, dataset, forced)
         for (strategy, outlier_detection, free_rider_activation_round, free_rider_noise, dataset, forced)
         in oldProduct
-        if not (outlier_detection and strategy in {"accuracy_loss", "naive",})
+        if not (outlier_detection and strategy in {"accuracy_loss", "naive"})
     ]
     total = len(productVar)
     skipsCount = len(skips)
@@ -97,7 +97,7 @@ def main(author):
         malicious_noise = free_rider_noise
 
         progress_bar(i, skipsCount, total)
-        
+
         
         # Auto skips
         if (shouldSkip(Skip(strategy, outlier_detection, free_rider_activation_round, free_rider_noise, malicious_activation_round, malicious_noise, dataset))):
@@ -117,7 +117,7 @@ def main(author):
             force_merge_all = forced,
             punish_factor= 3,
             punish_factor_contrib= 3,
-            minimum_rounds=1
+            minimum_rounds=10
         )
         
         path = getPath(config, startTime, dataset)
@@ -221,7 +221,6 @@ if __name__ == "__main__":
     author = args.author if args.author is not None else input("Author?\n")
     mp.freeze_support()
     main(author)
-    print("active children: ", mp.active_children())
     for p in mp.active_children():
         print("Terminating:", p.pid)
         p.terminate()
