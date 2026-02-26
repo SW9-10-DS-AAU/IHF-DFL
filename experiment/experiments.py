@@ -95,7 +95,7 @@ def main(author):
         malicious_activation_round = free_rider_activation_round
         malicious_noise = free_rider_noise
 
-        progress_bar(i, skipsCount, total)
+        progress_bar(i-1, skipsCount, total)
 
         
         # Auto skips
