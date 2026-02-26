@@ -16,8 +16,8 @@ class ExperimentConfiguration:
                  first_round_fee=50, # Percentage of buy-in to charge as fee in first round
                  fork=True,
                  use_outlier_detection = True,
-                 contribution_score_strategy="accuracy", # Options: dotproduct, naive, accuracy, None (defaults to dotproduct)
-                 freerider_noise_scale=0.1,
+                 contribution_score_strategy="accuracy_only", # Options: dotproduct, naive, accuracy, None (defaults to dotproduct)
+                 freerider_noise_scale=1.0,
                  freerider_start_round=3,
                  malicious_start_round=3,
                  malicious_noise_scale=1.0,
