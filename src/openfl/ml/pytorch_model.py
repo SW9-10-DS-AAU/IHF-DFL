@@ -630,14 +630,14 @@ class PytorchModel:
                     prev_accs[feedbackGiver.id] = prev_acc
                     prev_losses[feedbackGiver.id] = prev_loss
 
-                elif accuracy > feedbackGiver.currentAcc - 0.07 * scalar: # 7% Worse
+                elif accuracy > feedbackGiver.currentAcc - 0.07 : # 7% Worse
                     feedback_matrix[feedbackGiver.id][user.id] = 1
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
                     loss_matrix[feedbackGiver.id][user.id] = round(loss * scalar)
                     prev_accs[feedbackGiver.id] = prev_acc
                     prev_losses[feedbackGiver.id] = prev_loss
 
-                elif accuracy > feedbackGiver.currentAcc - 0.14 * scalar: # 14% Worse
+                elif accuracy > feedbackGiver.currentAcc - 0.14: # 14% Worse
                     feedback_matrix[feedbackGiver.id][user.id] = 0
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
                     loss_matrix[feedbackGiver.id][user.id] = round(loss * scalar)
