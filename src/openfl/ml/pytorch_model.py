@@ -581,7 +581,7 @@ class PytorchModel:
         print("Users evaluating models...")
 
         scalar = 100 # Adds more decimals for precision (Adding 0 gives another decimal, vice versa)
-
+        MAX_UINT16_SIZE = 65535
         count_dq = len(self.disqualified)
 
         feedback_matrix = np.zeros((1, len(self.participants) + count_dq, len(self.participants) + count_dq))[0]
@@ -619,35 +619,35 @@ class PytorchModel:
                         accuracy_last_round = round(accuracy_last_round * 100 * scalar)
                         loss_last_round = round(loss_last_round * scalar)
                     accuracy_matrix[feedbackGiver.id][user.id] = accuracy_last_round
-                    loss_matrix[feedbackGiver.id][user.id] = loss_last_round
+                    loss_matrix[feedbackGiver.id][user.id] = min(loss_last_round, MAX_UINT16_SIZE)
                     prev_accs[feedbackGiver.id] = accuracy_last_round
                     prev_losses[feedbackGiver.id] = loss_last_round
 
                 elif user in feedbackGiver.cheater:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
-                    loss_matrix[feedbackGiver.id][user.id] = round(loss * scalar)
+                    loss_matrix[feedbackGiver.id][user.id] = min(round(loss * scalar), MAX_UINT16_SIZE)
                     prev_accs[feedbackGiver.id] = prev_acc
                     prev_losses[feedbackGiver.id] = prev_loss
 
                 elif accuracy > feedbackGiver.currentAcc - 0.07 : # 7% Worse
                     feedback_matrix[feedbackGiver.id][user.id] = 1
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
-                    loss_matrix[feedbackGiver.id][user.id] = round(loss * scalar)
+                    loss_matrix[feedbackGiver.id][user.id] = min(round(loss * scalar), MAX_UINT16_SIZE)
                     prev_accs[feedbackGiver.id] = prev_acc
                     prev_losses[feedbackGiver.id] = prev_loss
 
                 elif accuracy > feedbackGiver.currentAcc - 0.14: # 14% Worse
                     feedback_matrix[feedbackGiver.id][user.id] = 0
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
-                    loss_matrix[feedbackGiver.id][user.id] = round(loss * scalar)
+                    loss_matrix[feedbackGiver.id][user.id] = min(round(loss * scalar), MAX_UINT16_SIZE)
                     prev_accs[feedbackGiver.id] = prev_acc
                     prev_losses[feedbackGiver.id] = prev_loss
 
                 else:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
-                    loss_matrix[feedbackGiver.id][user.id] = round(loss * scalar)
+                    loss_matrix[feedbackGiver.id][user.id] = min(round(loss * scalar), MAX_UINT16_SIZE)
                     prev_accs[feedbackGiver.id] = prev_acc
                     prev_losses[feedbackGiver.id] = prev_loss
 
