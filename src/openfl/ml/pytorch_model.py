@@ -10,6 +10,7 @@ import torch.nn.functional as F
 import torch.multiprocessing as mp
 import os
 import time
+import math
 from web3 import Web3
 from termcolor import colored
 from typing import Tuple, Dict
@@ -602,7 +603,7 @@ class PytorchModel:
                     loss, accuracy = test(user.model, valloader, DEVICE)
                     prev_loss, prev_acc = test(self.global_model, valloader, DEVICE)
                     prev_acc = round(prev_acc * 100 * scalar)
-                    prev_loss = round(prev_loss * scalar)
+                    prev_loss = safe_scale(prev_loss, scalar, MAX_UINT16_SIZE)
 
                 if bad_att:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
@@ -610,14 +611,14 @@ class PytorchModel:
                     loss_matrix[feedbackGiver.id][user.id] = 65535
                     prev_loss, prev_acc = test(self.global_model, valloader, DEVICE)
                     prev_accs[feedbackGiver.id] = round(prev_acc * 100 * scalar)
-                    prev_losses[feedbackGiver.id] = round(prev_loss * scalar)
+                    prev_losses[feedbackGiver.id] = safe_scale(prev_loss, scalar, MAX_UINT16_SIZE)
 
                 elif free_att:
                     feedback_matrix[feedbackGiver.id][user.id] = 0
                     if accuracy_last_round == -1:
                         loss_last_round, accuracy_last_round = test(self.global_model, valloader, DEVICE)
                         accuracy_last_round = round(accuracy_last_round * 100 * scalar)
-                        loss_last_round = round(loss_last_round * scalar)
+                        loss_last_round = safe_scale(loss_last_round, scalar, MAX_UINT16_SIZE)
                     accuracy_matrix[feedbackGiver.id][user.id] = accuracy_last_round
                     loss_matrix[feedbackGiver.id][user.id] = min(loss_last_round, MAX_UINT16_SIZE)
                     prev_accs[feedbackGiver.id] = accuracy_last_round
@@ -626,28 +627,28 @@ class PytorchModel:
                 elif user in feedbackGiver.cheater:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
-                    loss_matrix[feedbackGiver.id][user.id] = min(round(loss * scalar), MAX_UINT16_SIZE)
+                    loss_matrix[feedbackGiver.id][user.id] = safe_scale(loss, scalar, MAX_UINT16_SIZE)
                     prev_accs[feedbackGiver.id] = prev_acc
                     prev_losses[feedbackGiver.id] = prev_loss
 
                 elif accuracy > feedbackGiver.currentAcc - 0.07 : # 7% Worse
                     feedback_matrix[feedbackGiver.id][user.id] = 1
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
-                    loss_matrix[feedbackGiver.id][user.id] = min(round(loss * scalar), MAX_UINT16_SIZE)
+                    loss_matrix[feedbackGiver.id][user.id] = safe_scale(loss, scalar, MAX_UINT16_SIZE)
                     prev_accs[feedbackGiver.id] = prev_acc
                     prev_losses[feedbackGiver.id] = prev_loss
 
                 elif accuracy > feedbackGiver.currentAcc - 0.14: # 14% Worse
                     feedback_matrix[feedbackGiver.id][user.id] = 0
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
-                    loss_matrix[feedbackGiver.id][user.id] = min(round(loss * scalar), MAX_UINT16_SIZE)
+                    loss_matrix[feedbackGiver.id][user.id] = safe_scale(loss, scalar, MAX_UINT16_SIZE)
                     prev_accs[feedbackGiver.id] = prev_acc
                     prev_losses[feedbackGiver.id] = prev_loss
 
                 else:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
                     accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
-                    loss_matrix[feedbackGiver.id][user.id] = min(round(loss * scalar), MAX_UINT16_SIZE)
+                    loss_matrix[feedbackGiver.id][user.id] = safe_scale(loss, scalar, MAX_UINT16_SIZE)
                     prev_accs[feedbackGiver.id] = prev_acc
                     prev_losses[feedbackGiver.id] = prev_loss
 
@@ -875,3 +876,8 @@ def device_label(device: torch.device, device_id: int = 0) -> str:
         return f"GPU {device_id}"
     else:
         return "CPU"
+
+def safe_scale(value, scalar, max_val):
+    if math.isinf(value) or math.isnan(value):
+        return max_val
+    return min(round(value * scalar), max_val)
