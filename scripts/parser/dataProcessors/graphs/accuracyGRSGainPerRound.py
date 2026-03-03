@@ -14,12 +14,13 @@ def prepare_accuracy_grs_gain(
     experiment_specs,
     gasStats,
     outDir,
+    method: Method
 ):
     # Only accuracy scoring
-    if experiment_specs.contribution_score_strategy != "accuracy":
+    if Method.from_config(experiment_specs) != method:
         return
 
-    method = Method.ACCURACY
+    method = Method.ACCURACY_LOSS
 
     # Precompute participant groups
     groups = {
@@ -67,7 +68,8 @@ def accuracyGRSGainGraph(
     usePreviousTests: bool,
     windowAndFileName: str,
     RESULTDATAFOLDER,
-    legendPosition: LegendPosition
+    legendPosition: LegendPosition,
+    method: Method
 ):
     grs_gain.clear()
 
@@ -80,7 +82,8 @@ def accuracyGRSGainGraph(
                 participants,
                 experimentConfig,
                 gasCosts,
-                outdir
+                outdir,
+                method
             )
     )
 
