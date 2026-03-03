@@ -17,9 +17,9 @@ DATASETSLOW = "cifar.10"
 DATASETFAST = "mnist"
 RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData")
 
-datasets = [ DATASETFAST ]
+datasets = [ DATASETSLOW ]
 #strategy_options = ["dotproduct", "naive", "accuracy"]
-strategy_options = [ "naive", "dotproduct" ]
+strategy_options = [ "naive", "dotproduct", "accuracy_only", "loss_only", "accuracy_loss" ]
 outlier_detection_options = [ True ]
 free_rider_activation_round_options = [1, 3, 5]
 #malicious_activation_round_options = [1, 3, 5]
@@ -116,7 +116,12 @@ def main(author):
             force_merge_all = forced,
             punish_factor= 3,
             punish_factor_contrib= 3,
-            minimum_rounds=10
+            epochs=25,
+            batch_size=128,
+            number_of_good_contributors=6,
+            number_of_bad_contributors=1,
+            number_of_freerider_contributors=1,
+            minimum_rounds=25,
         )
         
         path = getPath(config, startTime, dataset)
