@@ -5,7 +5,7 @@ class ExperimentConfiguration:
                  number_of_freerider_contributors=1,
                  number_of_inactive_contributors=0,
                  reward=int(1e18),
-                 minimum_rounds=10,
+                 minimum_rounds=5,
                  min_buy_in=int(1e18),
                  max_buy_in=int(1e18),
                  standard_buy_in=int(1e18),

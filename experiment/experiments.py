@@ -3,6 +3,7 @@ import json
 import multiprocessing as mp
 from pathlib import Path
 import re
+import sys
 import traceback
 import experiment_runner as ExperimentRunner
 from experiment_configuration import ExperimentConfiguration
@@ -11,7 +12,11 @@ from dataclasses import dataclass
 import argparse
 
 from openfl.utils.async_writer import AsyncWriter
-from selector import choose_from_list 
+from selector import choose_from_list
+
+# Add the repo root to sys.path so `analysis` package is importable from here
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from analysis import ExperimentLogger
 
 DATASETSLOW = "cifar.10"
 DATASETFAST = "mnist"
@@ -19,11 +24,11 @@ RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData
 
 datasets = [ DATASETFAST ]
 #strategy_options = ["dotproduct", "naive", "accuracy"]
-strategy_options = [ "accuracy_only", "loss_only", "accuracy_loss" ]
-outlier_detection_options = [ True ]
-free_rider_activation_round_options = [1, 3, 5]
+strategy_options = [ "accuracy_only"]
+outlier_detection_options = [ True, False ]
+free_rider_activation_round_options = [3]
 #malicious_activation_round_options = [1, 3, 5]
-free_rider_noise_options = [1.0, 0.5, 0.1, 0.01, 0.0]
+free_rider_noise_options = [1.0]
 #malicious_noise_options = [1.0, 0.5, 0.05, 0.01]
 #forced_ones = [ True, False ]
 forced_ones = [ False ]
@@ -122,8 +127,11 @@ def main(author):
         path = getPath(config, startTime, dataset)
         try:
             writer = AsyncWriter(path, OUTPUTHEADERS, WRITERBUFFERSIZE, config, author)
-            experiment = ExperimentRunner.run_experiment(dataset, config, writer)
+            metadata = {**vars(config), "dataset": dataset, "timestamp": startTime}
+            logger = ExperimentLogger(experiment_id=path.stem, metadata=metadata)
+            experiment = ExperimentRunner.run_experiment(dataset, config, writer, logger)
             writer.finish()
+            logger.save(path.with_suffix(".pkl"))
         except Exception as e:
             ts = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
             err_file = path.parent / f"error-{ts}.txt"

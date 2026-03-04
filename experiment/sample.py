@@ -5,7 +5,9 @@ import experiment_runner as ExperimentRunner
 from experiment_configuration import ExperimentConfiguration
 from openfl.utils.async_writer import AsyncWriter
 
-config = ExperimentConfiguration(contribution_score_strategy="accuracy_only", minimum_rounds=10, force_merge_all=False, freerider_noise_scale=0, malicious_noise_scale=0, punish_factor=3, punish_factor_contrib=3, freerider_start_round=3, malicious_start_round=3) # OVERSKRIV variabler her for testing. eksempel: config = ExperimentConfiguration(minimum_rounds=1), hvis du kun vil køre een round#DATASET = "cifar-10"
+config = ExperimentConfiguration(contribution_score_strategy="accuracy_loss", minimum_rounds=5, force_merge_all=False) # OVERSKRIV variabler her for testing. eksempel: config = ExperimentConfiguration(minimum_rounds=1), hvis du kun vil køre een round
+
+#DATASET = "cifar-10"
 RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/sample")
 DATASET = "mnist"
 
