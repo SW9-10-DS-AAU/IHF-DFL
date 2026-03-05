@@ -20,8 +20,8 @@ class ExperimentLogger:
 
     def log_global_round(self, round, round_time,
                          global_accuracy, global_loss,
-                         reward_pool, punishment_pool,
-                         merged):
+                         reward_pool, punishment_pool
+                         ):
 
         self._global_rows.append({
             "experiment_id": self.experiment_id,
@@ -39,9 +39,10 @@ class ExperimentLogger:
                        accuracy, loss, grs,
                        prev_global_acc, prev_global_loss,
                        contribution_score,
-                       is_negative_contrib,
                        round_reputation_assigned,
-                       reward_delta):
+                       reward_delta,
+                       is_reward,
+                       merged):
 
         self._user_rows.append({
             "experiment_id": self.experiment_id,
@@ -58,7 +59,9 @@ class ExperimentLogger:
             "contribution_score": contribution_score,
             # "is_negative_contrib": is_negative_contrib,
             "round_reputation_assigned": round_reputation_assigned,
-            "reward_delta": reward_delta
+            "reward_delta": reward_delta,
+            "is_reward": is_reward,
+            "merged": merged
         })
 
     # -------- VOTE --------

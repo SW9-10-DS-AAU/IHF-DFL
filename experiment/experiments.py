@@ -25,7 +25,7 @@ RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData
 datasets = [ DATASETFAST ]
 #strategy_options = ["dotproduct", "naive", "accuracy"]
 strategy_options = [ "accuracy_only"]
-outlier_detection_options = [ True, False ]
+outlier_detection_options = [ True ]
 free_rider_activation_round_options = [3]
 #malicious_activation_round_options = [1, 3, 5]
 free_rider_noise_options = [1.0]
@@ -129,7 +129,7 @@ def main(author):
             writer = AsyncWriter(path, OUTPUTHEADERS, WRITERBUFFERSIZE, config, author)
             metadata = {**vars(config), "dataset": dataset, "timestamp": startTime}
             logger = ExperimentLogger(experiment_id=path.stem, metadata=metadata)
-            experiment = ExperimentRunner.run_experiment(dataset, config, writer, logger)
+            # experiment = ExperimentRunner.run_experiment(dataset, config, writer, logger)
             writer.finish()
             logger.save(path.with_suffix(".pkl"))
         except Exception as e:
