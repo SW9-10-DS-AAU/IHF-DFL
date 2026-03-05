@@ -9,19 +9,20 @@ class ExperimentConfiguration:
                  min_buy_in=int(1e18),
                  max_buy_in=int(1e18),
                  standard_buy_in=int(1e18),
-                 epochs=25,
-                 batch_size=128,
+                 epochs=1,
+                 batch_size=32,
                  punish_factor=3,
                  punish_factor_contrib=3,
                  first_round_fee=50, # Percentage of buy-in to charge as fee in first round
                  fork=True,
                  use_outlier_detection = True,
-                 contribution_score_strategy="accuracy_only", # Options: dotproduct, naive, accuracy, None (defaults to dotproduct)
+                 contribution_score_strategy="loss_only", # Options: dotproduct, naive, accuracy, None (defaults to dotproduct)
                  freerider_noise_scale=1.0,
                  freerider_start_round=3,
                  malicious_start_round=3,
                  malicious_noise_scale=1.0,
-                 force_merge_all=False): # Sets all entries in fbb to zeroes
+                 force_merge_all=False,
+                 use_nobody_is_kicked=False): # Sets all entries in fbb to zeroes
 
         # Store the fork mode
         self.fork = fork
@@ -57,6 +58,7 @@ class ExperimentConfiguration:
         self.malicious_start_round = malicious_start_round
         self.malicious_noise_scale = malicious_noise_scale
         self.force_merge_all = force_merge_all
+        self.use_nobody_is_kicked = use_nobody_is_kicked
 
     @property
     def number_of_contributors(self):

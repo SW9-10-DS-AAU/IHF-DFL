@@ -15,6 +15,8 @@ class FLManager(ConnectionHelper):
         
         self.gas_deploy = []
         self.txHashes   = []
+
+        self.use_nobody_is_kicked = False
         
     
     def init(self, 
@@ -24,7 +26,8 @@ class FLManager(ConnectionHelper):
              MINIMUM_ROUNDS, 
              infuraurl=None, 
              fork=True,
-             accounts=None): 
+             accounts=None,
+             use_nobody_is_kicked=False):
         
         self.fork = fork
         self.w3, self.latestBlock = super().initiate_rpc(NUMBER_OF_GOOD_CONTRIBUTORS=NUMBER_OF_GOOD_CONTRIBUTORS,
@@ -33,7 +36,8 @@ class FLManager(ConnectionHelper):
                                                          NUMBER_OF_INACTIVE_CONTRIBUTORS=NUMBER_OF_INACTIVE_CONTRIBUTORS,
                                                          MINIMUM_ROUNDS=MINIMUM_ROUNDS, pytorch_model=self.pytorch_model,
                                                          infura_url=infuraurl, manual_setup=self.manual_setup, fork=fork,
-                                                         accounts=accounts)
+                                                         accounts=accounts,
+                                                         use_nobody_is_kicked=use_nobody_is_kicked)
         self.manager = super().initialize()
         return self
     
@@ -129,7 +133,8 @@ class FLManager(ConnectionHelper):
                 min_rounds,
                 punishment,
                 punish_contrib,
-                freerider_fee
+                freerider_fee,
+                use_nody_is_kicked
             ).build_transaction(depl)
             signed = self.w3.eth.account.sign_transaction(depl, private_key=self.pytorch_model.participants[0].privateKey)
             txHash = self.w3.eth.send_raw_transaction(signed.raw_transaction)

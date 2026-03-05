@@ -28,7 +28,8 @@ class ConnectionHelper:
                          infura_url=None, 
                          manual_setup=False,
                          fork=True,
-                         accounts=None):
+                         accounts=None,
+                         use_nobody_is_kicked=False):
         global w3
         NUMBER_OF_CONTRIBUTORS = NUMBER_OF_GOOD_CONTRIBUTORS \
                                     + NUMBER_OF_BAD_CONTRIBUTORS \
@@ -86,7 +87,8 @@ class ConnectionHelper:
                                                         NUMBER_OF_FREERIDER_CONTRIBUTORS/NUMBER_OF_CONTRIBUTORS*100 )) 
         print("Inactive Contributers:    {} ({:.0f}%)".format(NUMBER_OF_INACTIVE_CONTRIBUTORS,
                                                         NUMBER_OF_INACTIVE_CONTRIBUTORS/NUMBER_OF_CONTRIBUTORS*100 )) 
-        print("Learning Rounds:          {}".format(MINIMUM_ROUNDS)) 
+        print("Learning Rounds:          {}".format(MINIMUM_ROUNDS))
+        print("use nobody is kicked:    {}".format(use_nobody_is_kicked))
         
         print("-----------------------------------------------------------------------------------")
         

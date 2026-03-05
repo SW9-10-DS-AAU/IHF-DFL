@@ -12,6 +12,7 @@
 pragma solidity =0.8.9;
 
 import "./OpenFLModel.sol";
+import "./OpenFLModel_nobody_is_kicked.sol";
 
 contract OpenFLManager {
     mapping(address => mapping(uint256 => address)) public ModelOf;
@@ -27,21 +28,37 @@ contract OpenFLManager {
         uint8 _min_rounds,
         uint8 _punishfactor,
         uint8 _punishfactorContrib,
-        uint8 _freeriderPenalty
+        uint8 _freeriderPenalty,
+        bool _useNobodyIsKicked
     ) public payable {
         ModelCountOf[msg.sender] += 1;
         require(msg.value >= _reward + _min_collateral, "NEV");
-        OpenFLModel model = new OpenFLModel{value: _reward}(
-            _modelHash,
-            _min_collateral,
-            _max_collateral,
-            _reward,
-            _min_rounds,
-            _punishfactor,
-            _punishfactorContrib,
-            _freeriderPenalty
-        );
-        model.register{value: msg.value - _reward}(msg.sender);
-        ModelOf[msg.sender][ModelCountOf[msg.sender]] = address(model);
+        if (_useNobodyIsKicked) {
+            OpenFLModel_nobody_is_kicked model = new OpenFLModel_nobody_is_kicked{value: _reward}(
+                _modelHash,
+                _min_collateral,
+                _max_collateral,
+                _reward,
+                _min_rounds,
+                _punishfactor,
+                _punishfactorContrib,
+                _freeriderPenalty
+            );
+            model.register{value: msg.value - _reward}(msg.sender);
+            ModelOf[msg.sender][ModelCountOf[msg.sender]] = address(model);
+        } else {
+            OpenFLModel model = new OpenFLModel{value: _reward}(
+                _modelHash,
+                _min_collateral,
+                _max_collateral,
+                _reward,
+                _min_rounds,
+                _punishfactor,
+                _punishfactorContrib,
+                _freeriderPenalty
+            );
+            model.register{value: msg.value - _reward}(msg.sender);
+            ModelOf[msg.sender][ModelCountOf[msg.sender]] = address(model);
+        }
     }
 }

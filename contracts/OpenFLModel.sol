@@ -371,7 +371,7 @@ contract OpenFLModel {
         return true;
     }
 
-    function settle() public {
+    function settle() public virtual {
         uint totalPunishment;
         uint freeriderLock; // A global total of sum of freerider penalties
 
