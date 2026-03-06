@@ -1,3 +1,4 @@
+import math
 import pytest
 import torch
 import torch.nn as nn
@@ -9,11 +10,13 @@ from web3.exceptions import ContractLogicError
 
 from openfl.contracts.fl_challenge import (
     FLChallenge,
-    calc_contribution_score,
     calc_contribution_scores_dotproduct,
-    calc_contribution_scores_accuracy,
     remove_outliers_mad,
+    # calc_contribution_score,
+    # calc_contribution_scores_accuracy,
+    normalize_contribution_scores_new,
 )
+from openfl.utils.shapley import check_shapley_compliance
 
 
 class DummyModel(nn.Module):
@@ -37,6 +40,156 @@ class TensorModel(nn.Module):
         return [self.params]
 
 
+class TestNewContribCalcforLossOrAcc:
+    full_audit_log = []
+
+    def is_close_to_one(self, vals):
+        return math.isclose(sum(vals), 1.0, rel_tol=1e-9)
+
+    def add_to_log(self, status, metric, raw_input, result, message):
+        metric_tag = "[ACC]" if metric == "accuracy" else "[LOSS]"
+        log_entry = (
+            f"[{status}] {metric_tag}\n"
+            f"    Accuracy/Loss:                        {raw_input}\n"
+            f"    Final_Calculated_Contribution:        {[round(v, 4) for v in result]}\n"
+            f"    Note:                                 {message}\n"
+            f"    {'-' * 45}"
+        )
+        TestNewContribCalcforLossOrAcc.full_audit_log.append(log_entry)
+
+    @pytest.mark.parametrize("raw_input, baseline, metric, label", [
+        ([0.1, 0.2, 0.25], 0, "accuracy", "Normal Contribution"),
+        ([1, 0.2, 0.025], 0, "accuracy", "Normal Contribution"),
+        ([20, -10, 15, -5], 0, "accuracy", "Mixed contributions"),
+        ([-30, -10, -20], 0, "accuracy", "Negative contributions (Lower is better)"),
+        ([0.2, 0.0, 0.0, -0.1], 0, "accuracy", "Mixed with null-players"),
+        ([-10, -10, -10], 0, "accuracy", "Negative Symmetri"),
+        ([10, 10, 10], 0, "accuracy", "Positive Symmetry"),
+        ([10, -20, 0.5, 4], 0, "accuracy", "Mixed positive and heavy negative"),
+        ([-2, -3, -4, 0], 0, "accuracy", "Negative with 0 as best"),
+        ([5, -5, 4, -3, 0], 0, "accuracy", "Mixed with 0"),
+        ([5, 0, 0, 0, 0], 0, "accuracy", "Mostly 0s with one contribution"),
+        ([-10, -10, 0.00000001], 0, "accuracy", "Tiny positive"),
+        ([-10, -15, -20], 0, "loss", "Normal Contribution"),
+        ([-1, -0.2, -0.025], 0, "loss", "Normal Contribution"),
+        ([20, -10, 15, -5], 0, "loss", "Mixed contributions"),
+        ([-15, -10, -5], 0, "loss", "Loss improvements"),
+        ([-10, -10, -10], 0, "loss", "Positive Symmetry"),
+        ([10, 10, 10], 0, "loss", "Negative Symmetry"),
+        ([30, 10, 20], 0, "loss", "Positive contributions (Lower is better)"),
+        ([0.2, 0.0, 0.0, -0.1], 0, "loss", "Mixed with null-players"),
+        ([2, 3, 4, 0], 0, "loss", "Positive with 0 as best"),
+        ([5, -5, 4, -3, 0], 0, "loss", "Mixed with 0"),
+        ([0, 0, 0, -3, 0], 0, "loss", "Mostly 0s with one contribution"),
+        ([10, 10, -0.00000001], 0, "loss", "Tiny positive"),
+    ])
+
+    def test_contribution_scenarios(self, raw_input, baseline, metric, label):
+        # 1. Run the function to get contribution scores
+        res = normalize_contribution_scores_new(raw_input, baseline, metric)
+
+        # 2. Calculate difference from accuracy/loss compared to global last round
+        diffs = [v - baseline for v in raw_input]
+        if metric == "loss":
+            diffs = [-1 * d for d in diffs]
+
+        # 3. Shapley Axiom Validation
+        success, violations = check_shapley_compliance(diffs, res)
+
+        # 4. Status for log (no violations = OK, violations = AXIOM_BREAK)
+        status = "OK" if success else "AXIOM_BREAK"
+
+        self.add_to_log(status, metric, raw_input, res,
+                        f"{label} | Violations: {violations if violations else 'None'}")
+
+        assert success is True, f"Expected no violations, but got: {violations}"
+
+    def test_sabotage_axioms_acc(self):
+        """
+        Verify that the Shapley compliance check is actually effective at catching violations.
+        Manipulating the results to break the axioms should trigger failures in the compliance check.
+        """
+        raw_input = [10, 10, 0]  # Have 2 similar contributions and 1 null player
+        baseline = 0
+        metric = "accuracy"
+
+        # 1. Recieve the correct contribution scores for the given input (before sabotage)
+        correct_res = normalize_contribution_scores_new(raw_input, baseline, metric)
+        # Expected: [0.5, 0.5, 0.0]
+
+        # 2. SABOTAGE: Changing the scores to break the axioms
+        sabotaged_res = [0.6, 0.3, 0.2]
+        # Fail here:
+        # - Efficiency: Sum is 1.1 (not 1.0)
+        # - Symmetry: Index 0 and 1 have same contribution (10), but different score (0.6 vs 0.3)
+        # - Null Player: Index 2 has contribution 0, but score 0.2
+
+        diffs = [10, 10, 0]
+
+        # 3. Validate sabotaged results against Shapley Axioms
+        sabotaged_values, violations = check_shapley_compliance(diffs, sabotaged_res)
+
+        # Validate correct results against Shapley Axioms
+        success_valid, violations_valid = check_shapley_compliance(diffs, correct_res)
+
+
+        # 4. Logs (Should provide message: "AXIOM BREAK" and list all violations)
+        self.add_to_log("SABOTAGE_TEST_ACC (AXIOM BREAK)", metric, raw_input, sabotaged_res,
+                        f"Expected failures | Violations: {violations}")
+
+        # FALSE Assertions to confirm that the compliance check is working (We expect failures here)
+        assert sabotaged_values is False
+        assert len(violations) >= 3  # Expect atleast 3 violations
+
+        assert success_valid is True # The original, correct results should pass the compliance check
+
+
+    def test_sabotage_axioms_loss(self):
+        """
+        Verify that the Shapley compliance check catches violations when using 'loss' metric.
+        In loss, a contribution is typically the reduction in loss (e.g., baseline - user_loss).
+        """
+        raw_input_loss = [0.4, 0.4, 1.0] # Have 2 similar contributions and 1 null player
+        baseline_loss = 1.0
+        metric = "loss"
+
+        # 1. Receive the correct contribution scores for the given input (before sabotage)
+        correct_res = normalize_contribution_scores_new(raw_input_loss, baseline_loss, metric)
+
+        # 2. SABOTAGE: Changing the scores to break the axioms
+        sabotaged_res = [0.7, 0.4, 0.2]
+        # Fail here:
+        # - Efficiency: Sum is 1.1 (not 1.0)
+        # - Symmetry: Index 0 and 1 have same contribution (0,4), but different score (0.7 vs 0.4)
+        # - Null Player: Index 2 has contribution 0, but score 0.2
+
+        diffs = [0.6, 0.6, 0.0]
+
+        # 3. Validate sabotaged results against Shapley Axioms
+        sabotaged_values, violations = check_shapley_compliance(diffs, sabotaged_res)
+
+        # Validate correct results against Shapley Axioms
+        success_valid, violations_valid = check_shapley_compliance(diffs, correct_res)
+
+        # 4. Logs (Should provide message: "AXIOM BREAK" and list all violations)
+        self.add_to_log("SABOTAGE_TEST_LOSS (AXIOM BREAK)", metric, raw_input_loss, sabotaged_res,
+                        f"Expected failures | Violations: {violations}")
+
+        # FALSE Assertions to confirm that the compliance check is working (We expect failures here)
+        assert sabotaged_values is False
+        assert len(violations) >= 3  # Expect atleast 3 violations
+
+        # The original, correct results should pass the compliance check
+        assert success_valid is True
+
+    # --- PRINT LOG ---
+    def test_print_audit(self):
+        print("\n" + "=" * 90)
+        print(f"{'FEDERATED LEARNING AUDIT LOG':^90}")
+        print("=" * 90)
+        for entry in TestNewContribCalcforLossOrAcc.full_audit_log:
+            print(entry)
+
 class TestCalcContributionScore:
     # Basic test case with non-zero global model
     def test_calc_contribution_score_basic(self):
@@ -48,7 +201,7 @@ class TestCalcContributionScore:
         global_model = DummyModel(2.0)
         num_mergers = 2
 
-        score = calc_contribution_score(local_model, global_model, num_mergers)
+        score = calc_contribution_scores_dotproduct(local_model, global_model, num_mergers)
 
         local_update = torch.cat([p.data.view(-1) for p in local_model.parameters()])
         global_update = torch.cat([p.data.view(-1) for p in global_model.parameters()])
@@ -68,7 +221,7 @@ class TestCalcContributionScore:
         global_model = DummyModel(2.0)
         num_mergers = 2
 
-        score = calc_contribution_score(local_model, global_model, num_mergers)
+        score = calc_contribution_scores_dotproduct(local_model, global_model, num_mergers)
 
         local_update = torch.cat([p.data.view(-1) for p in local_model.parameters()])
         global_update = torch.cat([p.data.view(-1) for p in global_model.parameters()])
@@ -88,7 +241,7 @@ class TestCalcContributionScore:
         global_model = DummyModel(0.0)
         num_mergers = 3
 
-        score = calc_contribution_score(local_model, global_model, num_mergers)
+        score = calc_contribution_scores_dotproduct(local_model, global_model, num_mergers)
         expected_score = int(Decimal(1) / Decimal(num_mergers) * Decimal('1e18'))
         assert score == expected_score
 
@@ -102,7 +255,7 @@ class TestCalcContributionScore:
         global_model = DummyModel(0.0)
         num_mergers = 4
 
-        score = calc_contribution_score(local_model, global_model, num_mergers)
+        score = calc_contribution_scores_dotproduct(local_model, global_model, num_mergers)
         expected_score = int(Decimal(1) / Decimal(num_mergers) * Decimal('1e18'))
         assert score == expected_score
 
@@ -150,10 +303,18 @@ class TestCalcContributionScore:
 
         scores = []
 
-        norm_accuracies = calc_contribution_scores_accuracy(avg_accuracies, avg_prev_acc)
+        norm_accuracies = normalize_contribution_scores_new(
+            avg_accuracies,
+            avg_prev_acc,
+            "accuracy"
+        )
         print(f"normalized accuracies: {norm_accuracies}")
 
-        norm_losses = calc_contribution_scores_accuracy(avg_losses, avg_prev_loss)
+        norm_losses = normalize_contribution_scores_new(
+            avg_losses,
+            avg_prev_loss,
+            "loss"
+        )
         print(f"normalized losses: {norm_losses}")
 
         sum_na = sum(norm_accuracies)
@@ -405,19 +566,19 @@ class TestCalcContributionScoresMAD:
     #     assert scores == expected
 
 
-class TestCalcContributionScoresAccuracyFn:
+class TestNormalizeContributionScores:
+
     def test_accuracy_function_normalizes_positive_deltas(self):
-        scores = calc_contribution_scores_accuracy([6, 8], 4)
-        assert scores == [pytest.approx(2 / 6), pytest.approx(4 / 6)] # Check that scores are normalized correctly so they sum to 1
+        scores = normalize_contribution_scores_new([6, 8], 4, "accuracy")
+        assert scores == [pytest.approx(2 / 6), pytest.approx(4 / 6)]
 
     def test_accuracy_function_returns_uniform_when_sum_zero(self):
-        scores = calc_contribution_scores_accuracy([5, 5, 5], 5)
+        scores = normalize_contribution_scores_new([5, 5, 5], 5, "accuracy")
         assert scores == [pytest.approx(1 / 3)] * 3
 
     def test_accuracy_function_raises_on_empty(self):
-        with pytest.raises(Exception, match="No values to normalize"):
-            calc_contribution_scores_accuracy([], 0)
-
+        with pytest.raises(Exception):
+            normalize_contribution_scores_new([], 0, "accuracy")
 
 class TestRemoveOutliersMAD:
     threshold = 1.1
