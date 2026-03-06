@@ -32,7 +32,14 @@ bytecode = compiled["contracts"]["OpenFLModel.sol"]["OpenFLModel"]["evm"]["bytec
 size_bytes = len(bytecode) // 2  # Each 2 hex chars = 1 byte
 size_kb = size_bytes / 1024
 
-print(f"Contract size: {size_bytes} bytes ({size_kb:.2f} KB)")
+print(f"Contract size openflmodel: {size_bytes} bytes ({size_kb:.2f} KB)")
+
+bytecode = compiled["contracts"]["OpenFLManager.sol"]["OpenFLManager"]["evm"]["bytecode"]["object"]
+
+size_bytes = len(bytecode) // 2  # Each 2 hex chars = 1 byte
+size_kb = size_bytes / 1024
+
+print(f"Contract size openflmanager: {size_bytes} bytes ({size_kb:.2f} KB)")
 
 # 4) Extract artifacts
 mgr = compiled["contracts"]["OpenFLManager.sol"]["OpenFLManager"]
