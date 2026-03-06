@@ -22,7 +22,9 @@ class ExperimentConfiguration:
                  malicious_start_round=3,
                  malicious_noise_scale=1.0,
                  force_merge_all=False,
-                 use_nobody_is_kicked=False): # Sets all entries in fbb to zeroes
+                 use_nobody_is_kicked=False,
+                 aggregation_rule="FedAVG"
+                 ): # Sets all entries in fbb to zeroes
 
         # Store the fork mode
         self.fork = fork
@@ -59,6 +61,7 @@ class ExperimentConfiguration:
         self.malicious_noise_scale = malicious_noise_scale
         self.force_merge_all = force_merge_all
         self.use_nobody_is_kicked = use_nobody_is_kicked
+        self.aggregation_rule = aggregation_rule
 
     @property
     def number_of_contributors(self):

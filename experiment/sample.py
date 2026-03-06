@@ -11,8 +11,8 @@ config = ExperimentConfiguration(
     contribution_score_strategy="loss_only",
     use_outlier_detection=True,
     minimum_rounds=10,
-    freerider_noise_scale=0.5,
-    malicious_noise_scale=0.5,
+    freerider_noise_scale=0.1,
+    malicious_noise_scale=0.1,
     punish_factor=3,
     punish_factor_contrib=3,
     freerider_start_round=1,
@@ -20,6 +20,10 @@ config = ExperimentConfiguration(
     use_nobody_is_kicked=True,
     force_merge_all=True,
     number_of_good_contributors=4,
+    number_of_bad_contributors=1,
+    number_of_freerider_contributors=1,
+    number_of_inactive_contributors=0,
+    aggregation_rule="positives_only"
 )
 
 # OVERSKRIV variabler her for testing. eksempel: config = ExperimentConfiguration(minimum_rounds=1), hvis du kun vil køre een round#DATASET = "cifar-10"

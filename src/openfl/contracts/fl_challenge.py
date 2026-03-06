@@ -1093,10 +1093,15 @@ class FLChallenge(FLManager):
 
             # A roundRep of 0, does not nec. mean mal.
             contributers = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0]
-            self.pytorch_model.the_merge(contributers)
+
+            if self.experiment_config.contribution_score_strategy == "dotproduct":
+                self.pytorch_model.the_merge(contributers, aggregation_rule=self.experiment_config.aggregation_rule)
 
             print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
             self.contribution_score(contributers)
+
+            if not self.experiment_config.contribution_score_strategy == "dotproduct":
+                self.pytorch_model.the_merge(contributers, aggregation_rule=self.experiment_config.aggregation_rule)
             receipt = self.close_round()
 
             print(b(f"Round {self.pytorch_model.round - 1} actually completed:"))

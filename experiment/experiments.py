@@ -27,6 +27,7 @@ free_rider_noise_options = [1.0, 0.5, 0.1, 0.01, 0.0]
 #malicious_noise_options = [1.0, 0.5, 0.05, 0.01]
 #forced_ones = [ True, False ]
 forced_ones = [ False ]
+aggregation_rule_options = ["Fed_AVG"] # all options: aggregation_rule_options = ["Fed_AVG, positives_only, plus_one_normalize", "plus_more_than_one_normalize"]
 
 #strategy_options = ["accuracy"]
 #free_rider_activation_round_options = [1]
@@ -80,17 +81,18 @@ def main(author):
         #malicious_activation_round_options,
         #malicious_noise_options,
         datasets,
-        forced_ones)
+        forced_ones,
+        aggregation_rule_options)
     
     productVar = [
-        (strategy, outlier_detection, free_rider_activation_round, free_rider_noise, dataset, forced)
-        for (strategy, outlier_detection, free_rider_activation_round, free_rider_noise, dataset, forced)
+        (strategy, outlier_detection, free_rider_activation_round, free_rider_noise, dataset, forced, aggregation_rule)
+        for (strategy, outlier_detection, free_rider_activation_round, free_rider_noise, dataset, forced, aggregation_rule)
         in oldProduct
     ]
     total = len(productVar)
     skipsCount = len(skips)
 
-    for i, (strategy, outlier_detection, free_rider_activation_round, free_rider_noise, dataset, forced) in enumerate(productVar, start=1):
+    for i, (strategy, outlier_detection, free_rider_activation_round, free_rider_noise, dataset, forced, aggregation_rule) in enumerate(productVar, start=1):
         #malicious_activation_round, malicious_noise, -- removed
         malicious_activation_round = free_rider_activation_round
         malicious_noise = free_rider_noise
@@ -99,8 +101,8 @@ def main(author):
 
         
         # Auto skips
-        if (shouldSkip(Skip(strategy, outlier_detection, free_rider_activation_round, free_rider_noise, malicious_activation_round, malicious_noise, dataset))):
-            print(f"Skipping: {strategy} {outlier_detection} {free_rider_activation_round} {free_rider_activation_round} {malicious_activation_round} {malicious_noise} {dataset}")
+        if (shouldSkip(Skip(strategy, outlier_detection, free_rider_activation_round, free_rider_noise, malicious_activation_round, malicious_noise, aggregation_rule, dataset))):
+            print(f"Skipping: {strategy} {outlier_detection} {free_rider_activation_round} {free_rider_activation_round} {malicious_activation_round} {malicious_noise} {aggregation_rule} {dataset}")
             continue
 
         config = ExperimentConfiguration(

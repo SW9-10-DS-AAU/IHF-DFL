@@ -492,7 +492,7 @@ class PytorchModel:
         return manipulate(copy.deepcopy(user.model), scale=self.freerider_noise_scale)
 
 
-    def the_merge(self, _users):
+    def the_merge(self, _users, aggregation_rule: str):
         # No qualified users → skip merge this round
         if not _users:
             print("-----------------------------------------------------------------------------------")
@@ -500,24 +500,60 @@ class PytorchModel:
             print("-----------------------------------------------------------------------------------\n")
             return
 
-        ids, client_models = [], []
+        ids, client_models, contribution_scores = [], [], []
         for u in _users:
             ids.append(u.id)
             client_models.append(u.model)
             print("Account {} participating in merge".format(u.address[0:16]+"..."))
+            contribution_scores.append(u.contribution_score)
+
             #print(test(c[1],self.test,DEVICE))
+
+        print("Using aggregation rule: {}".format(aggregation_rule))
 
         with torch.no_grad():
             global_dict = self.global_model.state_dict()
-            for k in global_dict.keys():
-                stacked = torch.stack([
-                    client_models[i].state_dict()[k].to(
-                        device=global_dict[k].device,
-                        dtype=global_dict[k].dtype
+
+            if aggregation_rule == "Fed_AVG":
+                for k in global_dict.keys():
+                    stacked = torch.stack([
+                        client_models[i].state_dict()[k].to(
+                            device=global_dict[k].device,
+                            dtype=global_dict[k].dtype
+                        )
+                        for i in range(len(client_models))
+                    ], dim=0)
+                    global_dict[k] = stacked.mean(0)
+
+            elif aggregation_rule in ["positives_only", "plus_one_normalize", "plus_more_than_one_normalize"]:
+                if contribution_scores is None:
+                    raise ValueError("contrib_scores must be provided for aggregation rule " + aggregation_rule)
+
+                if aggregation_rule == "positives_only":
+                    weights = positives_only(contribution_scores)
+                elif aggregation_rule == "plus_one_normalize":
+                    weights = plus_one_normalize(contribution_scores)
+                elif aggregation_rule == "plus_more_than_one_normalize":
+                    weights = plus_more_than_one_normalize(contribution_scores)
+                else:
+                    raise ValueError(aggregation_rule + " not in list of valid aggregation rules")
+
+                assert abs(sum(weights) - 1.0) < 1e-6, "Aggregation weights must sum to 1"
+
+                # Aggregate each parameter with weights
+                for k in global_dict.keys():
+                    aggregated_param = sum(
+                        client_models[i].state_dict()[k].to(
+                            device=global_dict[k].device,
+                            dtype=global_dict[k].dtype
+                        ) * weights[i]
+                        for i in range(len(client_models))
                     )
-                    for i in range(len(client_models))
-                ], dim=0)
-                global_dict[k] = stacked.mean(0)
+                    global_dict[k] = aggregated_param
+
+            else:
+                raise ValueError(f"Unknown merge strategy: {aggregation_rule}")
+
             self.global_model.load_state_dict(global_dict)
         
         loss, accuracy = test(self.global_model,self.test,DEVICE)
@@ -888,3 +924,23 @@ def safe_scale(value, scalar, max_val):
         return max_val
 
     return min(round(scaled), max_val)
+
+
+def positives_only (contrib_scores):
+    positive_sum = sum(score for score in contrib_scores if score > 0)
+    aggregation_scores = [score / positive_sum if score > 0 else 0 for score in contrib_scores]
+    return aggregation_scores
+
+def plus_one_normalize (contrib_scores):
+    n = len(contrib_scores)
+    normalized_scores = [score+1 for score in contrib_scores]
+    sum_ = n + 1
+    aggregation_scores = [score / sum_ for score in normalized_scores]
+    return aggregation_scores
+
+def plus_more_than_one_normalize (contrib_scores, more_than_one = 1.1):
+    n = len(contrib_scores)
+    normalized_scores = [score+more_than_one for score in contrib_scores]
+    sum_ = n * more_than_one + 1
+    aggregation_scores = [score / sum_ for score in normalized_scores]
+    return aggregation_scores
