@@ -138,22 +138,33 @@ class ConnectionHelper:
     def get_w3():
         return w3
     
-    def initialize(self):
+    def initialize(self, nobody_is_kicked=False):
         bytecode_path = Path(__file__).resolve().parents[3] / "artifacts" / "bytecode"
-        with open(bytecode_path / "abi.txt") as abiFile:
-            abi = re.sub("\n|\t|\ ", "", abiFile.read())
-        with open(bytecode_path /  "bytecode.txt") as abiFile:
-            bytecode = abiFile.read().strip()
+        if nobody_is_kicked:
+            with open(bytecode_path / "abi_mgr_nobody.txt") as abiFile:
+                abi = re.sub("\n|\t|\ ", "", abiFile.read())
+            with open(bytecode_path /  "bytecode_mgr_nobody.txt") as abiFile:
+                bytecode = abiFile.read().strip()
+        else:
+            with open(bytecode_path / "abi_mgr.txt") as abiFile:
+                abi = re.sub("\n|\t|\ ", "", abiFile.read())
+            with open(bytecode_path /  "bytecode_mgr.txt") as abiFile:
+                bytecode = abiFile.read().strip()
         return self.w3.eth.contract(bytecode=bytecode, abi=abi)
+
     
-    
-    
-    def initialize_model(self, address=None):
+    def initialize_model(self, address=None, nobody_is_kicked=False):
         bytecode_path = Path(__file__).resolve().parents[3] / "artifacts" / "bytecode"
-        with open(bytecode_path / "abi_model.txt") as abiFile:
-            abi = re.sub("\n|\t|\ ", "", abiFile.read())
-        with open(bytecode_path / "bytecode_model.txt") as abiFile:
-            bytecode = abiFile.read().strip()
+        if nobody_is_kicked:
+            with open(bytecode_path / "abi_model_nobody.txt") as abiFile:
+                abi = re.sub("\n|\t|\ ", "", abiFile.read())
+            with open(bytecode_path / "bytecode_model_nobody.txt") as abiFile:
+                bytecode = abiFile.read().strip()
+        else:
+            with open(bytecode_path / "abi_model.txt") as abiFile:
+                abi = re.sub("\n|\t|\ ", "", abiFile.read())
+            with open(bytecode_path / "bytecode_model.txt") as abiFile:
+                bytecode = abiFile.read().strip()
         if address is not None:
             return self.w3.eth.contract(address=address, bytecode=bytecode, abi=abi)
         else:

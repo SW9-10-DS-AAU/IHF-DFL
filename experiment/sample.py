@@ -17,8 +17,9 @@ config = ExperimentConfiguration(
     punish_factor_contrib=3,
     freerider_start_round=1,
     malicious_start_round=1,
-    use_nobody_is_kicked=False,
-    force_merge_all=False,
+    use_nobody_is_kicked=True,
+    force_merge_all=True,
+    number_of_good_contributors=4,
 )
 
 # OVERSKRIV variabler her for testing. eksempel: config = ExperimentConfiguration(minimum_rounds=1), hvis du kun vil køre een round#DATASET = "cifar-10"

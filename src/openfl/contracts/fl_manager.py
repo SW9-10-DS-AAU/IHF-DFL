@@ -38,7 +38,9 @@ class FLManager(ConnectionHelper):
                                                          infura_url=infuraurl, manual_setup=self.manual_setup, fork=fork,
                                                          accounts=accounts,
                                                          use_nobody_is_kicked=use_nobody_is_kicked)
-        self.manager = super().initialize()
+
+        self.manager = super().initialize(nobody_is_kicked=use_nobody_is_kicked)
+
         return self
     
     
@@ -97,7 +99,7 @@ class FLManager(ConnectionHelper):
     def deploy_challenge_contract(self, *args):
         print(b("Starting simulation..."))
         print(b("-----------------------------------------------------------------------------------"))
-        min_buyin, max_buyin, reward, min_rounds, punishment, punish_contrib, freerider_fee = args
+        min_buyin, max_buyin, reward, min_rounds, punishment, punish_contrib, freerider_fee, use_nobody_is_kicked = args
         p1_collateral = self.pytorch_model.participants[0].collateral
         value = reward + p1_collateral
         deployer = self.pytorch_model.participants[0].address
@@ -119,7 +121,8 @@ class FLManager(ConnectionHelper):
                 min_rounds,
                 punishment,
                 punish_contrib,
-                freerider_fee
+                freerider_fee,
+                use_nobody_is_kicked
             ).transact(tx)
         else:
             nonce = self.w3.eth.get_transaction_count(deployer)
@@ -134,7 +137,7 @@ class FLManager(ConnectionHelper):
                 punishment,
                 punish_contrib,
                 freerider_fee,
-                use_nody_is_kicked
+                use_nobody_is_kicked
             ).build_transaction(depl)
             signed = self.w3.eth.account.sign_transaction(depl, private_key=self.pytorch_model.participants[0].privateKey)
             txHash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
@@ -153,7 +156,7 @@ class FLManager(ConnectionHelper):
         deployed_address = self.get_model_of(self.pytorch_model.participants[0], c)
         deployed_address = Web3.to_checksum_address(deployed_address)
 
-        self.challenge_contract = super().initialize_model(deployed_address)
+        self.challenge_contract = super().initialize_model(deployed_address, nobody_is_kicked=use_nobody_is_kicked)
         print("\n{:<17} {} | {}\n".format("Model deployed", 
                                           "@ Address " + self.challenge_contract.address, 
                                           txHash.hex()[0:6]+"..."))

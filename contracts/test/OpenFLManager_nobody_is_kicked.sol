@@ -11,9 +11,9 @@
 
 pragma solidity =0.8.9;
 
-import "./OpenFLModel.sol";
+import "./OpenFLModel_nobody_is_kicked.sol";
 
-contract OpenFLManager {
+contract OpenFLManager_nobody_is_kicked {
     mapping(address => mapping(uint256 => address)) public ModelOf;
     mapping(address => uint256) public ModelCountOf;
 
@@ -32,9 +32,9 @@ contract OpenFLManager {
     ) public payable {
         ModelCountOf[msg.sender] += 1;
         require(msg.value >= _reward + _min_collateral, "NEV");
-        require(_useNobodyIsKicked == false, "_useNobodyIsKicked is true. Most likely wrong manager contract deployed. -Rune");
+        require(_useNobodyIsKicked, "_useNobodyIsKicked is false. Most likely wrong manager contract deployed. -Rune");
 
-        OpenFLModel model = new OpenFLModel{value: _reward}(
+        OpenFLModel_nobody_is_kicked model = new OpenFLModel_nobody_is_kicked{value: _reward}(
             _modelHash,
             _min_collateral,
             _max_collateral,

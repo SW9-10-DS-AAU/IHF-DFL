@@ -651,8 +651,8 @@ contract OpenFLModel {
             "PREVIOUS ACCURACY NOT BETWEEN 0 AND 10000 in submitFeedbackBytesAndAccuraciesLosses"
         );
         require (
-            prev_loss >= 0 && prev_loss <= 10000,
-            "PREVIOUS LOSS NOT BETWEEN 0 AND 10000 in submitFeedbackBytesAndAccuraciesLosses"
+            prev_loss >= 0 && prev_loss <= 65535,
+            "PREVIOUS LOSS NOT BETWEEN 0 AND 65535 in submitFeedbackBytesAndAccuraciesLosses"
         );
         // EXACT same for-loop as fallback
         for (uint i = 0; i < ads.length; i++) {
@@ -715,8 +715,8 @@ contract OpenFLModel {
         prev_losses[round][msg.sender] = prev_loss;
 
         require(
-            prev_loss >= 0 && prev_loss <= 10000,
-            "PREVIOUS LOSS NOT BETWEEN 0 AND 10000 in submitFeedbackBytesAndLosses"
+            prev_loss >= 0 && prev_loss <= 65535,
+            "PREVIOUS LOSS NOT BETWEEN 0 AND 65535 in submitFeedbackBytesAndLosses"
         );
 
         // EXACT same for-loop as fallback
