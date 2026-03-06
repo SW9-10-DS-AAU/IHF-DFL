@@ -1,11 +1,9 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
-
-import pytest
-
-import numpy as np
 import torch
 import torch.nn as nn
+import pytest
+import numpy as np
 
 # All scoring helpers come from the challenge contract. These tests
 # validate how the contract normalizes/weights participant updates across the
@@ -13,7 +11,6 @@ import torch.nn as nn
 from openfl.contracts.fl_challenge import (
     FLChallenge,
     calc_contribution_score_naive,
-    calc_contribution_scores_accuracy,
     calc_contribution_scores_dotproduct,
 )
 
@@ -42,17 +39,20 @@ def build_challenge(strategy: str, *, use_outlier_detection: bool = False, contr
     manager.w3 = MagicMock()
     manager.fork = True
 
+    model_mock = contract or MagicMock()
+
+    # Ensure address exists
+    if not hasattr(model_mock, 'address'):
+        model_mock.address = "0xModelAddress"
+
+    # Ensure ABI exists (crucial for line 75 of fl_challenge.py)
+    if not hasattr(model_mock, 'abi'):
+        model_mock.abi = []
+
     configs = [
-        contract or MagicMock(),
-        "0xModel",
-        1,
-        2,
-        3,
-        4,
-        0.5,
-        3,
-        0.1
+        model_mock, "0xModel", 1, 2, 3, 4, 0.5, 3, 0.1
     ]
+
     pytorch_model = MagicMock()
     pytorch_model.participants = []
 
@@ -60,6 +60,7 @@ def build_challenge(strategy: str, *, use_outlier_detection: bool = False, contr
         contribution_score_strategy=strategy,
         use_outlier_detection=use_outlier_detection,
     )
+
     return FLChallenge(manager, configs, pytorch_model, experiment_config)
 
 
@@ -77,7 +78,8 @@ def make_participant(idx: int, previous_model: nn.Module, merged_model: nn.Modul
 def make_accuracy_contract(prev_accs, prev_losses, user_metrics):
     """Fake accuracy contract that returns historical metrics for normalization."""
     functions = SimpleNamespace()
-    functions.getAllPreviousAccuraciesAndLosses = SimpleNamespace(
+
+    functions.getAllPreviousAccuraciesAndLosses = lambda: SimpleNamespace(
         call=lambda: (prev_accs, prev_losses)
     )
 
@@ -85,8 +87,15 @@ def make_accuracy_contract(prev_accs, prev_losses, user_metrics):
         accs, losses = user_metrics[addr]
         return SimpleNamespace(call=lambda: (None, accs, losses))
 
-    functions.getAllAccuraciesAbout = about
-    return SimpleNamespace(functions=functions)
+    functions.getAllAccuraciesLossesAbout = about
+
+    abi = [
+        {"name": "getAllPreviousAccuraciesAndLosses", "type": "function"},
+        {"name": "getAllAccuraciesLossesAbout", "type": "function"},
+        {"name": "submitContributionScore", "type": "function"}
+    ]
+
+    return SimpleNamespace(functions=functions, abi=abi, address="0xModelAddress")
 
 
 class TestDotProductScoring:
@@ -382,7 +391,7 @@ class TestAccuracyScoring:
         contract = make_accuracy_contract(prev_accs, prev_losses, metrics)
         challenge = build_challenge("accuracy", contract=contract)
 
-        scores = challenge._calculate_scores_accuracy(users)
+        scores = challenge._calculate_scores_accuracy_loss(users)
 
         assert scores[1] < min(scores[0], scores[2])
 
@@ -407,7 +416,7 @@ class TestAccuracyScoring:
         contract = make_accuracy_contract(prev_accs, prev_losses, metrics)
         challenge = build_challenge("accuracy", contract=contract)
 
-        scores = challenge._calculate_scores_accuracy(users)
+        scores = challenge._calculate_scores_accuracy_loss(users)
 
         assert scores[1] == min(scores)
         assert scores[0] > scores[2] > scores[1]
@@ -433,7 +442,7 @@ class TestAccuracyScoring:
         contract = make_accuracy_contract(prev_accs, prev_losses, metrics)
         challenge = build_challenge("accuracy", contract=contract)
 
-        scores = challenge._calculate_scores_accuracy(users)
+        scores = challenge._calculate_scores_accuracy_loss(users)
 
         assert scores[0] == scores[1] == scores[2]
 

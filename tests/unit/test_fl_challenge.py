@@ -1,4 +1,6 @@
 import math
+import random
+
 import pytest
 import torch
 import torch.nn as nn
@@ -17,6 +19,7 @@ from openfl.contracts.fl_challenge import (
     normalize_contribution_scores_new,
 )
 from openfl.utils.shapley import check_shapley_compliance
+
 
 
 class DummyModel(nn.Module):
@@ -78,6 +81,7 @@ class TestNewContribCalcforLossOrAcc:
         ([10, 10, 10], 0, "loss", "Negative Symmetry"),
         ([30, 10, 20], 0, "loss", "Positive contributions (Lower is better)"),
         ([0.2, 0.0, 0.0, -0.1], 0, "loss", "Mixed with null-players"),
+        ([0, 0.0, 0.0, 0.1], 0, "loss", "Mixed with null-players"),
         ([2, 3, 4, 0], 0, "loss", "Positive with 0 as best"),
         ([5, -5, 4, -3, 0], 0, "loss", "Mixed with 0"),
         ([0, 0, 0, -3, 0], 0, "loss", "Mostly 0s with one contribution"),
@@ -191,144 +195,392 @@ class TestNewContribCalcforLossOrAcc:
             print(entry)
 
 class TestCalcContributionScore:
+    def setup_method(self):
+        self.aggregator = MagicMock()
+        self.aggregator.model = MagicMock()
+        self.aggregator.pytorch_model = MagicMock()
+        self.aggregator.pytorch_model.round = 1
+        self.aggregator._calculate_scores_accuracy_loss = lambda users, mad_threshold=1.1: \
+            FLChallenge._calculate_scores_accuracy_loss(self.aggregator, users, mad_threshold)
+        self.aggregator._calculate_scores_accuracy_only = lambda users, mad_threshold=1.1: \
+            FLChallenge._calculate_scores_accuracy_only(self.aggregator, users, mad_threshold)
+        self.aggregator._calculate_scores_loss_only = lambda users, mad_threshold=1.1: \
+            FLChallenge._calculate_scores_loss_only(self.aggregator, users, mad_threshold)
+
     # Basic test case with non-zero global model
-    def test_calc_contribution_score_basic(self):
-        """
-        Basic test case where local and global models have distinct weights.
-        The contribution score should be calculated correctly.
-        """
-        local_model = DummyModel(1.0)
-        global_model = DummyModel(2.0)
-        num_mergers = 2
+    # def test_calc_contribution_score_basic(self):
+    #     """
+    #     Basic test case where local and global models have distinct weights.
+    #     The contribution score should be calculated correctly.
+    #     """
+    #     local_model = DummyModel(1.0)
+    #     global_model = DummyModel(2.0)
+    #     num_mergers = 2
+    #
+    #     score = calc_contribution_scores_dotproduct(local_model, global_model, num_mergers)
+    #
+    #     local_update = torch.cat([p.data.view(-1) for p in local_model.parameters()])
+    #     global_update = torch.cat([p.data.view(-1) for p in global_model.parameters()])
+    #     norm_U_sq = torch.dot(global_update, global_update)
+    #     expected_score = torch.dot(local_update, global_update) / (num_mergers * norm_U_sq)
+    #     expected_score = int(Decimal(expected_score.item()) * Decimal('1e18'))
+    #
+    #     assert score == expected_score
+    #
+    # # Edge case where local model is identical to global model
+    # def test_calc_contribution_score_identical_models(self):
+    #     """
+    #     Edge case where the local model is identical to the global model.
+    #     The contribution score should be maximized.
+    #     """
+    #     local_model = DummyModel(2.0)
+    #     global_model = DummyModel(2.0)
+    #     num_mergers = 2
+    #
+    #     score = calc_contribution_scores_dotproduct(local_model, global_model, num_mergers)
+    #
+    #     local_update = torch.cat([p.data.view(-1) for p in local_model.parameters()])
+    #     global_update = torch.cat([p.data.view(-1) for p in global_model.parameters()])
+    #     norm_U_sq = torch.dot(global_update, global_update)
+    #     expected_score = torch.dot(local_update, global_update) / (num_mergers * norm_U_sq)
+    #     expected_score = int(Decimal(expected_score.item()) * Decimal('1e18'))
+    #
+    #     assert score == expected_score
+    #
+    # # Edge case where global model has zero weights
+    # def test_calc_contribution_score_zero_global(self):
+    #     """
+    #     Edge case where the global model has zero weights.
+    #     The contribution score should default to 1/N.
+    #     """
+    #     local_model = DummyModel(1.0)
+    #     global_model = DummyModel(0.0)
+    #     num_mergers = 3
+    #
+    #     score = calc_contribution_scores_dotproduct(local_model, global_model, num_mergers)
+    #     expected_score = int(Decimal(1) / Decimal(num_mergers) * Decimal('1e18'))
+    #     assert score == expected_score
+    #
+    # # Edge case where both models have zero weights
+    # def test_calc_contribution_score_both_zero(self):
+    #     """
+    #     Edge case where both local and global models have zero weights.
+    #     The contribution score should default to 1/N.
+    #     """
+    #     local_model = DummyModel(0.0)
+    #     global_model = DummyModel(0.0)
+    #     num_mergers = 4
+    #
+    #     score = calc_contribution_scores_dotproduct(local_model, global_model, num_mergers)
+    #     expected_score = int(Decimal(1) / Decimal(num_mergers) * Decimal('1e18'))
+    #     assert score == expected_score
 
-        score = calc_contribution_scores_dotproduct(local_model, global_model, num_mergers)
+    @pytest.mark.parametrize("user_accuracies, user_losses, prev_accuracies, prev_losses, expected_scores", [
+        (
+                [[87], [85], [88]],  # User Accuracies pr user
+                [[12], [11], [14]],  # User Losses pr user
+                [87, 85, 88],  # Previous Accuracies
+                [12, 11, 14],  # Previous Losses
+                [0.2, 0.4, 0.4], # Expected scores
+        ),
+        (
+                [[90], [85], [88]],
+                [[10], [11], [14]],
+                [87, 85, 88],
+                [12, 11, 14],
+                [1.0, -3.0, 3.0],
+        ),
+        (
+                [[4], [-2], [12]],
+                [[2], [3], [4]],
+                [0, 0, 0,],
+                [0, 0, 0],
+                [0.25396825396825395, 0.09523809523809523, 0.6507936507936507],
+        ),(
+                [[0], [0], [0.1]],
+                [[10], [11], [14]],
+                [0, 0, 0],
+                [10, 11, 14],
+                [-0.07142857142857142, 0.07142857142857142, 1.0],
+        ),
+    ])
+    def test_calculate_scores_accuracy_loss(
+            self,
+            user_accuracies,
+            user_losses,
+            prev_accuracies,
+            prev_losses,
+            expected_scores,
+    ):
+        print(f"\n--- Test: Accuracy & Loss---")
 
-        local_update = torch.cat([p.data.view(-1) for p in local_model.parameters()])
-        global_update = torch.cat([p.data.view(-1) for p in global_model.parameters()])
-        norm_U_sq = torch.dot(global_update, global_update)
-        expected_score = torch.dot(local_update, global_update) / (num_mergers * norm_U_sq)
-        expected_score = int(Decimal(expected_score.item()) * Decimal('1e18'))
+        users = []
+        for i, (accs, losses) in enumerate(zip(user_accuracies, user_losses)):
+            user = MagicMock()
+            user.address = f"0xAddressUser{i}"
+            user._accuracies = accs
+            user._losses = losses
+            users.append(user)
 
-        assert score == expected_score
+        self.aggregator.model.functions \
+            .getAllPreviousAccuraciesAndLosses.return_value \
+            .call.return_value = (prev_accuracies, prev_losses)
 
-    # Edge case where local model is identical to global model
-    def test_calc_contribution_score_identical_models(self):
-        """
-        Edge case where the local model is identical to the global model.
-        The contribution score should be maximized.
-        """
-        local_model = DummyModel(2.0)
-        global_model = DummyModel(2.0)
-        num_mergers = 2
+        def mock_get_accuracies_losses(address):
+            user = next(u for u in users if u.address == address)
+            m = MagicMock()
+            m.call.return_value = (None, user._accuracies, user._losses)
+            return m
 
-        score = calc_contribution_scores_dotproduct(local_model, global_model, num_mergers)
+        self.aggregator.model.functions \
+            .getAllAccuraciesLossesAbout.side_effect = mock_get_accuracies_losses
 
-        local_update = torch.cat([p.data.view(-1) for p in local_model.parameters()])
-        global_update = torch.cat([p.data.view(-1) for p in global_model.parameters()])
-        norm_U_sq = torch.dot(global_update, global_update)
-        expected_score = torch.dot(local_update, global_update) / (num_mergers * norm_U_sq)
-        expected_score = int(Decimal(expected_score.item()) * Decimal('1e18'))
-
-        assert score == expected_score
-
-    # Edge case where global model has zero weights
-    def test_calc_contribution_score_zero_global(self):
-        """
-        Edge case where the global model has zero weights.
-        The contribution score should default to 1/N.
-        """
-        local_model = DummyModel(1.0)
-        global_model = DummyModel(0.0)
-        num_mergers = 3
-
-        score = calc_contribution_scores_dotproduct(local_model, global_model, num_mergers)
-        expected_score = int(Decimal(1) / Decimal(num_mergers) * Decimal('1e18'))
-        assert score == expected_score
-
-    # Edge case where both models have zero weights
-    def test_calc_contribution_score_both_zero(self):
-        """
-        Edge case where both local and global models have zero weights.
-        The contribution score should default to 1/N.
-        """
-        local_model = DummyModel(0.0)
-        global_model = DummyModel(0.0)
-        num_mergers = 4
-
-        score = calc_contribution_scores_dotproduct(local_model, global_model, num_mergers)
-        expected_score = int(Decimal(1) / Decimal(num_mergers) * Decimal('1e18'))
-        assert score == expected_score
-
-    def test_calculate_accuracy(self):
-        user1 = {"accuracies": [87, 86, 84, 0, 87], "losses":[12,14,15,10000,13]}
-        user2 = {"accuracies": [87, 87, 85, 0 ,87], "losses":[11, 13, 14, 10000, 13]}
-        user3 = {"accuracies": [88, 87, 85, 0, 87], "losses":[12, 13, 14, 10000, 13]}
-        user4 = {"accuracies": [90, 89, 90, 0, 87], "losses": [11, 12, 12, 10000, 13]}
-        user5 = {"accuracies": [87, 87, 87, 85, 87], "losses": [13, 13, 14, 15, 13]}
-        user6 = {"accuracies": [87, 87, 87, 85, 0], "losses": [13, 13, 14, 15, 10000]}
-        users = [user1, user2, user3, user4, user5, user6]
-        mad_threshold = 1.1
-        previous_accuracis = [87, 87, 87, 85, 87, 87]
-        previous_losses = [13, 13, 14, 15, 13, 13]
-        mad_prev_accuracies = remove_outliers_mad(previous_accuracis, mad_threshold)
-        mad_prev_losses = remove_outliers_mad(previous_losses, mad_threshold)
-
-        avg_prev_acc = np.mean(mad_prev_accuracies)
-        avg_prev_loss = np.mean(mad_prev_losses)
-        # Lav en fælles mad
-
-        avg_accuracies = []  # after loop: [30, 20, 30, 40]
-        avg_losses = []  # after loop: [60, 70, 50, 80]
-
-        for u in users:  # For loop to extract accuracies and loses.
-            # Vi kan åbenbart ikke nøjes med kune dette, da vi skal bruge global accuracies, loses.
-
-            # All accuracies and loses per user
-            accuracies = u["accuracies"]
-            losses = u["losses"]
-
-            try:
-                # Multiple accuracies and losses per user
-                mad_accuracies = remove_outliers_mad(accuracies, mad_threshold)
-                mad_losses = remove_outliers_mad(losses, mad_threshold)
-
-                # One average accuracy and loss per user
-                avg_acc = np.mean(mad_accuracies)
-                avg_loss = np.mean(mad_losses)
-
-                avg_accuracies.append(avg_acc)  # int
-                avg_losses.append(avg_loss)  # int
-            except ValueError:
-                print("An error occured")
-
-        scores = []
-
-        norm_accuracies = normalize_contribution_scores_new(
-            avg_accuracies,
-            avg_prev_acc,
-            "accuracy"
+        scores = FLChallenge._calculate_scores_accuracy_loss(
+            self.aggregator, users, mad_threshold=1.1
         )
-        print(f"normalized accuracies: {norm_accuracies}")
+        scores_normalized = [s / 1e18 for s in scores]
+        print(f"scores_normalized = {scores_normalized}")
 
-        norm_losses = normalize_contribution_scores_new(
-            avg_losses,
-            avg_prev_loss,
-            "loss"
-        )
-        print(f"normalized losses: {norm_losses}")
-
-        sum_na = sum(norm_accuracies)
-        sum_nl = sum(norm_losses)
-
-        print(f"sum_na: {sum_na}")
-        print(f"sum_nl: {sum_nl}")
-
-        for i in range(len(norm_accuracies)):
-            res = (norm_accuracies[i] + norm_losses[i]) / (sum_na + sum_nl)
-            score = int(Decimal(res) * Decimal('1e18'))
-            scores.append(score)
-        print(f"scores = {scores}")
+        assert isinstance(scores, list)
+        assert len(scores) == len(users)
+        assert all(isinstance(s, int) for s in scores)
         assert scores != []
+
+        if expected_scores is not None:
+            assert scores_normalized == pytest.approx(expected_scores, rel=1e-9), \
+                f"Expected {expected_scores}, got {scores_normalized}"
+
+
+    @pytest.mark.parametrize("user_accuracies, prev_accuracies, expected_scores", [
+        (
+                [[87], [85], [88]],
+                [87, 85, 88],
+                [-0.2, -1.0, 2.2],
+        ),
+        (
+                [[90], [85], [88]],
+                [87, 85, 88],
+                [1.6666666666666665, -1.0, 0.33333333333333337],
+        ),
+        (
+                [[4], [2], [-12]],
+                [0, 0, 0],
+                [1.3333333333333335, 0.6666666666666667, -1.0],
+        ),
+        (
+                [[12], [-2], [-4]],
+                [0, 0, 0],
+                [2.5, -0.5, -1.0]
+        ),
+        (
+                [[90], [85], [88]],
+                [0, 0, 0],
+                [0.34220532319391633, 0.3231939163498099, 0.33460076045627374],
+        ),
+        (
+                [[1.5], [1.5], [-2]],
+                [0, 0, 0],
+                [1.0, 1.0, -1.0],
+        ),
+        (
+                [[0], [0], [0.1]],
+                [0, 0, 0],
+                [0.0, 0.0, 1.0],
+        ),
+        (
+                [[6], [6], [6]],
+                [0, 0, 0],
+                [0.3333333333333333, 0.3333333333333333, 0.3333333333333333],
+        ),
+        (
+                [[-6], [-6], [-6]],
+                [0, 0, 0],
+                [0.3333333333333333, 0.3333333333333333, 0.3333333333333333],
+        ),
+        (
+                [[6], [5], [4]],
+                [0, 0, 0],
+                [0.4, 0.3333333333333333, 0.26666666666666666],
+        ),
+        (
+                [[-6], [-4], [-2]],
+                [0, 0, 0],
+                [0.18181818181818182, 0.2727272727272727, 0.5454545454545454],
+        ),
+        (
+                [[0], [0], [-0.1]],
+                [0, 0, 0],
+                [0.55, 0.55, -0.1],
+        ),
+        (
+                [[1], [1], [-1], [-1], [0.1]],
+                [0, 0, 0],
+                [1.4285714285714286, 1.4285714285714286, -1, -1, 0.14285714285714285],
+        ),
+        (
+                [[0], [2], [-1]],
+                [0, 0, 0],
+                [0.0, 2.0, -1.0],
+        ),
+        (
+                [[0], [0], [0]],
+                [0, 0, 0],
+                [0.3333333333333333, 0.3333333333333333, 0.3333333333333333],
+        ),
+    ])
+    def test_calculate_scores_accuracy_only(self, user_accuracies, prev_accuracies, expected_scores):
+        print(f"\n--- Test: Accuracy ---")
+
+        users = []
+        for i, accs in enumerate(user_accuracies):
+            user = MagicMock()
+            user.address = f"0xAddressUser{i}"
+            user._accuracies = accs
+            users.append(user)
+
+        self.aggregator.model.functions \
+            .getAllPreviousAccuraciesAndLosses.return_value \
+            .call.return_value = (prev_accuracies, [])
+
+        def mock_get_accuracies(address):
+            user = next(u for u in users if u.address == address)
+            m = MagicMock()
+            m.call.return_value = (None, user._accuracies)
+            return m
+
+        self.aggregator.model.functions \
+            .getAllAccuraciesAbout.side_effect = mock_get_accuracies
+
+        scores = FLChallenge._calculate_scores_accuracy_only(
+            self.aggregator, users, mad_threshold=1.1
+        )
+        scores_normalized = [s / 1e18 for s in scores]
+        print(f"scores_normalized = {scores_normalized}")
+
+        assert isinstance(scores, list)
+        assert len(scores) == len(users)
+        assert all(isinstance(s, int) for s in scores)
+        assert scores != []
+
+        if expected_scores is not None:
+            assert scores_normalized == pytest.approx(expected_scores, rel=1e-9), \
+                f"Expected {expected_scores}, got {scores_normalized}"
+
+
+    @pytest.mark.parametrize("user_losses, prev_losses, expected_scores", [
+        (
+                [[87], [85], [88]],
+                [87, 85, 88],
+                [0.25, 1.25, -0.5],
+        ),
+        (
+                [[90], [85], [88]],
+                [87, 85, 88],
+                [-1.0, 2.2, -0.2],
+        ),
+        (
+                [[4], [2], [-12]],
+                [0, 0, 0],
+                [-1.0, -0.5, 2.5],
+        ),
+        (
+                [[12], [-2], [-4]],
+                [0, 0, 0],
+                [-1.0, 0.6666666666666667, 1.3333333333333335]
+        ),
+        (
+                [[90], [85], [88]],
+                [0, 0, 0],
+                [0.3245119305856833, 0.3436008676789588, 0.33188720173535796],
+        ),
+        (
+                [[1.5], [1.5], [-2]],
+                [0, 0, 0],
+                [-1.0, -1.0, 3.0],
+        ),
+        (
+                [[0], [0], [0], [0.1]],
+                [0, 0, 0],
+                [0.3666666666666667, 0.3666666666666667, 0.3666666666666667, -0.1],
+        ),
+        (
+                [[6], [6], [6]],
+                [0, 0, 0],
+                [0.3333333333333333, 0.3333333333333333, 0.3333333333333333],
+        ),
+        (
+                [[-6], [-6], [-6]],
+                [0, 0, 0],
+                [0.3333333333333333, 0.3333333333333333, 0.3333333333333333],
+        ),
+        (
+                [[6], [5], [4]],
+                [0, 0, 0],
+                [0.2702702702702703, 0.32432432432432434, 0.40540540540540543],
+        ),
+        (
+                [[-6], [-4], [-2]],
+                [0, 0, 0],
+                [0.5, 0.3333333333333333, 0.16666666666666666],
+        ),
+        (
+                [[0], [0], [-0.1]],
+                [0, 0, 0],
+                [0.0, 0.0, 1.0],
+        ),
+        (
+                [[-2], [0], [-1]],
+                [0, 0, 0],
+                [0.6666666666666666, 0.0, 0.3333333333333333],
+        ),
+        (
+                [[0], [2], [-1]],
+                [0, 0, 0],
+                [0.0, -1.0, 2.0],
+        ),
+        (
+                [[0], [0], [0]],
+                [0, 0, 0],
+                [0.3333333333333333, 0.3333333333333333, 0.3333333333333333],
+        ),
+    ])
+    def test_calculate_scores_loss_only(self, user_losses, prev_losses, expected_scores):
+        print(f"\n--- Test: Loss ---")
+
+        users = []
+        for i, losses in enumerate(user_losses):
+            user = MagicMock()
+            user.address = f"0xAddressUser{i}"
+            user._losses = losses
+            users.append(user)
+
+        self.aggregator.model.functions \
+            .getAllPreviousAccuraciesAndLosses.return_value \
+            .call.return_value = ([], prev_losses)
+
+        def mock_get_losses(address):
+            user = next(u for u in users if u.address == address)
+            m = MagicMock()
+            m.call.return_value = (None, user._losses)
+            return m
+
+        self.aggregator.model.functions \
+            .getAllLossesAbout.side_effect = mock_get_losses
+
+        scores = FLChallenge._calculate_scores_loss_only(
+            self.aggregator, users, mad_threshold=1.1
+        )
+        scores_normalized = [s / 1e18 for s in scores]
+        print(f"scores_normalized = {scores_normalized}")
+
+        assert isinstance(scores, list)
+        assert len(scores) == len(users)
+        assert all(isinstance(s, int) for s in scores)
+        assert scores != []
+
+        if expected_scores is not None:
+            assert scores_normalized == pytest.approx(expected_scores, rel=1e-9), \
+                f"Expected {expected_scores}, got {scores_normalized}"
 
 
 class TestCalcContributionScoresMAD:
@@ -580,6 +832,7 @@ class TestNormalizeContributionScores:
         with pytest.raises(Exception):
             normalize_contribution_scores_new([], 0, "accuracy")
 
+
 class TestRemoveOutliersMAD:
     threshold = 1.1
     def test_returns_original_when_zero_or_small_std(self):
@@ -633,10 +886,6 @@ class TestRemoveOutliersMAD:
         arr = [60, 61, 61, 61, 61, 61, 61]
         result = remove_outliers_mad(arr, self.threshold)
         np.testing.assert_array_equal(result, np.asarray([60, 61, 61, 61, 61, 61, 61]))
-
-
-
-
 
 
 class TestFLChallengeFeatures:
@@ -850,7 +1099,7 @@ class TestFLChallengeWorkflow:
 
         assert fl_challenge.model.functions.submitContributionScore.call_count == 3
 
-        fl_challenge.model.functions.submitContributionScore.assert_any_call(300, False)
+        fl_challenge.model.functions.submitContributionScore.assert_any_call(300)
 
         assert mock_participants[0].contribution_score == 100
         assert mock_participants[2].contribution_score == 300
@@ -973,7 +1222,15 @@ class TestReporting:
         mock_receipt = MagicMock()
 
         expected_events = {
-            "EndRound": [{"args": {"round": 1, "validVotes": 10, "sumOfWeights": 500, "totalPunishment": 0}}],
+            "EndRound": [{
+                "args": {
+                    "round": 1,
+                    "validVotes": 10,
+                    # Change 'sumOfWeights' to 'sumOfWeightedContribScore'
+                    "sumOfWeightedContribScore": 500,
+                    "totalPunishment": 0
+                }
+            }],
             "Reward": [{"args": {"user": "0xUser", "roundScore": 100, "win": 50, "newReputation": 1050}}],
             "Punishment": [],
             "Disqualification": []

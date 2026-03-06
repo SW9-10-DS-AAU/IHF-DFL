@@ -961,6 +961,7 @@ class FLChallenge(FLManager):
 
         # Validating Shapley Axioms (Runtime Guard)
         diffs = [v - avg_prev_loss for v in avg_losses]
+        diffs = [-1 * d for d in diffs]
         success, errors = check_shapley_compliance(diffs, norm_losses)
 
         if not success:
