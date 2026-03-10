@@ -8,8 +8,8 @@ license = { text = "MIT" }
 
 # requirements
 dependencies = [
-  "torch==2.9.0",
-  "torchvision==0.24.0",
+  "torch==2.10.0",
+  "torchvision==0.25.0",
   "numpy==2.2.6",
   "web3==7.14.0",
   "termcolor==3.1.0",

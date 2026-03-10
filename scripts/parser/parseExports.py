@@ -12,7 +12,7 @@ from .selector import choose_from_list
 
 chosenTests = []
 
-def runProcessor(RESULTDATAFOLDER: Path, useSameTests: bool, processor: Callable[[list[Round], list[Participant], ExperimentSpec, GasStats, str], Any]):
+def runProcessor(RESULTDATAFOLDER: Path, useSameTests: bool, processor: Callable[[list[Round], dict[str, Participant], ExperimentSpec, GasStats, str], Any]):
     global chosenTests
     if not chosenTests or not useSameTests:
         dirs = sorted([d for d in RESULTDATAFOLDER.iterdir() if d.is_dir()])
@@ -46,15 +46,15 @@ def runProcessor(RESULTDATAFOLDER: Path, useSameTests: bool, processor: Callable
         processor(rounds, participants, experimentConfig, gasCosts, outdir)
 
 
-def _detect_disqualifications(rounds: list[Round], participants: dict[int, Participant]):
+def _detect_disqualifications(rounds: list[Round], participants: dict[str, Participant]):
     disqualified = []
 
     # total_rounds = len(rounds)
-    markedIndexes = []
+    markedAddr = []
     for round in rounds:
-        for i, userGrs in enumerate(round.GRS):
-            if (userGrs == 0 and i not in markedIndexes):
-                markedIndexes.append(i)
-                disqualified.append((round.nr, participants[i]))
+        for i, (addr, userGrs) in enumerate(round.GRS.items()):
+            if (userGrs == 0 and addr not in markedAddr):
+                markedAddr.append(addr)
+                disqualified.append((round.nr, participants[addr]))
 
     return disqualified
