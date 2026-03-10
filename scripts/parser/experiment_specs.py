@@ -2,8 +2,6 @@ import csv
 from dataclasses import dataclass
 from io import StringIO
 
-from experiment.experiments import malicious_noise_options
-
 
 @dataclass
 class ExperimentSpec:
@@ -45,6 +43,8 @@ class ExperimentSpec:
     malicious_start_round: int = 0
     malicious_noise_scale: float = 0.0
 
+    forced: bool = True
+
 def parse_experiment_spec(csv_text: list[str]) -> ExperimentSpec:
     data = {}
 
@@ -69,7 +69,7 @@ def parse_experiment_spec(csv_text: list[str]) -> ExperimentSpec:
     
     if data.get('TOTAL EXPERIMENT TIME') is None:
         raise ValueError("TOTAL EXPERIMENT TIME is missing, experiment probably failed")
-
+    asd = data.get("force_merge_all")
     return ExperimentSpec(
         author=data.get("author", "Nykjaer"),
 
@@ -105,4 +105,6 @@ def parse_experiment_spec(csv_text: list[str]) -> ExperimentSpec:
         freerider_noise_scale=float(data.get("freerider_noise_scale", 0.0)),
         malicious_start_round=int(data.get("malicious_start_round", 0)),
         malicious_noise_scale=float(data.get("malicious_noise_scale", 0.0)),
+        
+        forced=str(data.get("force_merge_all")).lower() == "true",
     )

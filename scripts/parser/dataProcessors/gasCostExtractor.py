@@ -1,7 +1,7 @@
 from parser import *
 totals = []
 
-def print_gas(rounds: list[Round], participants: dict[int, Participant], experiment_specs: ExperimentSpec, gasStats: GasStats, outDir):
+def print_gas(rounds: list[Round], participants: dict[str, Participant], experiment_specs: ExperimentSpec, gasStats: GasStats, outDir):
     if gasStats is None:
         return
     total = sum(gasStats.gas_close) + sum(gasStats.gas_deploy) + sum(gasStats.gas_exit) + sum(gasStats.gas_feedback) + sum(gasStats.gas_register) + sum(gasStats.gas_slot) + sum(gasStats.gas_weights) + sum(gasStats.gas_close)

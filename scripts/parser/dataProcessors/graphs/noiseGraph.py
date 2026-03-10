@@ -21,8 +21,9 @@ def prepare_data_for_graph_method_noise(
     gasStats,
     outDir,
     freeRiderRound,
+    forced
 ):
-    if experiment_specs.freerider_start_round != freeRiderRound:
+    if experiment_specs.freerider_start_round != freeRiderRound or forced is not None and experiment_specs.forced != forced:
         return
 
     method = Method.from_string(
@@ -91,7 +92,7 @@ def format_for_grouped_bar_method_noise(data):
     return labels, means, variances, group_names, missing
 
 
-def kickedGraphMethodNoise(freeriderRound: int, title: str, usePreviousTests: bool, windowAndFileName:str, legend_position: LegendPosition, RESULTDATAFOLDER):
+def kickedGraphMethodNoise(freeriderRound: int, title: str, usePreviousTests: bool, windowAndFileName:str, legend_position: LegendPosition, RESULTDATAFOLDER, forced: bool | None):
     reset_round_kicked()
     runProcessor(
         RESULTDATAFOLDER,
@@ -104,6 +105,7 @@ def kickedGraphMethodNoise(freeriderRound: int, title: str, usePreviousTests: bo
                 gasCosts,
                 outdir,
                 freeriderRound,
+                forced
             )
     )
 

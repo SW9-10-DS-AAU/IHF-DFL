@@ -1,16 +1,18 @@
 from collections import defaultdict
+from typing import List
 import numpy as np
 import matplotlib.pyplot as plt
 
 from parser.parseExports import runProcessor
 from parser.helpers.mehods import Method
 from parser.types.participant import MetaAttitude
+from parser.types.round import Round
 
 data = defaultdict(lambda: defaultdict(list))
 Y_SCALE = 1e18
 
 def prepare_data_for_contribution_variance(
-    rounds,
+    rounds: List[Round],
     participants,
     experiment_specs,
     gasStats,
@@ -26,7 +28,7 @@ def prepare_data_for_contribution_variance(
         prev = rounds[r_idx - 1]
         curr = rounds[r_idx]
 
-        for uid, p in participants.items():
+        for i, (uid, p) in enumerate(participants.items()):
             # user missing → disqualified, skip
             if len(p.states) <= r_idx:
                 continue
@@ -34,8 +36,8 @@ def prepare_data_for_contribution_variance(
             attitude = p.states[r_idx].attitude
 
             try:
-                #prev_score = prev.contributionScores[uid - 1]
-                curr_score = curr.contributionScores[uid - 1]
+                #prev_score = prev.contributionScores[i]
+                curr_score = curr.contributionScores[i]
             except (IndexError, TypeError):
                 continue
 

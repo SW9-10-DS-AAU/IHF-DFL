@@ -6,6 +6,7 @@ import numpy as np
 
 from parser import *
 from parser.experiment_specs import ExperimentSpec
+from parser.helpers.setLegendLocation import LegendPosition, set_legend
 
 def plotData(rounds: list[Round], participants: list[Participant], experiment_specs: ExperimentSpec, gasStats: GasStats, outDir):
   #print(rounds)
@@ -15,7 +16,7 @@ def plotData(rounds: list[Round], participants: list[Participant], experiment_sp
   plot_from_parsed(rounds, participants, experiment_specs, outDir, "plot.pdf", "TestPlot")
 
 
-def line_graph(data, useShortName: bool, x_label, y_label, title, vline=None, windowAndFileName: str = "Figure 1"):
+def line_graph(data, useShortName: bool, x_label, y_label, title, legendPosition: LegendPosition, vline=None, windowAndFileName: str = "Figure 1"):
     import matplotlib.pyplot as plt
 
     fig, ax = plt.subplots()   # <-- create figure explicitly
@@ -33,7 +34,7 @@ def line_graph(data, useShortName: bool, x_label, y_label, title, vline=None, wi
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
     ax.set_title(title)
-    ax.legend()
+    set_legend(ax, legendPosition)
     ax.grid(True)
     ax.ticklabel_format(axis="y", style="sci", scilimits=(18, 18))
 
@@ -41,7 +42,7 @@ def line_graph(data, useShortName: bool, x_label, y_label, title, vline=None, wi
 
 def plot_from_parsed(
     rounds: list[Round],
-    participants: dict[int, "Participant"],
+    participants: dict[str, Participant],
     experiment_config: ExperimentSpec,
     output_folder_path: str,
     filename: str = "simulation.pdf",
