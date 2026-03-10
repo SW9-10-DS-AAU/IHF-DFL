@@ -82,6 +82,37 @@ def agg_grs_by_behavior(merged_users: pd.DataFrame) -> pd.DataFrame:
     return agg
 
 
+def grs_by_user(merged_users: pd.DataFrame) -> pd.DataFrame:
+    # No aggregation needed, we just select the desired data.
+    # we want one GRS per user/per round
+
+    df = merged_users[merged_users["round"] > 0]
+
+    # Role: Just fetch from first value on user
+
+    return df[["grs", "user_id", "role", "round"]].sort_values("round")
+
+
+# All, Only positives,
+# Accuracy_only, loss_only
+
+# Take global accuracy (What it actually is) over rounds, show for each aggregation strategy.
+
+
+def global_acc_by_aggregation_strategy(acc_over_agg: pd.DataFrame) -> pd.DataFrame:
+    df = acc_over_agg[acc_over_agg["round"] > 0]
+    # TODO: Change to aggregation_strategy when implemented
+    return df[['round', 'global_accuracy', 'contribution_score_strategy']].sort_values(["contribution_score_strategy", "round"])
+
+
+def global_loss_by_aggregation_strategy(loss_over_agg: pd.DataFrame) -> pd.DataFrame:
+    df = loss_over_agg[loss_over_agg["round"] > 0]
+    # TODO: Change to aggregation_strategy when implemented
+    return df[['round', 'global_loss', 'contribution_score_strategy']].sort_values(["contribution_score_strategy", "round"])
+
+
+
+
 def agg_contribution_score_by_behavior(merged_users: pd.DataFrame) -> pd.DataFrame:
     """
     Mean and std of contribution_score grouped by [behavior, round].

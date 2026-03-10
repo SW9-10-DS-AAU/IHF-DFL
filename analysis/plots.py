@@ -2,10 +2,18 @@ from pathlib import Path
 
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 import numpy as np
 import pandas as pd
 
-matplotlib.rcParams.update({"figure.dpi": 100})
+matplotlib.rcParams.update({"figure.dpi": 250})
+
+ROLE_LABELS = {
+    "good": "Honest",
+    "bad": "Malicious",
+    "freerider": "Freerider",
+    "inactive": "Inactive",
+}
 
 BEHAVIOR_COLORS = {
     "good":      "#2196F3",
@@ -143,7 +151,7 @@ def plot_grs_by_behavior(agg_grs: pd.DataFrame) -> plt.Figure:
         color = BEHAVIOR_COLORS.get(behavior, None)
         group = group.sort_values("round")
         ax.plot(group["round"], group["grs_mean"],
-                label=behavior, color=color, linewidth=2)
+                label=ROLE_LABELS[behavior], color=color, linewidth=2)
         if "grs_std" in group.columns:
             ax.fill_between(
                 group["round"],
@@ -158,6 +166,66 @@ def plot_grs_by_behavior(agg_grs: pd.DataFrame) -> plt.Figure:
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
     return fig
+
+
+def plot_grs_by_user(grs_users: pd.DataFrame) -> plt.Figure:
+    # x-axis: Round: 0,1,...,n
+    # y-axis: GRS
+    # Plot user as a line
+    fig, ax = plt.subplots(figsize=(9, 4))
+
+    # for user_id, group in grs_users.groupby("user_id, behavior"):
+    #     ax.plot(group["round"], group["grs"], label=f"User {user_id}", alpha=0.5)
+
+    for (user_id, behavior), group in grs_users.groupby(["user_id", "role"]):
+        ax.plot(group["round"], group["grs"], label=f"User {user_id} ({ROLE_LABELS[behavior]})", alpha=0.5) # alpha: 50% transparency, so overlapping lines show through each other
+
+    ax.set_xlabel("Round")
+    ax.set_ylabel("Global Reputation Score (ETH)")
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.legend(title="Users")
+    ax.grid(True, alpha=0.3) # alpha: makes the grid subtle/faint so it doesn't compete with the data
+    fig.tight_layout()
+    return fig
+
+
+# For each round plot the global accuracy (int)
+# TODO: Need to log aggregation strategy instead of contrib score
+def plot_global_acc_by_aggregation_strategy(acc_by_strategy: pd.DataFrame) -> plt.Figure:
+    fig, ax = plt.subplots(figsize=(9, 4))
+
+    for strategy, group in acc_by_strategy.groupby("contribution_score_strategy"):
+        color = STRATEGY_COLORS.get(strategy)
+        ax.plot(group["round"], group["global_accuracy"], label=strategy, color=color, linewidth=2)
+
+    ax.set_xlabel("Round")
+    ax.set_ylabel("Global Accuracy (%)")
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.legend(title="Strategy")
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+
+    return fig
+
+
+
+# TODO: Need to log aggregation strategy instead of contrib score
+def plot_global_loss_by_aggregation_strategy(loss_by_strategy: pd.DataFrame) -> plt.Figure:
+    fig, ax = plt.subplots(figsize=(9, 4))
+
+    for strategy, group in loss_by_strategy.groupby("contribution_score_strategy"):
+        color = STRATEGY_COLORS.get(strategy)
+        ax.plot(group["round"], group["global_loss"], label=strategy, color=color, linewidth=2)
+
+    ax.set_xlabel("Round")
+    ax.set_ylabel("Global Loss (%)")
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.legend(title="Strategy")
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+
+    return fig
+
 
 
 
@@ -198,6 +266,11 @@ def plot_round_kicked_by_strategy(
     Expects columns: contribution_score_strategy, role,
                      mean_round_kicked, low_err, high_err.
     """
+    if agg_kicked.empty:
+        fig, ax = plt.subplots()
+        ax.text(0.5, 0.5, "No disqualified users", ha="center", va="center", transform=ax.transAxes)
+        return fig
+
     strategies = sorted(agg_kicked["contribution_score_strategy"].unique())
     roles = sorted(agg_kicked["role"].unique())
 
@@ -245,7 +318,7 @@ def plot_round_kicked_by_strategy(
             edgecolor="black",
             linewidth=0.8,
             alpha=0.8,
-            label=role,
+            label=ROLE_LABELS[role],
         )
 
         y_top = ax.get_ylim()[1] if ax.get_ylim()[1] > 0 else (max_rounds or 1)

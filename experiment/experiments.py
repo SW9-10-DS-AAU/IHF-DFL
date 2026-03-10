@@ -121,7 +121,7 @@ def main(author):
             force_merge_all = forced,
             punish_factor= 3,
             punish_factor_contrib= 3,
-            minimum_rounds=10
+            minimum_rounds=5
         )
         
         path = getPath(config, startTime, dataset)
@@ -129,7 +129,7 @@ def main(author):
             writer = AsyncWriter(path, OUTPUTHEADERS, WRITERBUFFERSIZE, config, author)
             metadata = {**vars(config), "dataset": dataset, "timestamp": startTime}
             logger = ExperimentLogger(experiment_id=path.stem, metadata=metadata)
-            # experiment = ExperimentRunner.run_experiment(dataset, config, writer, logger)
+            ExperimentRunner.run_experiment(dataset, config, writer, logger)
             writer.finish()
             logger.save(path.with_suffix(".pkl"))
         except Exception as e:

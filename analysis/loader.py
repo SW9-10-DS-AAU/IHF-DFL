@@ -14,6 +14,7 @@ class RunData:
     rounds_users:  pd.DataFrame
     votes:         pd.DataFrame
     receipts:      pd.DataFrame
+    contributions: pd.DataFrame
 
 
 def load_run(path: Path) -> RunData:
@@ -26,10 +27,11 @@ def load_run(path: Path) -> RunData:
         experiment_id=payload["experiment_id"],
         metadata=     payload["metadata"],
         setup=        payload.get("setup", {}),
-        rounds_global=tables.get("global",   pd.DataFrame()),
-        rounds_users= tables.get("users",    pd.DataFrame()),
-        votes=        tables.get("votes",    pd.DataFrame()),
-        receipts=     tables.get("receipts", pd.DataFrame()),
+        rounds_global=tables.get("global",        pd.DataFrame()),
+        rounds_users= tables.get("users",         pd.DataFrame()),
+        votes=        tables.get("votes",         pd.DataFrame()),
+        receipts=     tables.get("receipts",      pd.DataFrame()),
+        contributions=tables.get("contributions", pd.DataFrame()),
     )
 
 

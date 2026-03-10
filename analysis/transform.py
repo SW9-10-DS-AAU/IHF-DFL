@@ -38,6 +38,7 @@ def normalize_run(run: RunData) -> RunData:
     u = run.rounds_users.copy()  if not run.rounds_users.empty  else pd.DataFrame()
     v = run.votes.copy()         if not run.votes.empty         else pd.DataFrame()
     r = run.receipts.copy()      if not run.receipts.empty      else pd.DataFrame()
+    c = run.contributions.copy() if not run.contributions.empty else pd.DataFrame()
 
     # Global table
     if not g.empty:
@@ -70,7 +71,8 @@ def normalize_run(run: RunData) -> RunData:
         rounds_global=g,
         rounds_users=u,
         votes=v,
-        receipts=r
+        receipts=r,
+        contributions=c
     )
 
 
@@ -88,6 +90,7 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
     users_frames    = []
     votes_frames    = []
     receipts_frames = []
+    contributions   = []
 
     for run in runs:
         meta_row = {k: run.metadata.get(k) for k in MERGE_META_KEYS}
@@ -109,6 +112,8 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
             votes_frames.append(_tag(run.votes))
         if not run.receipts.empty:
             receipts_frames.append(_tag(run.receipts))
+        if not run.contributions.empty:
+            contributions.append(_tag(run.contributions))
 
     def _concat(frames):
         if not frames:
@@ -120,4 +125,5 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
         "users":    _concat(users_frames),
         "votes":    _concat(votes_frames),
         "receipts": _concat(receipts_frames),
+        "contributions": _concat(contributions),
     }

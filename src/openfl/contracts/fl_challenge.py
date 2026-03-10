@@ -900,6 +900,7 @@ class FLChallenge(FLManager):
         mad_prev_accuracies = remove_outliers_mad(prev_accuracies, mad_threshold)
         avg_prev_acc = np.mean(mad_prev_accuracies)
         avg_accuracies = [] # after loop: [30, 20, 30, 40]
+        per_user_outlier_info = []
 
         for u in users: # For loop to extract accuracies.
             # All accuracies per user
@@ -907,12 +908,15 @@ class FLChallenge(FLManager):
 
             try:
                 # Multiple accuracies per user
-                mad_accuracies = remove_outliers_mad(accuracies, mad_threshold)
+                info = {}
+                mad_accuracies = remove_outliers_mad(accuracies, mad_threshold, collector=info)
                 # One average accuracy per user
                 avg_acc = np.mean(mad_accuracies)
                 avg_accuracies.append(avg_acc) # int
+                per_user_outlier_info.append(info)
             except ValueError:
                 print("An error occured")
+                per_user_outlier_info.append({})
 
         norm_accuracies = normalize_contribution_scores_new(avg_accuracies, avg_prev_acc, 'accuracy')
         print(f"normalized accuracies: {norm_accuracies}")
@@ -920,6 +924,18 @@ class FLChallenge(FLManager):
 
         scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in norm_accuracies]
         print(f"scores = {scores}")
+
+        if self.logger is not None:
+            self.logger.log_contribution_scores(
+                round=self.pytorch_model.round,
+                user_ids=[u.id for u in users],
+                user_addresses=[u.address for u in users],
+                raw_values=avg_accuracies,
+                outlier_info=per_user_outlier_info,
+                scores=scores,
+                avg_prev=avg_prev_acc,
+            )
+
         return scores
 
 
@@ -937,6 +953,7 @@ class FLChallenge(FLManager):
         mad_prev_losses = remove_outliers_mad(prev_losses, mad_threshold)
         avg_prev_loss = np.mean(mad_prev_losses)
         avg_losses = [] # after loop: [60, 70, 50, 80]
+        per_user_outlier_info = []
 
         for u in users: # For loop to extract losses.
             # All loses per user
@@ -944,14 +961,15 @@ class FLChallenge(FLManager):
 
             try:
                 # Multiple accuracies and losses per user
-                mad_losses = remove_outliers_mad(losses, mad_threshold)
+                info = {}
+                mad_losses = remove_outliers_mad(losses, mad_threshold, collector=info)
                 # One average accuracy and loss per user
                 avg_loss = np.mean(mad_losses)
                 avg_losses.append(avg_loss) # int
+                per_user_outlier_info.append(info)
             except ValueError:
                 print("An error occured")
-
-        scores = []
+                per_user_outlier_info.append({})
 
         norm_losses = normalize_contribution_scores_new(avg_losses, avg_prev_loss, 'loss')
         print(f"normalized losses: {norm_losses}")
@@ -963,6 +981,18 @@ class FLChallenge(FLManager):
         scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in norm_losses]
 
         print(f"scores = {scores}")
+
+        if self.logger is not None:
+            self.logger.log_contribution_scores(
+                round=self.pytorch_model.round,
+                user_ids=[u.id for u in users],
+                user_addresses=[u.address for u in users],
+                raw_values=avg_losses,
+                outlier_info=per_user_outlier_info,
+                scores=scores,
+                avg_prev=avg_prev_loss,
+            )
+
         return scores
 
 
@@ -1534,7 +1564,7 @@ def normalize_contribution_scores_new(vals: list, prev_val: float, evaluation_me
     return vals
 
 
-def remove_outliers_mad(arr, threshold=0.70, return_mask=False):
+def remove_outliers_mad(arr, threshold=0.70, return_mask=False, collector=None):
     arr = np.asarray(arr, dtype=float)   # force float
 
     # always flatten
@@ -1547,6 +1577,11 @@ def remove_outliers_mad(arr, threshold=0.70, return_mask=False):
     # SPECIAL CASE: MAD == 0
     if mad == 0:
         mask = abs_dev <= threshold
+        if collector is not None:
+            collector["median"]   = float(median)
+            collector["mad"]      = 0.0
+            collector["removed"]  = flat[~mask].tolist()
+            collector["boundary"] = float(threshold)
         if return_mask:
             return arr, mask
         return flat[mask]
@@ -1555,6 +1590,12 @@ def remove_outliers_mad(arr, threshold=0.70, return_mask=False):
     modified_z = 0.6745 * (flat - median) / mad
 
     mask = np.abs(modified_z) <= threshold
+
+    if collector is not None:
+        collector["median"]   = float(median)
+        collector["mad"]      = float(mad)
+        collector["removed"]  = flat[~mask].tolist()
+        collector["boundary"] = float(threshold * mad / 0.6745)
 
     if return_mask:
         return arr, mask

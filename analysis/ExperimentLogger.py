@@ -15,6 +15,7 @@ class ExperimentLogger:
         self._user_rows = []
         self._vote_rows = []
         self._receipt_rows = []
+        self._contribution_rows = []
 
     # -------- GLOBAL ROUND --------
 
@@ -78,6 +79,24 @@ class ExperimentLogger:
             "receiver_address": receiver_address,
         })
 
+    # -------- CONTRIBUTION SCORES --------
+
+    def log_contribution_scores(self, round, user_ids, user_addresses, raw_values, outlier_info, scores, avg_prev):
+        for user_id, address, raw_val, info, score in zip(user_ids, user_addresses, raw_values, outlier_info, scores):
+            self._contribution_rows.append({
+                "experiment_id":    self.experiment_id,
+                "round":            round,
+                "user_id":          user_id,
+                "user_address":     address,
+                "raw_avg_value":    raw_val,
+                "outliers_removed": info.get("removed", []),
+                "mad_median":       info.get("median"),
+                "mad_value":        info.get("mad"),
+                "mad_boundary":     info.get("boundary"),
+                "contribution_score": score,
+                "avg_prev":         avg_prev,
+            })
+
     # -------- RECEIPT --------
 
     def log_receipt(self, round, tx_type, tx_hash, gas_used):
@@ -104,10 +123,11 @@ class ExperimentLogger:
 
     def finalize(self):
         return {
-            "global":   pd.DataFrame(self._global_rows),
-            "users":    pd.DataFrame(self._user_rows),
-            "votes":    pd.DataFrame(self._vote_rows),
-            "receipts": pd.DataFrame(self._receipt_rows),
+            "global":        pd.DataFrame(self._global_rows),
+            "users":         pd.DataFrame(self._user_rows),
+            "votes":         pd.DataFrame(self._vote_rows),
+            "receipts":      pd.DataFrame(self._receipt_rows),
+            "contributions": pd.DataFrame(self._contribution_rows),
         }
 
     # -------- SAVE --------
