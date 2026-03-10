@@ -5,26 +5,8 @@ import experiment_runner as ExperimentRunner
 from experiment_configuration import ExperimentConfiguration
 from openfl.utils.async_writer import AsyncWriter
 
-config = ExperimentConfiguration(
-    min_buy_in=int(1e18),
-    max_buy_in=int(1e18),
-    contribution_score_strategy="loss_only",
-    use_outlier_detection=True,
-    minimum_rounds=10,
-    freerider_noise_scale=0.1,
-    malicious_noise_scale=0.1,
-    punish_factor=3,
-    punish_factor_contrib=3,
-    freerider_start_round=1,
-    malicious_start_round=1,
-    use_nobody_is_kicked=True,
-    force_merge_all=True,
-    number_of_good_contributors=4,
-    number_of_bad_contributors=1,
-    number_of_freerider_contributors=1,
-    number_of_inactive_contributors=0,
-    aggregation_rule="positives_only"
-)
+PRESET = "mnist_openfl_w_outlier"
+config = ExperimentConfiguration(preset=PRESET, use_defaults=True)
 
 # OVERSKRIV variabler her for testing. eksempel: config = ExperimentConfiguration(minimum_rounds=1), hvis du kun vil køre een round#DATASET = "cifar-10"
 RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/sample")
@@ -66,7 +48,17 @@ def main():
 def getPath(experimentConfig: ExperimentConfiguration):
     time = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
 
-    filename = f"{experimentConfig.contribution_score_strategy}-{experimentConfig.freerider_start_round}-{experimentConfig.freerider_noise_scale}-{experimentConfig.malicious_start_round}-{experimentConfig.malicious_noise_scale}-{experimentConfig.use_outlier_detection}.csv"
+    filename = (
+        f"{PRESET}-"
+        f"{DATASET}-"
+        f"{config.contribution_score_strategy}-"
+        f"{config.freerider_start_round}-"
+        f"{config.freerider_noise_scale}-"
+        f"{config.malicious_start_round}-"
+        f"{config.malicious_noise_scale}-"
+        f"{config.use_outlier_detection}-"
+        f"{config.aggregation_rule}.csv"
+    )
 
     path = Path(RESULTDATAFOLDER).joinpath(time).joinpath(filename)
 

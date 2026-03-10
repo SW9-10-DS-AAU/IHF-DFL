@@ -514,7 +514,7 @@ class PytorchModel:
         with torch.no_grad():
             global_dict = self.global_model.state_dict()
 
-            if aggregation_rule == "Fed_AVG":
+            if aggregation_rule == "FedAVG":
                 for k in global_dict.keys():
                     stacked = torch.stack([
                         client_models[i].state_dict()[k].to(

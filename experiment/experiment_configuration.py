@@ -32,19 +32,19 @@ class ExperimentConfiguration:
             self.number_of_inactive_contributors = d.number_of_inactive_contributors
 
             # experiment
-            self.number_of_good_contributors = p.number_of_good_contributors
-            self.number_of_bad_contributors = p.number_of_bad_contributors
-            self.number_of_freerider_contributors = p.number_of_freerider_contributors
-            self.minimum_rounds = p.minimum_rounds
-            self.epochs = p.epochs
-            self.batch_size = p.batch_size
-            self.use_outlier_detection = p.use_outlier_detection
-            self.contribution_score_strategy = p.contribution_score_strategy
-            self.freerider_noise_scale = p.freerider_noise_scale
-            self.freerider_start_round = p.freerider_start_round
-            self.malicious_start_round = p.malicious_start_round
-            self.malicious_noise_scale = p.malicious_noise_scale
-            self.aggregation_rule = p.aggregation_rule
+            self.number_of_good_contributors = _unwrap_first(p.number_of_good_contributors)
+            self.number_of_bad_contributors = _unwrap_first(p.number_of_bad_contributors)
+            self.number_of_freerider_contributors = _unwrap_first(p.number_of_freerider_contributors)
+            self.minimum_rounds = _unwrap_first(p.minimum_rounds)
+            self.epochs = _unwrap_first(p.epochs)
+            self.batch_size = _unwrap_first(p.batch_size)
+            self.use_outlier_detection = _unwrap_first(p.use_outlier_detection)
+            self.contribution_score_strategy = _unwrap_first(p.contribution_score_strategy)
+            self.freerider_noise_scale = _unwrap_first(p.freerider_noise_scale)
+            self.freerider_start_round = _unwrap_first(p.freerider_start_round)
+            self.malicious_start_round = _unwrap_first(p.malicious_start_round)
+            self.malicious_noise_scale = _unwrap_first(p.malicious_noise_scale)
+            self.aggregation_rule = _unwrap_first(p.aggregation_rule)
 
         else:
 
@@ -65,7 +65,10 @@ class ExperimentConfiguration:
             + self.number_of_inactive_contributors
         )
 
-
+def _unwrap_first(value):
+    if isinstance(value, list):
+        return value[0]
+    return value
 
 
 
