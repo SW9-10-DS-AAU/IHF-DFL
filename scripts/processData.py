@@ -121,16 +121,16 @@ def cifar_graph_seven_four(usePreviousTests: bool = True):
 
 
 def minist_graph_seven_one(usePreviousTests: bool = True):
-    plot_contribution_score_variance("Variance Of Contribution Score - Accuracy", [Method.ACCURACY_LOSS], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph71{DATASET}", RESULTDATAFOLDER, y_range=(-1.0e18, 1.2e18))
+    plot_contribution_score_variance("Variance Of Contribution Score - Accuracy Loss", [Method.ACCURACY_LOSS], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph71{DATASET}", RESULTDATAFOLDER, y_range=(0.12e18, 0.4e18))
 
 def minist_graph_seven_two(usePreviousTests: bool = True):
-    plot_contribution_score_variance("Variance Of Contribution Score - Dot Product Without Outlier Detection", [Method.DOTPRODUCT], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph72{DATASET}", RESULTDATAFOLDER)#, y_range=(0.15e18, 0.26e18))
+    plot_contribution_score_variance("Variance Of Contribution Score - Dot Product Without Outlier Detection", [Method.DOTPRODUCT], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph72{DATASET}", RESULTDATAFOLDER, y_range=(0.15e18, 0.27e18))
 
 def minist_graph_seven_three(usePreviousTests: bool = True):
-    plot_contribution_score_variance("Variance Of Contribution Score - Dot Product With Outlier Detection", [Method.DOTPRODUCTANDOUTLIER], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph73{DATASET}", RESULTDATAFOLDER)#, y_range=(0.15e18, 0.26e18))
+    plot_contribution_score_variance("Variance Of Contribution Score - Dot Product With Outlier Detection", [Method.DOTPRODUCTANDOUTLIER], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph73{DATASET}", RESULTDATAFOLDER, y_range=(0.15e18, 0.35e18))
 
 def minist_graph_seven_four(usePreviousTests: bool = True):
-    plot_contribution_score_variance("Variance Of Contribution Score - Naive", [Method.NAIVE], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph74{DATASET}", RESULTDATAFOLDER)#, y_range=(0.16e18, 0.26e18))
+    plot_contribution_score_variance("Variance Of Contribution Score - Naive", [Method.NAIVE], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph74{DATASET}", RESULTDATAFOLDER, y_range=(0.16e18, 0.26e18))
 
 
 # graph_one_one()
@@ -149,7 +149,7 @@ def minist_graph_seven_four(usePreviousTests: bool = True):
 
 
 
-#graph_six_one() # OBS. this one is for accuracy loss. Duplicate func, rename it and change the parameters for internal func call.
+graph_six_one() # OBS. this one is for accuracy loss. Duplicate func, rename it and change the parameters for internal func call.
 
 #cifar_graph_seven_one()
 #cifar_graph_seven_two()
@@ -157,9 +157,9 @@ def minist_graph_seven_four(usePreviousTests: bool = True):
 #cifar_graph_seven_four()
 
 minist_graph_seven_one()    #--No work - idk why
-#minist_graph_seven_two()    #--No work
-#minist_graph_seven_three()  #--No work
-#minist_graph_seven_four()   #--No work
+minist_graph_seven_two()    #--No work
+minist_graph_seven_three()  #--No work
+minist_graph_seven_four()   #--No work
 
 #graph_three_investigation()
 
