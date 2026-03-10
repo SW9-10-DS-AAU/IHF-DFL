@@ -119,7 +119,7 @@ PRESETS = {
         aggregation_rule= ["FedAVG"],
     ),
 
-    "aggregation_rules_test_mode_performance_mnist": FullPreset(
+    "aggregation_rules_test_model_performance_mnist": FullPreset(
         fork=True,
         reward=int(1e18),
         standard_buy_in=int(1e18),
