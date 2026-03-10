@@ -20,7 +20,7 @@ from openfl.utils import printer, config
 from openfl.api.connection_helper import ConnectionHelper
 from openfl.utils.async_writer import AsyncWriter, NullWriter
 import openfl.utils.config
-
+from openfl.utils.shapley import check_shapley_compliance
 # Smart-contract–backed federated learning simulation.
 # Handles:
 #   - User registration / exit on-chain
@@ -921,6 +921,14 @@ class FLChallenge(FLManager):
         norm_accuracies = normalize_contribution_scores_new(avg_accuracies, avg_prev_acc, 'accuracy')
         print(f"normalized accuracies: {norm_accuracies}")
 
+        # Validating Shapley Axioms (Runtime Guard)
+        diffs = [v - avg_prev_acc for v in avg_accuracies]
+        success, errors = check_shapley_compliance(diffs, norm_accuracies)
+
+        if not success:
+            msg = f"[Round {self.pytorch_model.round}] Axiom Violation: {errors}"
+            runtime_warnings.append(msg)
+            print(colored(f"⚠️ {msg}", "yellow"))
 
         scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in norm_accuracies]
         print(f"scores = {scores}")
@@ -977,6 +985,16 @@ class FLChallenge(FLManager):
         sum_nl = sum(norm_losses)
 
         print(f"sum_nl: {sum_nl}")
+
+        # Validating Shapley Axioms (Runtime Guard)
+        diffs = [v - avg_prev_loss for v in avg_losses]
+        diffs = [-1 * d for d in diffs]
+        success, errors = check_shapley_compliance(diffs, norm_losses)
+
+        if not success:
+            msg = f"[Round {self.pytorch_model.round}] Axiom Violation: {errors}"
+            runtime_warnings.append(msg)
+            print(colored(f"⚠️ {msg}", "yellow"))
 
         scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in norm_losses]
 
@@ -1265,6 +1283,15 @@ class FLChallenge(FLManager):
                 "userStatuses": [user.getStatus() for user in self.pytorch_model.participants],
                 "GasTransactions": roundTx
                 })
+
+
+        print(f"Number of Shapley Axioms violated: {len(runtime_warnings)}\n")
+        if runtime_warnings:
+            print("\n" + red("!" * 30 + " SHAPLEY WARNINGS " + "!" * 30))
+            for warn in runtime_warnings:
+                print(colored(warn, 'yellow'))
+            print(red("!" * 78))
+
         self.writer.writeComment(f"$gasCosts${self.gas_feedback},{self.gas_register},{self.gas_slot},{self.gas_weights},{self.gas_close},{self.gas_deploy},{self.gas_exit}")
         self.exit_system()
             
@@ -1601,5 +1628,6 @@ def remove_outliers_mad(arr, threshold=0.70, return_mask=False, collector=None):
         return arr, mask
     return flat[mask]
 
+runtime_warnings = []
 
 

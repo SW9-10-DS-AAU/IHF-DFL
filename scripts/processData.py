@@ -11,7 +11,8 @@ from parser.helpers.setLegendLocation import LegendPosition
 #RESULTDATAFOLDER = Path(__file__).resolve().parents[1].joinpath("experiment/data/experimentData")
 RESULTDATAFOLDER = Path(__file__).resolve().parents[1].joinpath("experiment/data/experimentData")
 
-LISTOFALLMETHODS = [Method.ACCURACY, Method.DOTPRODUCT, Method.DOTPRODUCTANDOUTLIER, Method.NAIVE]
+LISTOFALLMETHODS = [
+    Method.ACCURACY_ONLY, Method.DOTPRODUCT, Method.DOTPRODUCTANDOUTLIER, Method.NAIVE, Method.ACCURACY_LOSS, Method.LOSS_ONLY]
 LISTOFALLATTIDUDESASMETA = [MetaAttitude.GOOD, MetaAttitude.FREERIDER, MetaAttitude.MALICIOUS]
 #DATASET = "cifar"
 DATASET = "mnist"
@@ -97,15 +98,16 @@ def graph_five_three(usePreviousTests: bool = True):
 def graph_six_one(usePreviousTests: bool = True):
     # accuracy_grs_gain: 0-11 57-67 110-112
     accuracyGRSGainGraph(
-        "Accuracy Scoring – GRS Gained Per Round",
+        "Accuracy Loss Scoring – GRS Gained Per Round",
         usePreviousTests,
         f"Graph61{DATASET}{FORCEDTEXT}",
         RESULTDATAFOLDER,
-        LegendPosition.INSIDE_UPPER_LEFT
+        LegendPosition.INSIDE_UPPER_LEFT,
+        Method.ACCURACY_LOSS
     )
 
 def cifar_graph_seven_one(usePreviousTests: bool = True):
-    plot_contribution_score_variance("Variance Of Contribution Score - Accuracy", [Method.ACCURACY], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph71{DATASET}", RESULTDATAFOLDER, y_range=(-3.5e17, 4.5e17))
+    plot_contribution_score_variance("Variance Of Contribution Score - Accuracy", [Method.ACCURACY_LOSS], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph71{DATASET}", RESULTDATAFOLDER) #y_range=(-3.5e17, 4.5e17))
 
 def cifar_graph_seven_two(usePreviousTests: bool = True):
     plot_contribution_score_variance("Variance Of Contribution Score - Dot Product Without Outlier Detection", [Method.DOTPRODUCT], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph72{DATASET}", RESULTDATAFOLDER, y_range=(0.0e18, 0.3e18))
@@ -119,7 +121,7 @@ def cifar_graph_seven_four(usePreviousTests: bool = True):
 
 
 def minist_graph_seven_one(usePreviousTests: bool = True):
-    plot_contribution_score_variance("Variance Of Contribution Score - Accuracy", [Method.ACCURACY], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph71{DATASET}", RESULTDATAFOLDER, y_range=(-1.0e18, 1.2e18))
+    plot_contribution_score_variance("Variance Of Contribution Score - Accuracy", [Method.ACCURACY_LOSS], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph71{DATASET}", RESULTDATAFOLDER, y_range=(-1.0e18, 1.2e18))
 
 def minist_graph_seven_two(usePreviousTests: bool = True):
     plot_contribution_score_variance("Variance Of Contribution Score - Dot Product Without Outlier Detection", [Method.DOTPRODUCT], LISTOFALLATTIDUDESASMETA, usePreviousTests, f"Graph72{DATASET}", RESULTDATAFOLDER)#, y_range=(0.15e18, 0.26e18))
@@ -132,29 +134,29 @@ def minist_graph_seven_four(usePreviousTests: bool = True):
 
 
 # graph_one_one()
-graph_one_two()
+#graph_one_two()
 # graph_one_three()
 
 # graph_two_one()
 #graph_two_two() # Does not work for Forced true
 # graph_two_three()
 
-graph_three_one()
-graph_three_two()
-graph_three_three()
+#graph_three_one()
+#graph_three_two()
+#graph_three_three()
 
-graph_four_one()
+#graph_four_one()
 
 
 
-graph_six_one()
+#graph_six_one() # OBS. this one is for accuracy loss. Duplicate func, rename it and change the parameters for internal func call.
 
 #cifar_graph_seven_one()
 #cifar_graph_seven_two()
 #cifar_graph_seven_three()
 #cifar_graph_seven_four()
 
-#minist_graph_seven_one()    #--No work
+minist_graph_seven_one()    #--No work - idk why
 #minist_graph_seven_two()    #--No work
 #minist_graph_seven_three()  #--No work
 #minist_graph_seven_four()   #--No work

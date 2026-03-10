@@ -1,4 +1,5 @@
 import os
+import random
 import sys
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -58,6 +59,38 @@ def mock_participants():
 
         # Give unique secrets to ensure filtering tests work correctly
         user.secret = 100 + i
+
+        users.append(user)
+    return users
+
+
+@pytest.fixture
+def mock_participants_with_values():
+    """Create a list of 6 dummy participants with randomly generated accuracies and losses."""
+    users = []
+    for i in range(6):
+        user = MagicMock()
+        user.address = f"0xAddressUser{i}"
+        user.privateKey = f"privateKey{i}"
+        user.collateral = 1000
+        user.isRegistered = False
+        user.attitude = "honest"
+        user.cheater = []
+        user.id = i
+        user.hashedModel = b'hash'
+        user.secret = 100 + i
+
+        # Randomly generated accuracies (60-99) and losses (5-20)
+        # with one random outlier injected
+        normal_accuracies = [random.randint(60, 99) for _ in range(4)]
+        normal_losses     = [random.randint(5, 20)  for _ in range(4)]
+
+        outlier_idx = random.randint(0, 4)
+        normal_accuracies.insert(outlier_idx, 0)        # outlier: accuracy = 0
+        normal_losses.insert(outlier_idx, 10000)        # outlier: loss = 10000
+
+        user._accuracies = normal_accuracies
+        user._losses     = normal_losses
 
         users.append(user)
     return users

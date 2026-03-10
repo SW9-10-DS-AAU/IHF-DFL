@@ -918,6 +918,12 @@ def device_label(device: torch.device, device_id: int = 0) -> str:
         return "CPU"
 
 def safe_scale(value, scalar, max_val):
-    if math.isinf(value) or math.isnan(value):
+    if not math.isfinite(value):
         return max_val
-    return min(round(value * scalar), max_val)
+
+    scaled = value * scalar
+
+    if not math.isfinite(scaled):
+        return max_val
+
+    return min(round(scaled), max_val)

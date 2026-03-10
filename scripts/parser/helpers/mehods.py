@@ -5,10 +5,12 @@ from parser.experiment_specs import ExperimentSpec
 
 
 class Method(Enum):
-    ACCURACY = 1
+    ACCURACY_ONLY = 1
     NAIVE = 2
     DOTPRODUCT = 3
     DOTPRODUCTANDOUTLIER = 4
+    ACCURACY_LOSS = 5
+    LOSS_ONLY = 6
 
     @classmethod
     def from_string(cls, name: str, use_outlier: bool):
@@ -36,7 +38,9 @@ class Method(Enum):
     @property
     def display_name(self) -> str:
         return {
-            Method.ACCURACY: "Accuracy",
+            Method.ACCURACY_ONLY: "Accuracy only",
+            Method.ACCURACY_LOSS: "Accuracy Loss",
+            Method.LOSS_ONLY: "Loss Only",
             Method.NAIVE: "Naive",
             Method.DOTPRODUCT: "Dot product (no outlier detection)",
             Method.DOTPRODUCTANDOUTLIER: "Dot product (with outlier detection)",

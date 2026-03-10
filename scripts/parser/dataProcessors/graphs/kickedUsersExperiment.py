@@ -20,10 +20,12 @@ def new_counter():
     }
 
 roundkicked = {
-    Method.ACCURACY: new_counter(),
+    Method.ACCURACY_ONLY: new_counter(),
     Method.DOTPRODUCT: new_counter(),
     Method.DOTPRODUCTANDOUTLIER: new_counter(),
-    Method.NAIVE: new_counter()
+    Method.NAIVE: new_counter(),
+    Method.ACCURACY_LOSS: new_counter(),
+    Method.LOSS_ONLY: new_counter(),
 }
 
 def prepare_data_for_graph(rounds: list[Round], participants: dict[str, Participant], experiment_specs: ExperimentSpec, gasStats: GasStats, outDir, freeRiderRound: int, forced: bool | None):
@@ -120,7 +122,8 @@ def get_round_kicked():
         for userType, values in userTypes.items():
             if not values or all(v == 0 for v in values):
                 continue
-            if method == Method.ACCURACY and userType == MetaAttitude.GOOD:
+            #if method == Method.ACCURACY and 
+            if userType == MetaAttitude.GOOD:
                print(f"good users kicked in rounds: {values}")
             out[method][userType] = getVariances(values)
 
@@ -129,10 +132,12 @@ def get_round_kicked():
 def kickedGraph(freeriderRound: int, title: str, useSameTests: bool, windowAndFileName: str, legend_position: LegendPosition, RESULTDATAFOLDER, forced: bool | None = None):
     global roundkicked, nrOfRounds
     roundkicked = {
-        Method.ACCURACY: new_counter(),
+        Method.ACCURACY_ONLY: new_counter(),
         Method.DOTPRODUCT: new_counter(),
         Method.DOTPRODUCTANDOUTLIER: new_counter(),
-        Method.NAIVE: new_counter()
+        Method.NAIVE: new_counter(),
+        Method.ACCURACY_LOSS: new_counter(),
+        Method.LOSS_ONLY: new_counter(),
     }
     nrOfRounds = 0
     runProcessor(RESULTDATAFOLDER, useSameTests, lambda rounds, participants, experimentConfig, gasCosts, outdir: \
