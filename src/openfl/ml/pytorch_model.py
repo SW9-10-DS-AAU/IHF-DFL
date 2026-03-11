@@ -76,7 +76,8 @@ class Participant:
         self.currentAcc = 0
         # User's locally-trained model accuracy on their own validation set (after they trained on top of the global model).
         # Is set in: apply_training_results().
-
+        self.currentLoss = 0
+        # New variable introduced. Needs to be implemented in code. Alongside currentAcc.
         self.attitude = "good"
         self.futureAttitude = _attitude
         self.attitudeSwitch = _attitudeSwitch

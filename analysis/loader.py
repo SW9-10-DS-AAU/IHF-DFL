@@ -15,6 +15,7 @@ class RunData:
     votes:         pd.DataFrame
     receipts:      pd.DataFrame
     contributions: pd.DataFrame
+    warnings:      pd.DataFrame
 
 
 def load_run(path: Path) -> RunData:
@@ -32,6 +33,7 @@ def load_run(path: Path) -> RunData:
         votes=        tables.get("votes",         pd.DataFrame()),
         receipts=     tables.get("receipts",      pd.DataFrame()),
         contributions=tables.get("contributions", pd.DataFrame()),
+        warnings=     tables.get("warnings", pd.DataFrame())
     )
 
 

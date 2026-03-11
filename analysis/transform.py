@@ -6,8 +6,14 @@ _GLOBAL_WEI_COLS  = ["reward_pool", "punishment_pool"]
 # Wei → ETH columns in the users table
 _USERS_WEI_COLS   = ["grs", "reward_delta", "contribution_score"]
 # ratio → % columns
-_GLOBAL_PCT_COLS  = ["global_accuracy"]
-_USERS_PCT_COLS   = ["accuracy"]
+_GLOBAL_ACC_COLS  = ["global_accuracy"]
+_USERS_ACC_COLS   = ["accuracy"]
+
+_GLOBAL_LOSS_COLS  = ["global_loss"]
+_USERS_LOSS_COLS   = ["loss"]
+
+
+
 
 # Metadata keys to propagate as columns when merging
 MERGE_META_KEYS = [
@@ -39,15 +45,13 @@ def normalize_run(run: RunData) -> RunData:
     v = run.votes.copy()         if not run.votes.empty         else pd.DataFrame()
     r = run.receipts.copy()      if not run.receipts.empty      else pd.DataFrame()
     c = run.contributions.copy() if not run.contributions.empty else pd.DataFrame()
+    w = run.warnings.copy()      if not run.warnings.empty      else pd.DataFrame()
 
     # Global table
     if not g.empty:
         for col in _GLOBAL_WEI_COLS:
             if col in g.columns:
                 g[col] = g[col] / 1e18
-        for col in _GLOBAL_PCT_COLS:
-            if col in g.columns:
-                g[col] = g[col] * 100
         if "round" in g.columns:
             g["is_baseline"] = g["round"] == 0
 
@@ -56,9 +60,14 @@ def normalize_run(run: RunData) -> RunData:
         for col in _USERS_WEI_COLS:
             if col in u.columns:
                 u[col] = u[col] / 1e18
-        for col in _USERS_PCT_COLS:
+        for col in _USERS_ACC_COLS:
             if col in u.columns:
-                u[col] = u[col] * 100
+                u[col] = u[col] / 10000
+
+        for col in _USERS_LOSS_COLS:
+            if col in u.columns:
+                u[col] = u[col] / 100
+
         if "round" in u.columns:
             u["is_baseline"] = u["round"] == 0
 
@@ -72,7 +81,8 @@ def normalize_run(run: RunData) -> RunData:
         rounds_users=u,
         votes=v,
         receipts=r,
-        contributions=c
+        contributions=c,
+        warnings=w
     )
 
 
@@ -91,6 +101,7 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
     votes_frames    = []
     receipts_frames = []
     contributions   = []
+    warnings        = []
 
     for run in runs:
         meta_row = {k: run.metadata.get(k) for k in MERGE_META_KEYS}
@@ -114,6 +125,8 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
             receipts_frames.append(_tag(run.receipts))
         if not run.contributions.empty:
             contributions.append(_tag(run.contributions))
+        if not run.warnings.empty:
+            warnings.append(_tag(run.warnings))
 
     def _concat(frames):
         if not frames:
@@ -126,4 +139,5 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
         "votes":    _concat(votes_frames),
         "receipts": _concat(receipts_frames),
         "contributions": _concat(contributions),
+        "warnings": _concat(warnings),
     }

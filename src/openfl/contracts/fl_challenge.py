@@ -928,7 +928,9 @@ class FLChallenge(FLManager):
         if not success:
             msg = f"[Round {self.pytorch_model.round}] Axiom Violation: {errors}"
             runtime_warnings.append(msg)
-            print(colored(f"⚠️ {msg}", "yellow"))
+            print(colored(f"{msg}", "yellow"))
+            if self.logger is not None:
+                self.logger.log_warning(self.pytorch_model.round, msg)
 
         scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in norm_accuracies]
         print(f"scores = {scores}")
@@ -994,7 +996,9 @@ class FLChallenge(FLManager):
         if not success:
             msg = f"[Round {self.pytorch_model.round}] Axiom Violation: {errors}"
             runtime_warnings.append(msg)
-            print(colored(f"⚠️ {msg}", "yellow"))
+            print(colored(f"{msg}", "yellow"))
+            if self.logger is not None:
+                self.logger.log_warning(self.pytorch_model.round, msg)
 
         scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in norm_losses]
 
@@ -1079,9 +1083,9 @@ class FLChallenge(FLManager):
                     (
                         args["user"],
                         args["roundScore"],
-                        args["win"],
-                        args["newReputation"],
-                        args["is_reward"]
+                        args["win"], # Reward/Punishment
+                        args["newReputation"], # New global reputation after reward/punishment
+                        args["is_reward"] # Boolean
                     )
                 )
         return result
@@ -1205,6 +1209,7 @@ class FLChallenge(FLManager):
                 # ---- per-user round ----
                 _round_rewards = self.get_round_rewards(receipt) if receipt is not None else []
                 _addr_to_reward = {addr: win for addr, _rs, win, _nr, _ir in _round_rewards}
+                _addr_to_ir = {addr: _ir for addr, _rs, win, _nr, _ir in _round_rewards}
                 _prev_global_acc = self.pytorch_model.accuracy[-2] if len(self.pytorch_model.accuracy) >= 2 else 0
                 _prev_global_loss = self.pytorch_model.loss[-2] if len(self.pytorch_model.loss) >= 2 else 0
 
@@ -1223,10 +1228,9 @@ class FLChallenge(FLManager):
                         prev_global_acc=_prev_global_acc,
                         prev_global_loss=_prev_global_loss,
                         contribution_score=getattr(_user, "contribution_score", None),
-                        # is_negative_contrib=getattr(_user, "is_contrib_score_negative", False),
                         round_reputation_assigned=_user._roundrep[-1] if _user._roundrep else None,
-                        reward_delta=_addr_to_reward.get(_user.address, 0),
-                        is_reward=_addr_to_reward.get(_user.address, 4),
+                        reward_delta=_addr_to_reward.get(_user.address, None),
+                        is_reward=_addr_to_ir.get(_user.address, None),
                         merged=any(user.id == _user.id for user in contributors)
                     )
                 for _user in self.pytorch_model.disqualified:
@@ -1242,10 +1246,9 @@ class FLChallenge(FLManager):
                         prev_global_acc=_prev_global_acc,
                         prev_global_loss=_prev_global_loss,
                         contribution_score=getattr(_user, "contribution_score", None),
-                        # is_negative_contrib=getattr(_user, "is_contrib_score_negative", False),
                         round_reputation_assigned=_user._roundrep[-1] if _user._roundrep else None,
-                        reward_delta=_addr_to_reward.get(_user.address, 0),
-                        is_reward=_addr_to_reward.get(_user.address, 4),
+                        reward_delta=_addr_to_reward.get(_user.address, None),
+                        is_reward=_addr_to_ir.get(_user.address, None),
                         merged = False
                     )
 

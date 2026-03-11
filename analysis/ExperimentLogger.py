@@ -16,6 +16,7 @@ class ExperimentLogger:
         self._vote_rows = []
         self._receipt_rows = []
         self._contribution_rows = []
+        self._warning_rows = []
 
     # -------- GLOBAL ROUND --------
 
@@ -58,7 +59,6 @@ class ExperimentLogger:
             "prev_global_accuracy": prev_global_acc,
             "prev_global_loss": prev_global_loss,
             "contribution_score": contribution_score,
-            # "is_negative_contrib": is_negative_contrib,
             "round_reputation_assigned": round_reputation_assigned,
             "reward_delta": reward_delta,
             "is_reward": is_reward,
@@ -108,6 +108,15 @@ class ExperimentLogger:
             "gas_used": gas_used,
         })
 
+    # -------- RUNTIME WARNINGS --------
+
+    def log_warning(self, round, message: str):
+        self._warning_rows.append({
+            "experiment_id": self.experiment_id,
+            "round": round,
+            "message": message,
+        })
+
     # -------- SETUP --------
 
     def log_setup(self, total_experiment_time, hardware, config, users_roster):
@@ -116,7 +125,6 @@ class ExperimentLogger:
             "total_experiment_time": total_experiment_time,
             "hardware": hardware,
             "config": config,
-            "users": pd.DataFrame(users_roster),
         }
 
     # -------- FINALIZE --------
@@ -128,6 +136,7 @@ class ExperimentLogger:
             "votes":         pd.DataFrame(self._vote_rows),
             "receipts":      pd.DataFrame(self._receipt_rows),
             "contributions": pd.DataFrame(self._contribution_rows),
+            "warnings":      pd.DataFrame(self._warning_rows),
         }
 
     # -------- SAVE --------
@@ -139,6 +148,7 @@ class ExperimentLogger:
             "metadata": self.metadata,
             "setup": getattr(self, "_setup", {}),
             "tables": self.finalize(),
+            "runtime_warnings": self._warning_rows,
         }
         with open(path, "wb") as f:
             pickle.dump(payload, f, protocol=pickle.HIGHEST_PROTOCOL)

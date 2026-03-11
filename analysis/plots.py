@@ -6,7 +6,7 @@ from matplotlib.ticker import MaxNLocator
 import numpy as np
 import pandas as pd
 
-matplotlib.rcParams.update({"figure.dpi": 250})
+matplotlib.rcParams.update({"figure.dpi": 200})
 
 ROLE_LABELS = {
     "good": "Honest",
@@ -116,7 +116,7 @@ def plot_strategy_comparison_boxplot(agg_final: pd.DataFrame) -> plt.Figure:
 
     Expects columns: contribution_score_strategy, final_accuracy.
     """
-    fig, ax = plt.subplots(figsize=(7, 4))
+    fig, ax = plt.subplots(figsize=(9, 4))
 
     strategies = sorted(agg_final["contribution_score_strategy"].unique())
     data = [
@@ -235,7 +235,7 @@ def plot_gas_cost_by_tx_type(agg_gas: pd.DataFrame) -> plt.Figure:
 
     Expects columns: tx_type, gas_mean, gas_std.
     """
-    fig, ax = plt.subplots(figsize=(7, 4))
+    fig, ax = plt.subplots(figsize=(9, 4))
 
     tx_types = agg_gas["tx_type"]
     means = agg_gas["gas_mean"]
