@@ -56,7 +56,7 @@ class FLChallenge(FLManager):
         self._punishments = []
         self.config = config.get_contracts_config()
         self.writer = writer or NullWriter()
-        self.logger = logger
+        self._logger = logger
         self.writeTxProgress = 0
 
 
@@ -405,7 +405,7 @@ class FLChallenge(FLManager):
             print(f"model participant: {user.address} now gets {user._roundrep[-1]} round reputation")
 
         for user in self.pytorch_model.disqualified:
-            print(f"disqualified model participant: {user.address} has no roundrep. he is disquialified, you dummy")
+            print(f"disqualified model participant: {user.address} has no roundrep. he is disqualified, you dummy")
 
         printer._print("                                                   ")
         print("\n-----------------------------------------------------------------------------------")
@@ -431,8 +431,8 @@ class FLChallenge(FLManager):
         self.gas_feedback.append(receipt["gasUsed"])
         self.txHashes.append((receipt_type, receipt["transactionHash"].hex(), receipt["gasUsed"]))
 
-        if self.logger is not None:
-            self.logger.log_receipt(
+        if self._logger is not None:
+            self._logger.log_receipt(
                 round=self.pytorch_model.round,
                 tx_type=receipt_type,
                 tx_hash=receipt["transactionHash"].hex(),
@@ -893,11 +893,14 @@ class FLChallenge(FLManager):
         # accuracies: 1d array
         # prev_acc: int
 
+
         # Array of previous accuracies from all users: A tuple of arrays
         prev_accuracies, _ = self.model.functions.getAllPreviousAccuraciesAndLosses().call()
 
+
         # use mad on these and average them
-        mad_prev_accuracies = remove_outliers_mad(prev_accuracies, mad_threshold)
+        prev_info = {}
+        mad_prev_accuracies = remove_outliers_mad(prev_accuracies, mad_threshold, collector=prev_info, label="previous")
         avg_prev_acc = np.mean(mad_prev_accuracies)
         avg_accuracies = [] # after loop: [30, 20, 30, 40]
         per_user_outlier_info = []
@@ -909,11 +912,11 @@ class FLChallenge(FLManager):
             try:
                 # Multiple accuracies per user
                 info = {}
-                mad_accuracies = remove_outliers_mad(accuracies, mad_threshold, collector=info)
+                mad_accuracies = remove_outliers_mad(accuracies, mad_threshold, collector=info, label="current")
                 # One average accuracy per user
                 avg_acc = np.mean(mad_accuracies)
                 avg_accuracies.append(avg_acc) # int
-                per_user_outlier_info.append(info)
+                per_user_outlier_info.append({**prev_info, **info}) # Merge prev (global baseline) and current (per-user) MAD info into one dict; keys are prefixed ("previous_*" / "current_*") so they don't collide
             except ValueError:
                 print("An error occured")
                 per_user_outlier_info.append({})
@@ -929,21 +932,21 @@ class FLChallenge(FLManager):
             msg = f"[Round {self.pytorch_model.round}] Axiom Violation: {errors}"
             runtime_warnings.append(msg)
             print(colored(f"{msg}", "yellow"))
-            if self.logger is not None:
-                self.logger.log_warning(self.pytorch_model.round, msg)
+            if self._logger is not None:
+                self._logger.log_warning(self.pytorch_model.round, msg)
 
         scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in norm_accuracies]
         print(f"scores = {scores}")
 
-        if self.logger is not None:
-            self.logger.log_contribution_scores(
+        if self._logger is not None:
+            self._logger.log_contribution_scores(
                 round=self.pytorch_model.round,
                 user_ids=[u.id for u in users],
                 user_addresses=[u.address for u in users],
+                scores=scores,
                 raw_values=avg_accuracies,
                 outlier_info=per_user_outlier_info,
-                scores=scores,
-                avg_prev=avg_prev_acc,
+                previous_avg=avg_prev_acc,
             )
 
         return scores
@@ -960,7 +963,8 @@ class FLChallenge(FLManager):
         _, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses().call()
 
         # use mad on these and average them
-        mad_prev_losses = remove_outliers_mad(prev_losses, mad_threshold)
+        prev_info = {}
+        mad_prev_losses = remove_outliers_mad(prev_losses, mad_threshold, collector=prev_info, label="previous")
         avg_prev_loss = np.mean(mad_prev_losses)
         avg_losses = [] # after loop: [60, 70, 50, 80]
         per_user_outlier_info = []
@@ -972,11 +976,11 @@ class FLChallenge(FLManager):
             try:
                 # Multiple accuracies and losses per user
                 info = {}
-                mad_losses = remove_outliers_mad(losses, mad_threshold, collector=info)
+                mad_losses = remove_outliers_mad(losses, mad_threshold, collector=info, label="current")
                 # One average accuracy and loss per user
                 avg_loss = np.mean(mad_losses)
                 avg_losses.append(avg_loss) # int
-                per_user_outlier_info.append(info)
+                per_user_outlier_info.append({**prev_info, **info}) # Merge prev (global baseline) and current (per-user) MAD info into one dict; keys are prefixed ("previous_*" / "current_*") so they don't collide
             except ValueError:
                 print("An error occured")
                 per_user_outlier_info.append({})
@@ -997,22 +1001,22 @@ class FLChallenge(FLManager):
             msg = f"[Round {self.pytorch_model.round}] Axiom Violation: {errors}"
             runtime_warnings.append(msg)
             print(colored(f"{msg}", "yellow"))
-            if self.logger is not None:
-                self.logger.log_warning(self.pytorch_model.round, msg)
+            if self._logger is not None:
+                self._logger.log_warning(self.pytorch_model.round, msg)
 
         scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in norm_losses]
 
         print(f"scores = {scores}")
 
-        if self.logger is not None:
-            self.logger.log_contribution_scores(
+        if self._logger is not None:
+            self._logger.log_contribution_scores(
                 round=self.pytorch_model.round,
                 user_ids=[u.id for u in users],
                 user_addresses=[u.address for u in users],
+                scores=scores,
                 raw_values=avg_losses,
                 outlier_info=per_user_outlier_info,
-                scores=scores,
-                avg_prev=avg_prev_loss,
+                previous_avg=avg_prev_loss,
             )
 
         return scores
@@ -1131,12 +1135,12 @@ class FLChallenge(FLManager):
                 "GasTransactions": roundTx
             })
 
-        if self.logger is not None:
-            self.logger.log_global_round(
+        if self._logger is not None:
+            self._logger.log_global_round(
                 round=0,
                 round_time=0.0,
-                global_accuracy=0,
-                global_loss=self.pytorch_model.loss[-1] if self.pytorch_model.loss else 0,
+                obj_global_acc=self.pytorch_model.accuracy[-1] if self.pytorch_model.accuracy else 0,
+                obj_global_loss=self.pytorch_model.loss[-1] if self.pytorch_model.loss else 0,
                 reward_pool=self._reward_balance[-1],
                 punishment_pool=0,
             )
@@ -1184,26 +1188,39 @@ class FLChallenge(FLManager):
             _round_time = time.perf_counter() - _round_start
             _current_round = self.pytorch_model.round - 1
 
-            if self.logger is not None:
+            if self._logger is not None:
+
                 # ---- votes ----
+
                 _all_users = self.pytorch_model.participants + self.pytorch_model.disqualified
                 _id_to_user = {u.id: u for u in _all_users}
                 fbm = self.feedback_matrix
-                for _giver in self.pytorch_model.participants:
+                am = accuracy_matrix # TODO: Why is this not self like fbm?
+                lm = loss_matrix # TODO: Why is this not self like fbm?
+
+                for _idx, _giver in enumerate(self.pytorch_model.participants):
+                    _user_acc = prev_accs[_idx] if prev_accs and _idx < len(prev_accs) else None
+                    _user_loss = prev_losses[_idx] if prev_losses and _idx < len(prev_losses) else None
+
                     for _receiver in self.pytorch_model.participants:
+
                         if _giver.id == _receiver.id:
                             continue
                         try:
-                            _vote = int(fbm[_giver.id][_receiver.id])
+                            _feedback_vote = int(fbm[_giver.id][_receiver.id])
                         except (IndexError, TypeError):
                             continue
-                        self.logger.log_vote(
+                        self._logger.log_vote(
                             round=_current_round,
                             giver_id=_giver.id,
                             receiver_id=_receiver.id,
-                            vote_score=_vote,
                             giver_address=_giver.address,
                             receiver_address=_receiver.address,
+                            votes_feedback_score=_feedback_vote,
+                            votes_prev_accuracy=_user_acc,
+                            votes_prev_loss=_user_loss,
+                            votes_accuracy=am[_giver.id][_receiver.id] if am is not None else None,
+                            votes_loss=lm[_giver.id][_receiver.id] if lm is not None else None,
                         )
 
                 # ---- per-user round ----
@@ -1214,19 +1231,17 @@ class FLChallenge(FLManager):
                 _prev_global_loss = self.pytorch_model.loss[-2] if len(self.pytorch_model.loss) >= 2 else 0
 
                 for _idx, _user in enumerate(self.pytorch_model.participants):
-                    _user_acc  = prev_accs[_idx]  if prev_accs  and _idx < len(prev_accs)  else None
-                    _user_loss = prev_losses[_idx] if prev_losses and _idx < len(prev_losses) else None
-                    self.logger.log_user_round(
+                    self._logger.log_user_round(
                         round=_current_round,
                         user_id=_user.id,
                         state="active",
                         behavior=_user.attitude,
                         role=_user.futureAttitude,
-                        accuracy=_user_acc, # rename to prev_accuracy
-                        loss=_user_loss, # rename to prev_loss
                         grs=_user._globalrep[-1],
-                        prev_global_acc=_prev_global_acc,
-                        prev_global_loss=_prev_global_loss,
+                        sub_personal_acc=_user.currentAcc,
+                        sub_personal_loss=_user.currentLoss,
+                        sub_global_acc=_user._accuracy[-1],
+                        sub_global_loss=_user._loss[-1],
                         contribution_score=getattr(_user, "contribution_score", None),
                         round_reputation_assigned=_user._roundrep[-1] if _user._roundrep else None,
                         reward_delta=_addr_to_reward.get(_user.address, None),
@@ -1234,17 +1249,17 @@ class FLChallenge(FLManager):
                         merged=any(user.id == _user.id for user in contributors)
                     )
                 for _user in self.pytorch_model.disqualified:
-                    self.logger.log_user_round(
+                    self._logger.log_user_round(
                         round=_current_round,
                         user_id=_user.id,
                         state="disqualified",
                         behavior=_user.attitude,
                         role=_user.futureAttitude,
-                        accuracy=None, # rename to prev_accuracy
-                        loss=None, # rename to prev_loss
                         grs=_user._globalrep[-1],
-                        prev_global_acc=_prev_global_acc,
-                        prev_global_loss=_prev_global_loss,
+                        sub_personal_acc=_user.currentAcc,
+                        sub_personal_loss=_user.currentLoss,
+                        sub_global_acc=_user._accuracy[-1],
+                        sub_global_loss=_user._loss[-1],
                         contribution_score=getattr(_user, "contribution_score", None),
                         round_reputation_assigned=_user._roundrep[-1] if _user._roundrep else None,
                         reward_delta=_addr_to_reward.get(_user.address, None),
@@ -1253,14 +1268,21 @@ class FLChallenge(FLManager):
                     )
 
                 # ---- global round ----
+
                 _round_punishment_total = sum(
-                    p[1] for p in self._punishments if p[0] == _current_round
+                    p[1] for p in self._punishments if p[0] == _current_round # Check if it could be taken from totalPunishment in endEvent.
                 )
-                self.logger.log_global_round(
+                # self._punishments is a list of tuples with 3 elements: (round, loss_amount, user_id).
+                # It gets appended to whenever a Punishment or Disqualification event fires from the contract.
+                # Filters _punishments to only entries where p[0] (round) matches _current_round,
+                # then sums p[1] (the loss amount from the contract event) across all matching entries -
+                # giving the total ETH/wei slashed from participants in that round.
+
+                self._logger.log_global_round(
                     round=_current_round,
                     round_time=_round_time,
-                    global_accuracy=self.pytorch_model.accuracy[-1] if self.pytorch_model.accuracy else 0,
-                    global_loss=self.pytorch_model.loss[-1] if self.pytorch_model.loss else 0,
+                    obj_global_acc=self.pytorch_model.accuracy[-1] if self.pytorch_model.accuracy else 0,
+                    obj_global_loss=self.pytorch_model.loss[-1] if self.pytorch_model.loss else 0,
                     reward_pool=self._reward_balance[-1],
                     punishment_pool=_round_punishment_total
                 )
@@ -1273,13 +1295,13 @@ class FLChallenge(FLManager):
             self.writer.writeResult({
                 "round": self.pytorch_model.round - 1,
                 "GRS": grs,
-                "globalAcc": self.pytorch_model.accuracy[-1] or 0, #Check
-                "globalLoss": self.pytorch_model.loss[-1] or 0,
+                "globalAcc": self.pytorch_model.accuracy[-1] or 0, # Checks out
+                "globalLoss": self.pytorch_model.loss[-1] or 0, # Checks out
                 "conctractBalanceRewards": self._reward_balance[-1],
                 "punishments": round_punishment,
                 "rewards": self.get_round_rewards(receipt),
-                "accAvgPerUser": prev_accs,
-                "lossAvgPerUser": prev_losses,
+                "accAvgPerUser": prev_accs, # Check - Should come from am
+                "lossAvgPerUser": prev_losses, # Check - Should come from lm
                 "feedbackMatrix": self.feedback_matrix.tolist(),
                 "disqualifiedUsers": round_kicked,
                 "contributionScores": self.scores,
@@ -1594,7 +1616,7 @@ def normalize_contribution_scores_new(vals: list, prev_val: float, evaluation_me
     return vals
 
 
-def remove_outliers_mad(arr, threshold=0.70, return_mask=False, collector=None):
+def remove_outliers_mad(arr, threshold=0.70, return_mask=False, collector=None, label=None):
     arr = np.asarray(arr, dtype=float)   # force float
 
     # always flatten
@@ -1604,28 +1626,33 @@ def remove_outliers_mad(arr, threshold=0.70, return_mask=False, collector=None):
     abs_dev = np.abs(flat - median)
     mad = np.median(abs_dev)
 
+    prefix = f"{label}_" if label else "" # Set label if provided else empty string
+
     # SPECIAL CASE: MAD == 0
     if mad == 0:
         mask = abs_dev <= threshold
         if collector is not None:
-            collector["median"]   = float(median)
-            collector["mad"]      = 0.0
-            collector["removed"]  = flat[~mask].tolist()
-            collector["boundary"] = float(threshold)
+            collector[f"{prefix}median"]   = float(median)
+            collector[f"{prefix}mad"]      = 0.0
+            collector[f"{prefix}removed"]  = flat[~mask].tolist()
+            collector[f"{prefix}accepted"] = flat[mask].tolist()
+            collector[f"{prefix}boundary"] = None
         if return_mask:
             return arr, mask
         return flat[mask]
 
     # proper modified z-score
-    modified_z = 0.6745 * (flat - median) / mad
+    z_val = 0.6745
+    modified_z = z_val * (flat - median) / mad
 
     mask = np.abs(modified_z) <= threshold
 
     if collector is not None:
-        collector["median"]   = float(median)
-        collector["mad"]      = float(mad)
-        collector["removed"]  = flat[~mask].tolist()
-        collector["boundary"] = float(threshold * mad / 0.6745)
+        collector[f"{prefix}median"]   = float(median)
+        collector[f"{prefix}mad"]      = float(mad)
+        collector[f"{prefix}removed"]  = flat[~mask].tolist()
+        collector[f"{prefix}accepted"] = flat[mask].tolist()
+        collector[f"{prefix}boundary"] = float(threshold * mad / z_val)
 
     if return_mask:
         return arr, mask

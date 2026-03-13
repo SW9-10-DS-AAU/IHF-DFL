@@ -42,7 +42,7 @@ agg_global   = agg.agg_global_accuracy_by_round(merged["global"])
 agg_strategy = agg.agg_accuracy_by_strategy(merged["global"])
 agg_final    = agg.agg_final_round_accuracy_by_strategy(merged["global"])
 agg_grs      = agg.agg_grs_by_behavior(merged["users"])
-agg_kicked   = agg.agg_round_kicked_by_strategy(merged["users"])
+agg_kicked   = agg.agg_round_kicked_by_strategy(merged["users"], merged["metadata"])
 
 # Plots
 fig1 = plots.plot_accuracy_loss_over_rounds(agg_global)

@@ -66,8 +66,8 @@ def plot_accuracy_loss_over_rounds(agg_global: pd.DataFrame) -> plt.Figure:
         )
 
     ax1.set_xlabel("Round")
-    ax1.set_ylabel("Global Accuracy (%)", color="#2196F3")
-    ax2.set_ylabel("Global Loss", color="#FF5722")
+    ax1.set_ylabel("Global Accuracy (%)", color="#2196F3") # TODO: Check values
+    ax2.set_ylabel("Global Loss", color="#FF5722") # TODO: Check values
     ax1.tick_params(axis="y", labelcolor="#2196F3")
     ax2.tick_params(axis="y", labelcolor="#FF5722")
 
@@ -196,10 +196,10 @@ def plot_global_acc_by_aggregation_strategy(acc_by_strategy: pd.DataFrame) -> pl
 
     for strategy, group in acc_by_strategy.groupby("contribution_score_strategy"):
         color = STRATEGY_COLORS.get(strategy)
-        ax.plot(group["round"], group["global_accuracy"], label=strategy, color=color, linewidth=2)
+        ax.plot(group["round"], group["objective_global_accuracy"], label=strategy, color=color, linewidth=2)
 
     ax.set_xlabel("Round")
-    ax.set_ylabel("Global Accuracy (%)")
+    ax.set_ylabel("Global Accuracy (%)") # TODO: Not a percentage
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax.legend(title="Strategy")
     ax.grid(True, alpha=0.3)
@@ -215,10 +215,10 @@ def plot_global_loss_by_aggregation_strategy(loss_by_strategy: pd.DataFrame) -> 
 
     for strategy, group in loss_by_strategy.groupby("contribution_score_strategy"):
         color = STRATEGY_COLORS.get(strategy)
-        ax.plot(group["round"], group["global_loss"], label=strategy, color=color, linewidth=2)
+        ax.plot(group["round"], group["objective_global_loss"], label=strategy, color=color, linewidth=2)
 
     ax.set_xlabel("Round")
-    ax.set_ylabel("Global Loss (%)")
+    ax.set_ylabel("Global Loss (%)") # TODO: Not a percentage
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax.legend(title="Strategy")
     ax.grid(True, alpha=0.3)
@@ -235,6 +235,9 @@ def plot_gas_cost_by_tx_type(agg_gas: pd.DataFrame) -> plt.Figure:
 
     Expects columns: tx_type, gas_mean, gas_std.
     """
+
+    # Not clear what contrib is
+
     fig, ax = plt.subplots(figsize=(9, 4))
 
     tx_types = agg_gas["tx_type"]

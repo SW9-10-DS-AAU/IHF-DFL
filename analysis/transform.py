@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from .loader import RunData
 
@@ -15,7 +16,8 @@ _USERS_LOSS_COLS   = ["loss"]
 
 
 
-# Metadata keys to propagate as columns when merging
+# Metadata keys stored in the "metadata" lookup table returned by merge_runs.
+# Data tables only carry experiment_id; join on it when you need config values.
 MERGE_META_KEYS = [
     "dataset",
     "contribution_score_strategy",
@@ -59,7 +61,8 @@ def normalize_run(run: RunData) -> RunData:
     if not u.empty:
         for col in _USERS_WEI_COLS:
             if col in u.columns:
-                u[col] = u[col] / 1e18
+                u[col] = u[col] / 1e18 # TODO: Why not working for contribution_score?
+
         for col in _USERS_ACC_COLS:
             if col in u.columns:
                 u[col] = u[col] / 10000
@@ -68,8 +71,33 @@ def normalize_run(run: RunData) -> RunData:
             if col in u.columns:
                 u[col] = u[col] / 100
 
-        if "round" in u.columns:
-            u["is_baseline"] = u["round"] == 0
+        # if "round" in u.columns:
+        #     u["is_baseline"] = u["round"] == 0
+
+    # Votes table — join contribution MAD stats and flag whether the voted
+    # accuracy was excluded as an outlier (float-safe via np.isclose).
+    if not v.empty and not c.empty:
+        vote_res = v[['round', 'receiver_id', 'votes_accuracy']]
+        contrib_res = c[['round', 'user_id', 'current_accepted_values', 'current_excluded_values',
+                          'current_mad_median', 'current_mad_value', 'current_mad_max_deviation']]
+
+        v = vote_res.merge(contrib_res, left_on=['round', 'receiver_id'],
+                           right_on=['round', 'user_id'], how='inner') \
+                    .drop(columns='user_id') \
+                    .rename(columns={'receiver_id': 'user_id'})
+
+        v['is_outlier'] = v.apply(
+            lambda row: any(np.isclose(row['votes_accuracy'], val)
+                            for val in row['current_excluded_values']),
+            axis=1
+        )
+
+    #   - Dropped experiment_id from merge keys — it doesn't exist yet at this stage (it's added later in merge_runs).
+    #   - inner join — matches the original snippet; votes without a corresponding contribution row are dropped. If you
+    #   want to preserve all votes, switch to how='left' (then is_outlier will be NaN for unmatched rows).
+    #   - Column narrowing — vote_res/contrib_res select only the needed columns up front so v doesn't accumulate
+    #   duplicate columns from c.
+
 
     # Receipts: gas_used stays as-is (integer gas units)
 
@@ -92,10 +120,15 @@ def normalize_runs(runs: list[RunData]) -> list[RunData]:
 
 def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
     """
-    Concatenate all runs into four flat DataFrames.
-    Each row is tagged with metadata columns from MERGE_META_KEYS.
-    Returns {"global": df, "users": df, "votes": df, "receipts": df}.
+    Concatenate all runs into flat DataFrames.
+    Each data table is tagged with only ``experiment_id``.
+    A separate ``"metadata"`` DataFrame (one row per run) holds all config
+    columns from MERGE_META_KEYS — join on ``experiment_id`` when needed.
+
+    Returns {"metadata": df, "global": df, "users": df, "votes": df,
+             "receipts": df, "contributions": df, "warnings": df}.
     """
+    metadata_rows   = []
     global_frames   = []
     users_frames    = []
     votes_frames    = []
@@ -104,15 +137,19 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
     warnings        = []
 
     for run in runs:
+        eid = run.experiment_id
+
+        # One metadata row per run
         meta_row = {k: run.metadata.get(k) for k in MERGE_META_KEYS}
-        meta_row["experiment_id"] = run.experiment_id
+        meta_row["experiment_id"] = eid
+        metadata_rows.append(meta_row)
 
         def _tag(df: pd.DataFrame) -> pd.DataFrame:
+            """Stamp only experiment_id onto *df*."""
             if df.empty:
                 return df
-            for k, v in meta_row.items():
-                df = df.copy()
-                df[k] = v
+            df = df.copy()
+            df["experiment_id"] = eid
             return df
 
         if not run.rounds_global.empty:
@@ -134,6 +171,7 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
         return pd.concat(frames, ignore_index=True)
 
     return {
+        "metadata": pd.DataFrame(metadata_rows),
         "global":   _concat(global_frames),
         "users":    _concat(users_frames),
         "votes":    _concat(votes_frames),

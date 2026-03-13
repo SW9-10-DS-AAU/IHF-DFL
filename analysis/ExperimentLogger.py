@@ -21,7 +21,7 @@ class ExperimentLogger:
     # -------- GLOBAL ROUND --------
 
     def log_global_round(self, round, round_time,
-                         global_accuracy, global_loss,
+                         obj_global_acc, obj_global_loss,
                          reward_pool, punishment_pool
                          ):
 
@@ -29,17 +29,20 @@ class ExperimentLogger:
             "experiment_id": self.experiment_id,
             "round": round,
             "round_time": round_time,
-            "global_accuracy": global_accuracy,
-            "global_loss": global_loss,
+            "objective_global_accuracy": obj_global_acc,
+            "objective_global_loss": obj_global_loss,
             "reward_pool": reward_pool,
             "punishment_pool": punishment_pool
+
+            # Add
         })
 
     # -------- USER ROUND --------
 
     def log_user_round(self, round, user_id, state, behavior, role,
-                       accuracy, loss, grs,
-                       prev_global_acc, prev_global_loss,
+                       grs,
+                       sub_personal_acc, sub_personal_loss,
+                       sub_global_acc, sub_global_loss,
                        contribution_score,
                        round_reputation_assigned,
                        reward_delta,
@@ -53,12 +56,11 @@ class ExperimentLogger:
             "state": state,
             "behavior": behavior,
             "role": role,
-            "accuracy": accuracy,
-            "loss": loss,
             "grs": grs,
-            "prev_global_accuracy": prev_global_acc,
-            "prev_global_loss": prev_global_loss,
-            "contribution_score": contribution_score,
+            "subjective_personal_accuracy": sub_personal_acc,
+            "subjective_personal_loss": sub_personal_loss,
+            "subjective_global_accuracy": sub_global_acc,
+            "subjective_global_loss": sub_global_loss,
             "round_reputation_assigned": round_reputation_assigned,
             "reward_delta": reward_delta,
             "is_reward": is_reward,
@@ -67,34 +69,45 @@ class ExperimentLogger:
 
     # -------- VOTE --------
 
-    def log_vote(self, round, giver_id, receiver_id, vote_score,
-                 giver_address, receiver_address):
+    def log_vote(self, round, giver_id, receiver_id, giver_address, receiver_address, votes_feedback_score, votes_prev_accuracy, votes_prev_loss, votes_accuracy, votes_loss):
         self._vote_rows.append({
             "experiment_id": self.experiment_id,
             "round": round,
             "giver_id": giver_id,
             "receiver_id": receiver_id,
-            "vote_score": vote_score,
             "giver_address": giver_address,
             "receiver_address": receiver_address,
+            "votes_feedback_score": votes_feedback_score,
+            "votes_prev_accuracy": votes_prev_accuracy,
+            "votes_prev_loss": votes_prev_loss,
+            "votes_accuracy": votes_accuracy,
+            "votes_loss": votes_loss,
         })
 
     # -------- CONTRIBUTION SCORES --------
 
-    def log_contribution_scores(self, round, user_ids, user_addresses, raw_values, outlier_info, scores, avg_prev):
+    def log_contribution_scores(self, round, user_ids, user_addresses, scores, raw_values, outlier_info, previous_avg):
         for user_id, address, raw_val, info, score in zip(user_ids, user_addresses, raw_values, outlier_info, scores):
             self._contribution_rows.append({
                 "experiment_id":    self.experiment_id,
                 "round":            round,
                 "user_id":          user_id,
                 "user_address":     address,
-                "raw_avg_value":    raw_val,
-                "outliers_removed": info.get("removed", []),
-                "mad_median":       info.get("median"),
-                "mad_value":        info.get("mad"),
-                "mad_boundary":     info.get("boundary"),
                 "contribution_score": score,
-                "avg_prev":         avg_prev,
+                "user_mad_avg":               raw_val,
+                # current (per-user) MAD stats
+                "current_excluded_values":    info.get("current_removed", []),
+                "current_accepted_values":    info.get("current_accepted", []),
+                "current_mad_median":         info.get("current_median"),
+                "current_mad_value":          info.get("current_mad"),
+                "current_mad_max_deviation":  info.get("current_boundary"),
+                # previous (global baseline) MAD stats — same value for all users in a round
+                "prev_avg_round_val_after_mad": previous_avg,
+                "previous_excluded_values":   info.get("previous_removed", []),
+                "previous_accepted_values":   info.get("previous_accepted", []),
+                "previous_mad_median":        info.get("previous_median"),
+                "previous_mad_value":         info.get("previous_mad"),
+                "previous_mad_max_deviation": info.get("previous_boundary"),
             })
 
     # -------- RECEIPT --------
@@ -106,6 +119,7 @@ class ExperimentLogger:
             "tx_type": tx_type,
             "tx_hash": tx_hash,
             "gas_used": gas_used,
+            # TODO: Maybe an address or user_id?
         })
 
     # -------- RUNTIME WARNINGS --------
@@ -115,6 +129,7 @@ class ExperimentLogger:
             "experiment_id": self.experiment_id,
             "round": round,
             "message": message,
+            # TODO: Maybe an address or user_id?
         })
 
     # -------- SETUP --------
@@ -148,7 +163,6 @@ class ExperimentLogger:
             "metadata": self.metadata,
             "setup": getattr(self, "_setup", {}),
             "tables": self.finalize(),
-            "runtime_warnings": self._warning_rows,
         }
         with open(path, "wb") as f:
             pickle.dump(payload, f, protocol=pickle.HIGHEST_PROTOCOL)
