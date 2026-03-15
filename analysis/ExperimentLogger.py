@@ -20,10 +20,9 @@ class ExperimentLogger:
 
     # -------- GLOBAL ROUND --------
 
-    def log_global_round(self, round, round_time,
-                         obj_global_acc, obj_global_loss,
-                         reward_pool, punishment_pool
-                         ):
+    def log_global_round(self, round=None, round_time=None,
+                         obj_global_acc=None, obj_global_loss=None,
+                         reward_pool=None, punishment_pool=None):
 
         self._global_rows.append({
             "experiment_id": self.experiment_id,
@@ -39,15 +38,15 @@ class ExperimentLogger:
 
     # -------- USER ROUND --------
 
-    def log_user_round(self, round, user_id, state, behavior, role,
-                       grs,
-                       sub_personal_acc, sub_personal_loss,
-                       sub_global_acc, sub_global_loss,
-                       contribution_score,
-                       round_reputation_assigned,
-                       reward_delta,
-                       is_reward,
-                       merged):
+    def log_user_round(self, round=None, user_id=None, state=None, behavior=None, role=None,
+                       grs=None,
+                       sub_personal_acc=None, sub_personal_loss=None,
+                       sub_global_acc=None, sub_global_loss=None,
+                       contribution_score=None,
+                       round_reputation_assigned=None,
+                       reward_delta=None,
+                       is_reward=None,
+                       merged=None):
 
         self._user_rows.append({
             "experiment_id": self.experiment_id,
@@ -69,7 +68,7 @@ class ExperimentLogger:
 
     # -------- VOTE --------
 
-    def log_vote(self, round, giver_id, receiver_id, giver_address, receiver_address, votes_feedback_score, votes_prev_accuracy, votes_prev_loss, votes_accuracy, votes_loss):
+    def log_vote(self, round=None, giver_id=None, receiver_id=None, giver_address=None, receiver_address=None, votes_feedback_score=None, votes_prev_accuracy=None, votes_prev_loss=None, votes_accuracy=None, votes_loss=None):
         self._vote_rows.append({
             "experiment_id": self.experiment_id,
             "round": round,
@@ -86,7 +85,7 @@ class ExperimentLogger:
 
     # -------- CONTRIBUTION SCORES --------
 
-    def log_contribution_scores(self, round, user_ids, user_addresses, scores, raw_values, outlier_info, previous_avg):
+    def log_contribution_scores(self, round=None, user_ids=None, user_addresses=None, scores=None, raw_values=None, outlier_info=None, previous_avg=None):
         for user_id, address, raw_val, info, score in zip(user_ids, user_addresses, raw_values, outlier_info, scores):
             self._contribution_rows.append({
                 "experiment_id":    self.experiment_id,
@@ -112,7 +111,7 @@ class ExperimentLogger:
 
     # -------- RECEIPT --------
 
-    def log_receipt(self, round, tx_type, tx_hash, gas_used):
+    def log_receipt(self, round=None, tx_type=None, tx_hash=None, gas_used=None):
         self._receipt_rows.append({
             "experiment_id": self.experiment_id,
             "round": round,
@@ -124,7 +123,7 @@ class ExperimentLogger:
 
     # -------- RUNTIME WARNINGS --------
 
-    def log_warning(self, round, message: str):
+    def log_warning(self, round=None, message=None):
         self._warning_rows.append({
             "experiment_id": self.experiment_id,
             "round": round,
@@ -134,7 +133,7 @@ class ExperimentLogger:
 
     # -------- SETUP --------
 
-    def log_setup(self, total_experiment_time, hardware, config, users_roster):
+    def log_setup(self, total_experiment_time=None, hardware=None, config=None, users_roster=None):
         """Capture a one-time snapshot of experiment context."""
         self._setup = {
             "total_experiment_time": total_experiment_time,
@@ -166,3 +165,17 @@ class ExperimentLogger:
         }
         with open(path, "wb") as f:
             pickle.dump(payload, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+class NullExperimentLogger:
+    """No-op logger used when no ExperimentLogger is provided."""
+
+    def log_global_round(self, round=None, round_time=None, obj_global_acc=None, obj_global_loss=None, reward_pool=None, punishment_pool=None): pass
+    def log_user_round(self, round=None, user_id=None, state=None, behavior=None, role=None, grs=None, sub_personal_acc=None, sub_personal_loss=None, sub_global_acc=None, sub_global_loss=None, contribution_score=None, round_reputation_assigned=None, reward_delta=None, is_reward=None, merged=None): pass
+    def log_vote(self, round=None, giver_id=None, receiver_id=None, giver_address=None, receiver_address=None, votes_feedback_score=None, votes_prev_accuracy=None, votes_prev_loss=None, votes_accuracy=None, votes_loss=None): pass
+    def log_contribution_scores(self, round=None, user_ids=None, user_addresses=None, scores=None, raw_values=None, outlier_info=None, previous_avg=None): pass
+    def log_receipt(self, round=None, tx_type=None, tx_hash=None, gas_used=None): pass
+    def log_warning(self, round=None, message=None): pass
+    def log_setup(self, total_experiment_time=None, hardware=None, config=None, users_roster=None): pass
+    def finalize(self): pass
+    def save(self, path=None): pass

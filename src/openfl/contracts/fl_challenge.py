@@ -128,6 +128,7 @@ class FLChallenge(FLManager):
             
             self.gas_register.append(receipt["gasUsed"])
             self.txHashes.append(("register",receipt["transactionHash"].hex(), receipt["gasUsed"]))
+            self._log_receipt(receipt, "register", round=0)
         printer._print("-----------------------------------------------------------------------------------", "\n")
         
     
@@ -181,6 +182,7 @@ class FLChallenge(FLManager):
             
             self.gas_weights.append(receipt["gasUsed"])
             self.txHashes.append(("weights", receipt["transactionHash"].hex(), receipt["gasUsed"]))
+            self._log_receipt(receipt, "weights")
         printer._print("-----------------------------------------------------------------------------------\n")
         
 
@@ -280,6 +282,7 @@ class FLChallenge(FLManager):
             
             self.gas_feedback.append(receipt["gasUsed"])
             self.txHashes.append(("feedback", receipt["transactionHash"].hex(), receipt["gasUsed"]))
+            self._log_receipt(receipt, "feedback")
         for user in self.pytorch_model.participants:
             user._roundrep.append(self.get_round_reputation_of_user(user.address))
 
@@ -394,7 +397,7 @@ class FLChallenge(FLManager):
                 warnings.warn("INVALID FEEDBACK TYPE")
 
         for i, txHash in enumerate(txs):
-            self.log_receipt(i, txHash, len(txs), "feedback")
+            self.track_transaction(i, txHash, len(txs), "feedback")
 
         for user in self.pytorch_model.participants:
             if len(user._roundrep) == 0:
@@ -420,9 +423,12 @@ class FLChallenge(FLManager):
         return self.w3.eth.send_raw_transaction(signed.raw_transaction)
 
 
+    def track_transaction(self, i, tx_hash, len_txs, receipt_type: str):  # formerly named log_receipt
+        #   1. Prints a progress bar — i out of len_txs transactions done
+        #   2. Waits for the transaction to be mined — blocks until the receipt comes back (up to 600s timeout)
+        #   3. Stores gas used — appends to self.gas_feedback
+        #   4. Stores the tx hash + gas — appends to self.txHashes along with the receipt_type label (e.g. "feedback", "contrib")
 
-
-    def log_receipt(self, i, tx_hash, len_txs, receipt_type: str):
         printer.print_bar(i, len_txs)
         receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash,
                                                            timeout=600,
@@ -430,14 +436,10 @@ class FLChallenge(FLManager):
 
         self.gas_feedback.append(receipt["gasUsed"])
         self.txHashes.append((receipt_type, receipt["transactionHash"].hex(), receipt["gasUsed"]))
+        # Writer (old logger) uses this to log
 
-        if self._logger is not None:
-            self._logger.log_receipt(
-                round=self.pytorch_model.round,
-                tx_type=receipt_type,
-                tx_hash=receipt["transactionHash"].hex(),
-                gas_used=receipt["gasUsed"],
-            )
+        self._log_receipt(receipt, receipt_type)
+        # New logger log this way
 
 
     def send_fallback_transaction_onchain(self, _to, _from, data, private_key=None):
@@ -535,6 +537,7 @@ class FLChallenge(FLManager):
 
         self.txHashes.append(("close", receipt["transactionHash"].hex(), receipt["gasUsed"]))
         self.gas_close.append(receipt["gasUsed"])
+        self._log_receipt(receipt, "close")
         if len(receipt.logs) == 0:
             print("Warning: closeFeedBackRound() emitted no logs")
         self.pytorch_model.round += 1
@@ -582,6 +585,7 @@ class FLChallenge(FLManager):
             
             self.gas_slot.append(receipt["gasUsed"])
             self.txHashes.append(("slot", receipt["transactionHash"].hex(), receipt["gasUsed"]))
+            self._log_receipt(receipt, "slot")
         printer._print("-----------------------------------------------------------------------------------\n")
         return 
     
@@ -619,6 +623,7 @@ class FLChallenge(FLManager):
             
             self.gas_exit.append(receipt["gasUsed"])
             self.txHashes.append(("exit", receipt["transactionHash"].hex(), receipt["gasUsed"]))
+            self._log_receipt(receipt, "exit")
         printer._print("-----------------------------------------------------------------------------------\n")
 
     def get_events(self, w3, contract, receipt, event_names):
@@ -785,7 +790,7 @@ class FLChallenge(FLManager):
                 print(green(f"{'CONTRIBUTION SCORE:':25}{u.contribution_score}"))
 
         for i, txHash in enumerate(txs):
-            self.log_receipt(i, txHash, len(txs), "contrib")
+            self.track_transaction(i, txHash, len(txs), "contrib")
 
         print("-----------------------------------------------------------------------------------\n")
 
@@ -932,22 +937,12 @@ class FLChallenge(FLManager):
             msg = f"[Round {self.pytorch_model.round}] Axiom Violation: {errors}"
             runtime_warnings.append(msg)
             print(colored(f"{msg}", "yellow"))
-            if self._logger is not None:
-                self._logger.log_warning(self.pytorch_model.round, msg)
+            self._log_warning(msg)
 
         scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in norm_accuracies]
         print(f"scores = {scores}")
 
-        if self._logger is not None:
-            self._logger.log_contribution_scores(
-                round=self.pytorch_model.round,
-                user_ids=[u.id for u in users],
-                user_addresses=[u.address for u in users],
-                scores=scores,
-                raw_values=avg_accuracies,
-                outlier_info=per_user_outlier_info,
-                previous_avg=avg_prev_acc,
-            )
+        self._log_contribution_scores(users, scores, avg_accuracies, per_user_outlier_info, avg_prev_acc)
 
         return scores
 
@@ -1001,23 +996,13 @@ class FLChallenge(FLManager):
             msg = f"[Round {self.pytorch_model.round}] Axiom Violation: {errors}"
             runtime_warnings.append(msg)
             print(colored(f"{msg}", "yellow"))
-            if self._logger is not None:
-                self._logger.log_warning(self.pytorch_model.round, msg)
+            self._log_warning(msg)
 
         scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in norm_losses]
 
         print(f"scores = {scores}")
 
-        if self._logger is not None:
-            self._logger.log_contribution_scores(
-                round=self.pytorch_model.round,
-                user_ids=[u.id for u in users],
-                user_addresses=[u.address for u in users],
-                scores=scores,
-                raw_values=avg_losses,
-                outlier_info=per_user_outlier_info,
-                previous_avg=avg_prev_loss,
-            )
+        self._log_contribution_scores(users, scores, avg_losses, per_user_outlier_info, avg_prev_loss)
 
         return scores
 
@@ -1095,6 +1080,150 @@ class FLChallenge(FLManager):
         return result
 
 
+
+    # ---- logging helpers ----
+
+    def _log_receipt(self, receipt, receipt_type, round=None):  # delegates to ExperimentLogger
+        if self._logger is None:
+            return
+        self._logger.log_receipt(
+            round=self.pytorch_model.round if round is None else round,
+            tx_type=receipt_type,
+            tx_hash=receipt["transactionHash"].hex(),
+            gas_used=receipt["gasUsed"],
+        )
+
+    def _log_warning(self, msg):
+        if self._logger is None:
+            return
+        self._logger.log_warning(self.pytorch_model.round, msg)
+
+    def _log_contribution_scores(self, users, scores, raw_values, outlier_info, previous_avg):
+        if self._logger is None:
+            return
+        self._logger.log_contribution_scores(
+            round=self.pytorch_model.round,
+            user_ids=[u.id for u in users],
+            user_addresses=[u.address for u in users],
+            scores=scores,
+            raw_values=raw_values,
+            outlier_info=outlier_info,
+            previous_avg=previous_avg,
+        )
+
+    def _log_round_zero(self):
+        if self._logger is None:
+            return
+        self._logger.log_global_round(
+            round=0,
+            round_time=0.0,
+            obj_global_acc=self.pytorch_model.accuracy[-1] if self.pytorch_model.accuracy else None,
+            obj_global_loss=self.pytorch_model.loss[-1]    if self.pytorch_model.loss     else None,
+            reward_pool=self._reward_balance[-1],
+            punishment_pool=0,
+        )
+        all_users = self.pytorch_model.participants + self.pytorch_model.disqualified
+        for _user in all_users:
+            self._logger.log_user_round(
+                round=0,
+                user_id=_user.id,
+                state="active",
+                behavior=_user.attitude,
+                role=_user.futureAttitude,
+                grs=_user._globalrep[-1],
+                sub_personal_acc=None,
+                sub_personal_loss=None,
+                sub_global_acc=None,
+                sub_global_loss=None,
+                round_reputation_assigned=None,
+                reward_delta=None,
+                is_reward=None,
+                merged=None,
+            )
+
+    def _log_global_round(self, round, round_time, punishment_pool):
+        if self._logger is None:
+            return
+        self._logger.log_global_round(
+            round=round,
+            round_time=round_time,
+            obj_global_acc=self.pytorch_model.accuracy[-1] if self.pytorch_model.accuracy else 0,
+            obj_global_loss=self.pytorch_model.loss[-1] if self.pytorch_model.loss else 0,
+            reward_pool=self._reward_balance[-1],
+            punishment_pool=punishment_pool,
+        )
+
+    def _log_round(self, current_round, round_time,
+                   accuracy_matrix, loss_matrix, prev_accs, prev_losses,
+                   contributors, receipt):
+        if self._logger is None:
+            return
+
+        # ---- votes ----
+        fbm = self.feedback_matrix
+        for _idx, _giver in enumerate(self.pytorch_model.participants):
+            _user_acc  = prev_accs[_idx]  if prev_accs  and _idx < len(prev_accs)  else None
+            _user_loss = prev_losses[_idx] if prev_losses and _idx < len(prev_losses) else None
+            for _receiver in self.pytorch_model.participants:
+                if _giver.id == _receiver.id:
+                    continue
+                try:
+                    _feedback_vote = int(fbm[_giver.id][_receiver.id])
+                except (IndexError, TypeError):
+                    continue
+                self._logger.log_vote(
+                    round=current_round,
+                    giver_id=_giver.id,
+                    receiver_id=_receiver.id,
+                    giver_address=_giver.address,
+                    receiver_address=_receiver.address,
+                    votes_feedback_score=_feedback_vote,
+                    votes_prev_accuracy=_user_acc,
+                    votes_prev_loss=_user_loss,
+                    votes_accuracy=accuracy_matrix[_giver.id][_receiver.id] if accuracy_matrix is not None else None,
+                    votes_loss=loss_matrix[_giver.id][_receiver.id]         if loss_matrix     is not None else None,
+                )
+
+        # ---- per-user round ----
+        _round_rewards  = self.get_round_rewards(receipt) if receipt is not None else []
+        _addr_to_reward = {addr: win for addr, _rs, win, _nr, _ir in _round_rewards}
+        _addr_to_ir     = {addr: _ir  for addr, _rs, win, _nr, _ir in _round_rewards}
+
+        for _user in self.pytorch_model.participants:
+            self._logger.log_user_round(
+                round=current_round, user_id=_user.id, state="active",
+                behavior=_user.attitude, role=_user.futureAttitude,
+                grs=_user._globalrep[-1],
+                sub_personal_acc=_user.currentAcc,
+                sub_personal_loss=_user.currentLoss,
+                sub_global_acc=_user._accuracy[-1],
+                sub_global_loss=_user._loss[-1],
+                round_reputation_assigned=_user._roundrep[-1] if _user._roundrep else None,
+                reward_delta=_addr_to_reward.get(_user.address, None),
+                is_reward=_addr_to_ir.get(_user.address, None),
+                merged=any(u.id == _user.id for u in contributors),
+            )
+        for _user in self.pytorch_model.disqualified:
+            self._logger.log_user_round(
+                round=current_round, user_id=_user.id, state="disqualified",
+                behavior=_user.attitude, role=_user.futureAttitude,
+                grs=_user._globalrep[-1],
+                sub_personal_acc=_user.currentAcc,
+                sub_personal_loss=_user.currentLoss,
+                sub_global_acc=_user._accuracy[-1],
+                sub_global_loss=_user._loss[-1],
+                round_reputation_assigned=_user._roundrep[-1] if _user._roundrep else None,
+                reward_delta=_addr_to_reward.get(_user.address, None),
+                is_reward=_addr_to_ir.get(_user.address, None),
+                merged=False,
+            )
+
+        # ---- global round ----
+        _punishment_total = sum(p[1] for p in self._punishments if p[0] == current_round)
+        self._log_global_round(current_round, round_time, _punishment_total)
+
+
+
     def simulate(self, rounds):
         """
         Run a full FL simulation for a given number of rounds.
@@ -1135,15 +1264,7 @@ class FLChallenge(FLManager):
                 "GasTransactions": roundTx
             })
 
-        if self._logger is not None:
-            self._logger.log_global_round(
-                round=0,
-                round_time=0.0,
-                obj_global_acc=self.pytorch_model.accuracy[-1] if self.pytorch_model.accuracy else 0,
-                obj_global_loss=self.pytorch_model.loss[-1] if self.pytorch_model.loss else 0,
-                reward_pool=self._reward_balance[-1],
-                punishment_pool=0,
-            )
+        self._log_round_zero()
 
         for i in range(rounds):
             print(b(f"Round {self.pytorch_model.round} starts..."))
@@ -1188,104 +1309,11 @@ class FLChallenge(FLManager):
             _round_time = time.perf_counter() - _round_start
             _current_round = self.pytorch_model.round - 1
 
-            if self._logger is not None:
-
-                # ---- votes ----
-
-                _all_users = self.pytorch_model.participants + self.pytorch_model.disqualified
-                _id_to_user = {u.id: u for u in _all_users}
-                fbm = self.feedback_matrix
-                am = accuracy_matrix # TODO: Why is this not self like fbm?
-                lm = loss_matrix # TODO: Why is this not self like fbm?
-
-                for _idx, _giver in enumerate(self.pytorch_model.participants):
-                    _user_acc = prev_accs[_idx] if prev_accs and _idx < len(prev_accs) else None
-                    _user_loss = prev_losses[_idx] if prev_losses and _idx < len(prev_losses) else None
-
-                    for _receiver in self.pytorch_model.participants:
-
-                        if _giver.id == _receiver.id:
-                            continue
-                        try:
-                            _feedback_vote = int(fbm[_giver.id][_receiver.id])
-                        except (IndexError, TypeError):
-                            continue
-                        self._logger.log_vote(
-                            round=_current_round,
-                            giver_id=_giver.id,
-                            receiver_id=_receiver.id,
-                            giver_address=_giver.address,
-                            receiver_address=_receiver.address,
-                            votes_feedback_score=_feedback_vote,
-                            votes_prev_accuracy=_user_acc,
-                            votes_prev_loss=_user_loss,
-                            votes_accuracy=am[_giver.id][_receiver.id] if am is not None else None,
-                            votes_loss=lm[_giver.id][_receiver.id] if lm is not None else None,
-                        )
-
-                # ---- per-user round ----
-                _round_rewards = self.get_round_rewards(receipt) if receipt is not None else []
-                _addr_to_reward = {addr: win for addr, _rs, win, _nr, _ir in _round_rewards}
-                _addr_to_ir = {addr: _ir for addr, _rs, win, _nr, _ir in _round_rewards}
-                _prev_global_acc = self.pytorch_model.accuracy[-2] if len(self.pytorch_model.accuracy) >= 2 else 0
-                _prev_global_loss = self.pytorch_model.loss[-2] if len(self.pytorch_model.loss) >= 2 else 0
-
-                for _idx, _user in enumerate(self.pytorch_model.participants):
-                    self._logger.log_user_round(
-                        round=_current_round,
-                        user_id=_user.id,
-                        state="active",
-                        behavior=_user.attitude,
-                        role=_user.futureAttitude,
-                        grs=_user._globalrep[-1],
-                        sub_personal_acc=_user.currentAcc,
-                        sub_personal_loss=_user.currentLoss,
-                        sub_global_acc=_user._accuracy[-1],
-                        sub_global_loss=_user._loss[-1],
-                        contribution_score=getattr(_user, "contribution_score", None),
-                        round_reputation_assigned=_user._roundrep[-1] if _user._roundrep else None,
-                        reward_delta=_addr_to_reward.get(_user.address, None),
-                        is_reward=_addr_to_ir.get(_user.address, None),
-                        merged=any(user.id == _user.id for user in contributors)
-                    )
-                for _user in self.pytorch_model.disqualified:
-                    self._logger.log_user_round(
-                        round=_current_round,
-                        user_id=_user.id,
-                        state="disqualified",
-                        behavior=_user.attitude,
-                        role=_user.futureAttitude,
-                        grs=_user._globalrep[-1],
-                        sub_personal_acc=_user.currentAcc,
-                        sub_personal_loss=_user.currentLoss,
-                        sub_global_acc=_user._accuracy[-1],
-                        sub_global_loss=_user._loss[-1],
-                        contribution_score=getattr(_user, "contribution_score", None),
-                        round_reputation_assigned=_user._roundrep[-1] if _user._roundrep else None,
-                        reward_delta=_addr_to_reward.get(_user.address, None),
-                        is_reward=_addr_to_ir.get(_user.address, None),
-                        merged = False
-                    )
-
-                # ---- global round ----
-
-                _round_punishment_total = sum(
-                    p[1] for p in self._punishments if p[0] == _current_round # Check if it could be taken from totalPunishment in endEvent.
-                )
-                # self._punishments is a list of tuples with 3 elements: (round, loss_amount, user_id).
-                # It gets appended to whenever a Punishment or Disqualification event fires from the contract.
-                # Filters _punishments to only entries where p[0] (round) matches _current_round,
-                # then sums p[1] (the loss amount from the contract event) across all matching entries -
-                # giving the total ETH/wei slashed from participants in that round.
-
-                self._logger.log_global_round(
-                    round=_current_round,
-                    round_time=_round_time,
-                    obj_global_acc=self.pytorch_model.accuracy[-1] if self.pytorch_model.accuracy else 0,
-                    obj_global_loss=self.pytorch_model.loss[-1] if self.pytorch_model.loss else 0,
-                    reward_pool=self._reward_balance[-1],
-                    punishment_pool=_round_punishment_total
-                )
+            self._log_round(
+                _current_round, _round_time,
+                accuracy_matrix, loss_matrix, prev_accs, prev_losses,
+                contributors, receipt,
+            )
 
             grs = [(user.address, user._globalrep[-1]) for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
             round_punishment = [(punishment[0], punishment[1]) for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]
