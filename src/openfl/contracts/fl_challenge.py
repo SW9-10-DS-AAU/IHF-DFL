@@ -1250,7 +1250,7 @@ class FLChallenge(FLManager):
         self.writer.writeResult({
                 "round": 0,
                 "GRS": grs,
-                "globalAcc": 0,
+                "globalAcc": self.pytorch_model.accuracy[-1] or 0,
                 "globalLoss": self.pytorch_model.loss[-1] or 0,
                 "conctractBalanceRewards": self._reward_balance[-1],
                 "punishments": [],
