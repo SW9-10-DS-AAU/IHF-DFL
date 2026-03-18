@@ -1110,6 +1110,8 @@ class FLChallenge(FLManager):
           9) Close round, print summary
         At the end, all users exit the system.
         """
+        self.pytorch_model.print_client_data_distributions()
+
         print(self.modelAddress)
         self.register_all_users()
         

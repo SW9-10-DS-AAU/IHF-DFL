@@ -8,7 +8,7 @@ from openfl.utils.async_writer import AsyncWriter
 config = ExperimentConfiguration(
     min_buy_in=int(1e18),
     max_buy_in=int(1e18),
-    contribution_score_strategy="accuracy_loss",
+    contribution_score_strategy="loss_only",
     use_outlier_detection=True,
     minimum_rounds=10,
     force_merge_all=False,

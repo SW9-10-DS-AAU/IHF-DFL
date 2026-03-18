@@ -1,5 +1,7 @@
 import copy
 import sys
+import warnings
+
 import torch
 import random
 import numpy as np
@@ -17,12 +19,30 @@ from typing import Tuple, Dict
 from collections import OrderedDict
 from torchvision import transforms
 from torchvision.datasets import CIFAR10, MNIST
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, random_split, Subset
 torch._dynamo.config.cache_size_limit = 512
 import logging
+from collections import Counter
 debugging = sys.gettrace() is not None
 logging.getLogger("torch._inductor").setLevel(logging.ERROR)
 logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
+
+from collections import Counter
+
+def print_label_distribution(loader, name="Dataset"):
+    """
+    Prints the distribution of labels in a DataLoader.
+    """
+    label_counts = Counter()
+    for _, labels in loader:
+        label_counts.update(labels.numpy())  # Convert tensor to numpy for Counter
+
+    total = sum(label_counts.values())
+    print(f"{name} | Total samples: {total}")
+    for label in range(10):
+        count = label_counts[label]
+        print(f"  Label {label}: {count} ({count/total*100:.2f}%)")
+    print("-" * 50)
 
 
 RNG = np.random.default_rng()
@@ -160,7 +180,7 @@ class Net_MNIST(nn.Module):
 
         
 class PytorchModel:
-    def __init__(self, DATASET, _goodParticipants, _totalParticipants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False):
+    def __init__(self, DATASET, _goodParticipants, _totalParticipants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, data_distribution : str = None):
         self.DATASET = DATASET
         if self.DATASET == "mnist":
             self.global_model = Net_MNIST().to(DEVICE)
@@ -176,10 +196,17 @@ class PytorchModel:
         self.disqualified = []
         self.EPOCHS = epochs
         self.BATCHSIZE = batchsize
+
+        if data_distribution is None:
+            self.data_distribution = "stratified_split_42"
+        else:
+            self.data_distribution = data_distribution
+
         self.train, self.val, self.test = self.load_data(self.NUMBER_OF_CONTRIBUTERS, _print=True)
         self.default_collateral = default_collateral
         self.max_collateral = max_collateral
         self.force_merge_all = force_merge_all
+
 
 
         if freerider_noise_scale < 0:
@@ -235,7 +262,26 @@ class PytorchModel:
                                                  len(self.participants)
                                                 ))
             print("Participant added: {} {}".format(gb(_attitude.upper()[0]+_attitude[1:]), gb("User")))
-    
+
+    def print_client_data_distributions(self):
+        """
+        Prints the label distribution for every client's train/val sets and the global test set.
+        """
+        if self.DATA is None:
+            self.load_data(self.NUMBER_OF_CONTRIBUTERS)
+
+        trainloaders, valloaders, testloader = self.DATA
+
+        print("\n--- CLIENT DATA DISTRIBUTIONS ---")
+        print("\nUSING DATA DISTRIBUTION: ", self.data_distribution)
+        for i, (train_loader, val_loader) in enumerate(zip(trainloaders, valloaders)):
+            print(f"Client {i} Training Set:")
+            print_label_distribution(train_loader, name=f"Client {i} Train")
+            print(f"Client {i} Validation Set:")
+            print_label_distribution(val_loader, name=f"Client {i} Val")
+
+        print("\nGlobal Test Set:")
+        print_label_distribution(testloader, name="Test Set")
             
     def add_participant(self, _attitude, _attitudeSwitch=1):
         
@@ -308,8 +354,17 @@ class PytorchModel:
         images_needed = partition_size * NUM_CLIENTS
         if images_needed < len(trainset):
             trainset,_ = random_split(trainset, [images_needed, len(trainset)-images_needed])
-        
-        datasets = random_split(trainset, lengths, torch.Generator().manual_seed(42))
+
+        if self.data_distribution == "random_split_42" or self.data_distribution is None:
+            datasets = random_split(trainset, lengths, generator=torch.Generator().manual_seed(42))
+        elif self.data_distribution == "random_split":
+            datasets = random_split(trainset, lengths)
+        elif self.data_distribution == "stratified_split_42":
+            datasets = stratified_split(trainset, lengths, generator=torch.Generator().manual_seed(42))
+        elif self.data_distribution == "stratified_split":
+            datasets = stratified_split(trainset, lengths)
+        else:
+            raise ValueError(f"Data distribution {self.data_distribution} not recognized")
 
         # Split each partition into train/val and create DataLoader
         trainloaders = []
@@ -318,7 +373,14 @@ class PytorchModel:
             len_val = len(ds) // 10  # 10 % validation set
             len_train = len(ds) - len_val
             lengths = [len_train, len_val]
-            ds_train, ds_val = random_split(ds, lengths, torch.Generator().manual_seed(42))
+
+            if self.data_distribution == "stratified_split_42":
+                ds_train, ds_val = stratified_split(ds, lengths, generator=torch.Generator().manual_seed(42))
+            elif self.data_distribution == "stratified_split":
+                ds_train, ds_val = stratified_split(ds, lengths)
+            else:
+                ds_train, ds_val = random_split(ds, lengths)
+
             trainloaders.append(DataLoader(
                 ds_train,
                 batch_size=self.BATCHSIZE,
@@ -928,3 +990,62 @@ def safe_scale(value, scalar, max_val):
         return max_val
 
     return min(round(scaled), max_val)
+
+def stratified_split(dataset, lengths, generator=None):
+    if sum(lengths) != len(dataset):
+        raise ValueError("Sum of input lengths does not equal the length of the dataset")
+
+    # Handle Subset by accessing the underlying dataset
+    if isinstance(dataset, Subset):
+        actual_dataset = dataset.dataset
+        indices = dataset.indices
+    else:
+        actual_dataset = dataset
+        indices = list(range(len(dataset)))
+
+    # Extract labels from the actual dataset
+    if hasattr(actual_dataset, "targets"):
+        targets = actual_dataset.targets
+    elif hasattr(actual_dataset, "labels"):
+        targets = actual_dataset.labels
+    else:
+        raise AttributeError("Dataset must have targets or labels attribute")
+
+    targets = torch.tensor(targets)
+    targets = targets[indices]  # Filter to only the indices in this subset
+
+    num_classes = len(torch.unique(targets))
+    class_indices = {c: (targets == c).nonzero(as_tuple=True)[0] for c in range(num_classes)}
+
+    # Shuffle indices within each class using generator
+    for c in class_indices:
+        perm = torch.randperm(len(class_indices[c]), generator=generator)
+        class_indices[c] = class_indices[c][perm]
+
+    # Prepare splits
+    splits = [[] for _ in lengths]
+
+    for c in range(num_classes):
+        cls_idx = class_indices[c]
+        cls_len = len(cls_idx)
+
+        # Compute proportional split sizes
+        cls_lengths = [int(l / len(dataset) * cls_len) for l in lengths]
+
+        # Fix rounding issues
+        diff = cls_len - sum(cls_lengths)
+        for i in range(diff):
+            cls_lengths[i % len(cls_lengths)] += 1
+
+        # Assign indices
+        start = 0
+        for i, length in enumerate(cls_lengths):
+            selected_cls_idx = cls_idx[start:start + length].tolist()
+            splits[i].extend([indices[idx] for idx in selected_cls_idx])
+            start += length
+
+    # Return subsets without final shuffle (preserves stratification)
+    result = [Subset(actual_dataset, split) for split in splits]
+    return result
+
+
