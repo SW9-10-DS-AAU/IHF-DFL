@@ -769,11 +769,7 @@ class FLChallenge(FLManager):
                 tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
             txs.append(tx_hash)
 
-            print(green(f"\nUSER @ {u.id}"))
-            if u. is_contrib_score_negative:
-                print(green(f"{'NEGATIVE CONTRIBUTION SCORE:':25}{u.contribution_score}"))
-            else:
-                print(green(f"{'CONTRIBUTION SCORE:':25}{u.contribution_score}"))
+
 
         for i, txHash in enumerate(txs):
             self.log_receipt(i, txHash, len(txs), "contrib")
