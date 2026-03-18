@@ -66,7 +66,7 @@ def plot_accuracy_loss_over_rounds(agg_global: pd.DataFrame) -> plt.Figure:
         )
 
     ax1.set_xlabel("Round")
-    ax1.set_ylabel("Global Accuracy (%)", color="#2196F3") # TODO: Check values
+    ax1.set_ylabel("Global Accuracy", color="#2196F3") # TODO: Check values
     ax2.set_ylabel("Global Loss", color="#FF5722") # TODO: Check values
     ax1.tick_params(axis="y", labelcolor="#2196F3")
     ax2.tick_params(axis="y", labelcolor="#FF5722")
@@ -139,19 +139,19 @@ def plot_strategy_comparison_boxplot(agg_final: pd.DataFrame) -> plt.Figure:
     return fig
 
 
-def plot_grs_by_behavior(agg_grs: pd.DataFrame) -> plt.Figure:
+def plot_grs_by_role(agg_grs: pd.DataFrame) -> plt.Figure:
     """
-    One line per behavior type, GRS over rounds with ±1 std shading.
+    One line per role (eventual user type), GRS over rounds with ±1 std shading.
 
-    Expects columns: behavior, round, grs_mean, grs_std.
+    Expects columns: role, round, grs_mean, grs_std.
     """
     fig, ax = plt.subplots(figsize=(9, 4))
 
-    for behavior, group in agg_grs.groupby("behavior"):
-        color = BEHAVIOR_COLORS.get(behavior, None)
+    for role, group in agg_grs.groupby("role"):
+        color = BEHAVIOR_COLORS.get(role, None)
         group = group.sort_values("round")
         ax.plot(group["round"], group["grs_mean"],
-                label=ROLE_LABELS[behavior], color=color, linewidth=2)
+                label=ROLE_LABELS[role], color=color, linewidth=2)
         if "grs_std" in group.columns:
             ax.fill_between(
                 group["round"],
@@ -162,7 +162,99 @@ def plot_grs_by_behavior(agg_grs: pd.DataFrame) -> plt.Figure:
 
     ax.set_xlabel("Round")
     ax.set_ylabel("Global Reputation Score (ETH)")
-    ax.legend(title="Behavior")
+    ax.legend(title="Role")
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    return fig
+
+
+def plot_contribution_score_by_role(agg_scores: pd.DataFrame) -> plt.Figure:
+    """
+    One line per role (eventual user type), contribution score over rounds
+    with ±1 std shading.
+
+    Expects columns: role, round, score_mean, score_std.
+    """
+    fig, ax = plt.subplots(figsize=(9, 4))
+
+    for role, group in agg_scores.groupby("role"):
+        color = BEHAVIOR_COLORS.get(role, None)
+        group = group.sort_values("round")
+        ax.plot(group["round"], group["score_mean"],
+                label=ROLE_LABELS[role], color=color, linewidth=2)
+        if "score_std" in group.columns:
+            ax.fill_between(
+                group["round"],
+                group["score_mean"] - group["score_std"],
+                group["score_mean"] + group["score_std"],
+                alpha=0.15, color=color,
+            )
+
+    ax.set_xlabel("Round")
+    ax.set_ylabel("Contribution Score")
+    ax.legend(title="Role")
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    return fig
+
+
+def plot_grs_by_role_relative(agg_grs: pd.DataFrame) -> plt.Figure:
+    """
+    One line per role, GRS over rounds-since-activation with ±1 std shading.
+    A vertical dashed line at x=0 marks the activation moment.
+
+    Expects columns: role, relative_round, grs_mean, grs_std.
+    """
+    fig, ax = plt.subplots(figsize=(9, 4))
+
+    for role, group in agg_grs.groupby("role"):
+        color = BEHAVIOR_COLORS.get(role, None)
+        group = group.sort_values("relative_round")
+        ax.plot(group["relative_round"], group["grs_mean"],
+                label=ROLE_LABELS[role], color=color, linewidth=2)
+        if "grs_std" in group.columns:
+            ax.fill_between(
+                group["relative_round"],
+                group["grs_mean"] - group["grs_std"],
+                group["grs_mean"] + group["grs_std"],
+                alpha=0.15, color=color,
+            )
+
+    ax.axvline(0, color="black", linestyle="--", linewidth=1, alpha=0.5, label="Activation")
+    ax.set_xlabel("Rounds since activation")
+    ax.set_ylabel("Global Reputation Score (ETH)")
+    ax.legend(title="Role")
+    ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    return fig
+
+
+def plot_contribution_score_by_role_relative(agg_scores: pd.DataFrame) -> plt.Figure:
+    """
+    One line per role, contribution score over rounds-since-activation with ±1 std shading.
+    A vertical dashed line at x=0 marks the activation moment.
+
+    Expects columns: role, relative_round, score_mean, score_std.
+    """
+    fig, ax = plt.subplots(figsize=(9, 4))
+
+    for role, group in agg_scores.groupby("role"):
+        color = BEHAVIOR_COLORS.get(role, None)
+        group = group.sort_values("relative_round")
+        ax.plot(group["relative_round"], group["score_mean"],
+                label=ROLE_LABELS[role], color=color, linewidth=2)
+        if "score_std" in group.columns:
+            ax.fill_between(
+                group["relative_round"],
+                group["score_mean"] - group["score_std"],
+                group["score_mean"] + group["score_std"],
+                alpha=0.15, color=color,
+            )
+
+    ax.axvline(0, color="black", linestyle="--", linewidth=1, alpha=0.5, label="Activation")
+    ax.set_xlabel("Rounds since activation")
+    ax.set_ylabel("Contribution Score")
+    ax.legend(title="Role")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
     return fig
@@ -192,14 +284,27 @@ def plot_grs_by_user(grs_users: pd.DataFrame) -> plt.Figure:
 # For each round plot the global accuracy (int)
 # TODO: Need to log aggregation strategy instead of contrib score
 def plot_global_acc_by_aggregation_strategy(acc_by_strategy: pd.DataFrame) -> plt.Figure:
+    """
+    One line per strategy, mean accuracy over rounds with ±1 std shading.
+
+    Expects columns: contribution_score_strategy, round, accuracy_mean, accuracy_std.
+    """
     fig, ax = plt.subplots(figsize=(9, 4))
 
     for strategy, group in acc_by_strategy.groupby("contribution_score_strategy"):
         color = STRATEGY_COLORS.get(strategy)
-        ax.plot(group["round"], group["objective_global_accuracy"], label=strategy, color=color, linewidth=2)
+        group = group.sort_values("round")
+        ax.plot(group["round"], group["accuracy_mean"], label=strategy, color=color, linewidth=2)
+        if "accuracy_std" in group.columns:
+            ax.fill_between(
+                group["round"],
+                group["accuracy_mean"] - group["accuracy_std"],
+                group["accuracy_mean"] + group["accuracy_std"],
+                alpha=0.15, color=color,
+            )
 
     ax.set_xlabel("Round")
-    ax.set_ylabel("Global Accuracy (%)") # TODO: Not a percentage
+    ax.set_ylabel("Global Accuracy") # TODO: Not a percentage
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax.legend(title="Strategy")
     ax.grid(True, alpha=0.3)
@@ -211,14 +316,27 @@ def plot_global_acc_by_aggregation_strategy(acc_by_strategy: pd.DataFrame) -> pl
 
 # TODO: Need to log aggregation strategy instead of contrib score
 def plot_global_loss_by_aggregation_strategy(loss_by_strategy: pd.DataFrame) -> plt.Figure:
+    """
+    One line per strategy, mean loss over rounds with ±1 std shading.
+
+    Expects columns: contribution_score_strategy, round, loss_mean, loss_std.
+    """
     fig, ax = plt.subplots(figsize=(9, 4))
 
     for strategy, group in loss_by_strategy.groupby("contribution_score_strategy"):
         color = STRATEGY_COLORS.get(strategy)
-        ax.plot(group["round"], group["objective_global_loss"], label=strategy, color=color, linewidth=2)
+        group = group.sort_values("round")
+        ax.plot(group["round"], group["loss_mean"], label=strategy, color=color, linewidth=2)
+        if "loss_std" in group.columns:
+            ax.fill_between(
+                group["round"],
+                group["loss_mean"] - group["loss_std"],
+                group["loss_mean"] + group["loss_std"],
+                alpha=0.15, color=color,
+            )
 
     ax.set_xlabel("Round")
-    ax.set_ylabel("Global Loss (%)") # TODO: Not a percentage
+    ax.set_ylabel("Global Loss") # TODO: Not a percentage
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax.legend(title="Strategy")
     ax.grid(True, alpha=0.3)
@@ -231,24 +349,42 @@ def plot_global_loss_by_aggregation_strategy(loss_by_strategy: pd.DataFrame) -> 
 
 def plot_gas_cost_by_tx_type(agg_gas: pd.DataFrame) -> plt.Figure:
     """
-    Bar chart of mean gas used per transaction type, with ±1 std error bars.
+    Grouped bar chart of mean gas used per transaction type, one bar group per
+    tx_type and one bar per contribution_score_strategy, with ±1 std error bars.
 
-    Expects columns: tx_type, gas_mean, gas_std.
+    Expects columns: tx_type, contribution_score_strategy, gas_mean, gas_std.
     """
-
-    # Not clear what contrib is
-
     fig, ax = plt.subplots(figsize=(9, 4))
 
-    tx_types = agg_gas["tx_type"]
-    means = agg_gas["gas_mean"]
-    stds = agg_gas["gas_std"]
+    tx_types = sorted(agg_gas["tx_type"].unique())
+    strategies = sorted(agg_gas["contribution_score_strategy"].unique())
+    n_tx = len(tx_types)
+    n_strategies = len(strategies)
+    width = 0.8 / n_strategies
+    x = range(n_tx)
 
-    ax.bar(tx_types, means, yerr=stds, capsize=5, color="#607c8a", alpha=0.7)
+    for i, strategy in enumerate(strategies):
+        group = agg_gas[agg_gas["contribution_score_strategy"] == strategy]
+        means = []
+        stds = []
+        for tx in tx_types:
+            row = group[group["tx_type"] == tx]
+            means.append(row["gas_mean"].iloc[0] if not row.empty else float("nan"))
+            stds.append(row["gas_std"].iloc[0] if not row.empty else 0)
+
+        xpos = [xi - 0.4 + i * width + width / 2 for xi in x]
+        color = STRATEGY_COLORS.get(strategy, "#607c8a")
+        ax.bar(xpos, means, width, yerr=stds, capsize=4,
+               color=color, alpha=0.8, edgecolor="black", linewidth=0.8,
+               label=strategy)
+
+    ax.set_xticks(list(x))
+    ax.set_xticklabels(tx_types, rotation=10, ha="right")
     ax.set_xlabel("Transaction Type")
     ax.set_ylabel("Mean Gas Used")
-    ax.set_title("Gas Cost by Transaction Type")
+    ax.legend(title="Strategy")
     ax.grid(True, alpha=0.3, axis="y")
+    ax.set_axisbelow(True)
     fig.tight_layout()
     return fig
 

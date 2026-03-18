@@ -86,8 +86,13 @@ class ExperimentLogger:
     # -------- CONTRIBUTION SCORES --------
 
     def log_contribution_scores(self, round=None, user_ids=None, user_addresses=None, scores=None, raw_values=None, outlier_info=None, previous_avg=None):
+        n = len(user_ids)
+        if raw_values is None:
+            raw_values = [None] * n
+        if outlier_info is None:
+            outlier_info = [{} for _ in range(n)]
         for user_id, address, raw_val, info, score in zip(user_ids, user_addresses, raw_values, outlier_info, scores):
-            self._contribution_rows.append({
+            row = {
                 "experiment_id":    self.experiment_id,
                 "round":            round,
                 "user_id":          user_id,
@@ -107,7 +112,16 @@ class ExperimentLogger:
                 "previous_mad_median":        info.get("previous_median"),
                 "previous_mad_value":         info.get("previous_mad"),
                 "previous_mad_max_deviation": info.get("previous_boundary"),
-            })
+            }
+            # DotProduct strategy only: number and fraction of weight dimensions flagged as
+            # outliers by the MAD filter for this user in the current round.
+            # These keys are absent in the info dict for all other strategies, so the block
+            # is skipped entirely — no NaN column is written for non-DotProduct runs.
+            # the total weight count can be back-calculated as count / fraction, but it's not explicitly stored.
+            if "dotproduct_outlier_weight_count" in info:
+                row["dotproduct_outlier_weight_count"]    = info["dotproduct_outlier_weight_count"]
+                row["dotproduct_outlier_weight_fraction"] = info["dotproduct_outlier_weight_fraction"]
+            self._contribution_rows.append(row)
 
     # -------- RECEIPT --------
 

@@ -794,6 +794,7 @@ class FLChallenge(FLManager):
 
         print("-----------------------------------------------------------------------------------\n")
 
+
     def _calculate_scores_dotproduct(self, users):
         """
         MAD-based scoring: robust per-weight outlier filtering before scoring.
@@ -809,11 +810,19 @@ class FLChallenge(FLManager):
 
         if use_outlier_detection:
             print("using mad")
-            filtered_global_update = self.trim_global_update_using_mad(local_updates, global_update)
-            return calc_contribution_scores_dotproduct(local_updates, filtered_global_update)
+            filtered_global_update, per_user_outlier_info = self.trim_global_update_using_mad(local_updates, global_update)
+            scores = calc_contribution_scores_dotproduct(local_updates, filtered_global_update)
+
+            # Raw dot product per user (pre-normalization), analogous to avg_acc/avg_loss in other strategies
+            dots = torch.mv(local_updates, filtered_global_update)
+            raw_values = [float(d.item()) for d in dots]
+            self._log_contribution_scores(users, scores, raw_values, per_user_outlier_info, None)
         else:
             print("not using mad")
-            return calc_contribution_scores_dotproduct(local_updates, global_update)
+            scores = calc_contribution_scores_dotproduct(local_updates, global_update)
+            self._log_contribution_scores(users, scores, None, None, None)
+
+        return scores
 
 
     def _calculate_scores_naive(self, users):
@@ -821,7 +830,11 @@ class FLChallenge(FLManager):
         Equal-share scoring: everyone contributing gets 1 / num_mergers.
         """  # unused; included for signature consistency
         num_mergers = len(users)
-        return [calc_contribution_score_naive(num_mergers) for _ in users]
+        scores = [calc_contribution_score_naive(num_mergers) for _ in users]
+
+        self._log_contribution_scores(users, scores, None, None, None)
+
+        return scores
 
 
     def _calculate_scores_accuracy_loss(self, users, mad_threshold = 1.1):
@@ -1012,7 +1025,7 @@ class FLChallenge(FLManager):
                                      local_updates: torch.Tensor,
                                      global_update: torch.Tensor,
                                      mad_thresh: float = 3.5,
-                                     eps: float = 1e-12) -> torch.Tensor:
+                                     eps: float = 1e-12):
         """
         Trim the global update by removing (zeroing) weights where
         all clients are outliers according to MAD filtering.
@@ -1025,6 +1038,7 @@ class FLChallenge(FLManager):
 
         Returns:
             filtered_global_update: Tensor (D,)
+            per_user_outlier_info: list of dicts (one per user) with MAD stats
         """
 
         num_mergers, D = local_updates.shape
@@ -1052,7 +1066,22 @@ class FLChallenge(FLManager):
         # Zero out outlier-only weights in global update
         filtered_global_update = global_update * global_mask
 
-        return filtered_global_update
+        # Per-user summary stats for logging
+        mad_mean = float(mad.mean().item())
+        median_mean = float(median.mean().item())
+        per_user_outlier_info = [
+            {
+                "current_median": median_mean,
+                "current_mad": mad_mean,
+                "current_boundary": mad_thresh,
+                # Weight-space outlier counts (not scalar value lists — stored under distinct keys)
+                "dotproduct_outlier_weight_count": int((~mask[i]).sum().item()),
+                "dotproduct_outlier_weight_fraction": float((~mask[i]).float().mean().item()),
+            }
+            for i in range(num_mergers)
+        ]
+
+        return filtered_global_update, per_user_outlier_info
 
 
     def get_round_rewards(self, receipt):
@@ -1645,7 +1674,10 @@ def normalize_contribution_scores_new(vals: list, prev_val: float, evaluation_me
 
 
 def remove_outliers_mad(arr, threshold=0.70, return_mask=False, collector=None, label=None):
-    arr = np.asarray(arr, dtype=float)   # force float
+    # Keep original dtype (int from contract uint256). np.median returns float64
+    # automatically, so all intermediate MAD arithmetic stays in float without
+    # needing to cast the input array.
+    arr = np.asarray(arr)
 
     # always flatten
     flat = arr.ravel()

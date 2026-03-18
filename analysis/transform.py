@@ -74,23 +74,23 @@ def normalize_run(run: RunData) -> RunData:
         # if "round" in u.columns:
         #     u["is_baseline"] = u["round"] == 0
 
-    # Votes table — join contribution MAD stats and flag whether the voted
-    # accuracy was excluded as an outlier (float-safe via np.isclose).
+    # Votes table — flag whether the voted accuracy was excluded as an outlier.
+    # Only current_excluded_values is pulled from contributions; it's dropped after use.
     if not v.empty and not c.empty:
-        vote_res = v[['round', 'receiver_id', 'votes_accuracy']]
-        contrib_res = c[['round', 'user_id', 'current_accepted_values', 'current_excluded_values',
-                          'current_mad_median', 'current_mad_value', 'current_mad_max_deviation']]
+        contrib_res = c[['round', 'user_id', 'current_excluded_values']]
 
-        v = vote_res.merge(contrib_res, left_on=['round', 'receiver_id'],
-                           right_on=['round', 'user_id'], how='inner') \
-                    .drop(columns='user_id') \
-                    .rename(columns={'receiver_id': 'user_id'})
+        v = v.merge(contrib_res, left_on=['round', 'receiver_id'],
+                    right_on=['round', 'user_id'], how='left') \
+             .drop(columns='user_id')
 
         v['is_outlier'] = v.apply(
             lambda row: any(np.isclose(row['votes_accuracy'], val)
-                            for val in row['current_excluded_values']),
+                            for val in row['current_excluded_values'])
+                        if isinstance(row['current_excluded_values'], list) else False,
             axis=1
         )
+
+        v = v.drop(columns=['current_excluded_values'])
 
     #   - Dropped experiment_id from merge keys — it doesn't exist yet at this stage (it's added later in merge_runs).
     #   - inner join — matches the original snippet; votes without a corresponding contribution row are dropped. If you
@@ -168,7 +168,11 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
     def _concat(frames):
         if not frames:
             return pd.DataFrame()
-        return pd.concat(frames, ignore_index=True)
+        # Drop all-NA columns from each frame before concatenating.
+        # When runs differ in available columns, pandas fills missing ones with NaN.
+        # Concatenating frames that contain all-NA columns triggers a FutureWarning
+        # about dtype inference changing in a future pandas version.
+        return pd.concat([f.dropna(axis=1, how="all") for f in frames], ignore_index=True)
 
     return {
         "metadata": pd.DataFrame(metadata_rows),

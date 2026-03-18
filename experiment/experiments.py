@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime;
 import json
 import multiprocessing as mp
 from pathlib import Path
@@ -10,6 +10,7 @@ from experiment_configuration import ExperimentConfiguration
 from itertools import product
 from dataclasses import dataclass
 import argparse
+import uuid
 
 from openfl.utils.async_writer import AsyncWriter
 from selector import choose_from_list
@@ -129,7 +130,7 @@ def main(author):
             minimum_rounds=25
         )
         
-        path = getPath(config, startTime, dataset)
+        path = getPath(config, startTime, dataset) # Use existing save function as csv uses.
         try:
             writer = AsyncWriter(path, OUTPUTHEADERS, WRITERBUFFERSIZE, config, author)
             metadata = {**vars(config), "dataset": dataset, "timestamp": startTime}
@@ -160,8 +161,9 @@ def main(author):
 
 def getPath(experimentConfig: ExperimentConfiguration, time: datetime, dataset):
 
-    filename = f"{dataset}-{experimentConfig.contribution_score_strategy}-{experimentConfig.freerider_start_round}-{experimentConfig.freerider_noise_scale}-{experimentConfig.malicious_start_round}-{experimentConfig.malicious_noise_scale}-{experimentConfig.use_outlier_detection}-{experimentConfig.force_merge_all}.csv"
+    # Filename for csv
 
+    filename = f"{dataset}-{experimentConfig.contribution_score_strategy}-{experimentConfig.freerider_start_round}-{experimentConfig.freerider_noise_scale}-{experimentConfig.malicious_start_round}-{experimentConfig.malicious_noise_scale}-{experimentConfig.use_outlier_detection}-{experimentConfig.force_merge_all}-{{{uuid.uuid4()}}}.csv"
     path = Path(RESULTDATAFOLDER).joinpath(time).joinpath(filename)
 
     return path
