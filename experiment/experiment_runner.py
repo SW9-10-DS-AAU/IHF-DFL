@@ -150,6 +150,7 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
           "malicious_start_round":             cfg.malicious_start_round,
           "malicious_noise_scale":             cfg.malicious_noise_scale,
           "force_merge_all":                   cfg.force_merge_all,
+          "aggregation_rule":                  cfg.aggregation_rule,
       }
 
       all_users = pytorch_model.participants + pytorch_model.disqualified

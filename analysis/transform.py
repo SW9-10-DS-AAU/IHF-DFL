@@ -26,6 +26,7 @@ MERGE_META_KEYS = [
     "freerider_noise_scale",
     "malicious_start_round",
     "malicious_noise_scale",
+    "aggregation_rule",
     "force_merge_all",
     "number_of_good_contributors",
     "number_of_bad_contributors",
