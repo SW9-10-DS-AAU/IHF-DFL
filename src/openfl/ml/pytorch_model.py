@@ -20,6 +20,7 @@ from torchvision.datasets import CIFAR10, MNIST
 from torch.utils.data import DataLoader, random_split
 torch._dynamo.config.cache_size_limit = 512
 import logging
+debugging = sys.gettrace() is not None
 logging.getLogger("torch._inductor").setLevel(logging.ERROR)
 logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
 
@@ -73,6 +74,10 @@ class Participant:
         self.criterion = _criterion
         self.userToEvaluate = []
         self.currentAcc = 0
+        # User's locally-trained model accuracy on their own validation set (after they trained on top of the global model).
+        # Is set in: apply_training_results().
+        self.currentLoss = 0
+        # New variable introduced. Needs to be implemented in code. Alongside currentAcc.
         self.attitude = "good"
         self.futureAttitude = _attitude
         self.attitudeSwitch = _attitudeSwitch
@@ -100,9 +105,9 @@ class Participant:
 
         self.disqualified = False
 
-        # INTERFACE VARIABLES
-        self._accuracy = []
-        self._loss = []
+        # INTERFACE VARIABLES - Not used for training. Only for reporting.
+        self._accuracy = [] # User's accuracy on the global model. The actual accuracy evaluated on test set - is set in: finalize_user_evaluation().
+        self._loss = [] # User's loss on the global model. The actual loss evaluated on test set - is set in: finalize_user_evaluation().
         self._globalrep = [self.collateral]
         self._roundrep = []
     
@@ -346,13 +351,76 @@ class PytorchModel:
     def federated_training(self):
         print(b("\n================ PARALLEL FEDERATED TRAINING START ================"))
 
+        start_total = time.perf_counter()
+
+        if debugging:
+            print(yellow("Debugging mode detected → running sequential training"))
+            results = self.run_sequential()
+        else:
+            results = self.run_multi_processing()
+
+        self.apply_training_results(results)
+        total_time = time.perf_counter() - start_total
+
+        print(b("=================== PARALLEL TRAINING END ===================\n"))
+        print(green(f"Total federated training time: {total_time:.2f} seconds\n"))
+
+    def finalize_user_evaluation(self, user): # Same as lines 294-296,306 in orgiginal code.
+        loss, acc = test(user.model, self.test, DEVICE) # TODO: Investigate if this should be user.val instead.
+        user._accuracy.append(acc) # Line 295 in original code # TODO: Investigate if this should be test and not validation accuracy.
+        user._loss.append(loss) # Line 296 in original code # TODO: Investigate if this should be test and not validation loss.
+        user.hashedModel = self.get_hash(user.model.state_dict())
+
+
+    def apply_training_results(self, results):
+        # Apply results back to participants
+        user_map = {u.id: u for u in self.participants}
+        for user_id, state_dict, val_loss, val_acc in results:
+            user = user_map[user_id]
+            user.model.load_state_dict(state_dict)
+            user.currentAcc = val_acc # Line 287 in original code
+            user.currentLoss = val_loss
+            self.finalize_user_evaluation(user)
+
+
+    def run_sequential(self):
+        num_gpus = torch.cuda.device_count()
+        print_training_mode(num_gpus, 1)
+
+        results = []
+
+        for idx, user in enumerate(self.participants):
+            device_id = idx % max(1, num_gpus)
+            sd_cpu = {k: v.cpu() for k, v in user.model.state_dict().items()}
+
+            if user.attitude == "good":
+                result = train_user_proc(
+                    user.id,
+                    sd_cpu,
+                    user.train.dataset,
+                    user.val.dataset,
+                    self.EPOCHS,
+                    device_id,
+                    self.DATASET,
+                    self.BATCHSIZE,
+                    PIN_MEMORY,
+                    False
+                )
+                results.append(result)
+            else:
+                self.finalize_user_evaluation(user)
+        return results
+
+    def run_multi_processing(self):
         num_gpus = torch.cuda.device_count()
         ctx = mp.get_context("spawn")
-        num_processes = min(len(self.participants), num_gpus if num_gpus > 0 else os.cpu_count())
+
+        num_processes = min(
+            len(self.participants),
+            num_gpus if num_gpus > 0 else os.cpu_count()
+        )
 
         print_training_mode(num_gpus, num_processes)
-
-        start_total = time.perf_counter()
 
         with ctx.Pool(processes=num_processes) as pool:
             start_pool = time.perf_counter()
@@ -376,52 +444,27 @@ class PytorchModel:
                         PIN_MEMORY,
                         False)
                     ))
-                else: # test
-                    val_loss, val_acc = test(user.model, user.val, DEVICE)
-                    self.finalize_user_evaluation(user, val_loss, val_acc)
+                else: # If user's behaviour !good, skip Training.
+                    # Skips apply_training_results() - goes directly to evaluation. Corresponds to lines 261-277 in original code.
+                    self.finalize_user_evaluation(user)
 
-            results = [r.get() for r in async_results]
-        end_pool = time.perf_counter()
-
-        self.apply_training_results(results)
-        total_time = time.perf_counter() - start_total
-        parallel_time = end_pool - start_pool
-
-        print(b("=================== PARALLEL TRAINING END ===================\n"))
-        print(green(f"Parallel execution time: {parallel_time:.2f} seconds"))
-        print(green(f"Total federated training time: {total_time:.2f} seconds\n"))
-
-    def finalize_user_evaluation(self, user, loss, acc):
-        test_loss, test_acc = test(user.model, self.test, DEVICE)
-        user._accuracy.append(test_acc)
-        user._loss.append(test_loss)
-        user.hashedModel = self.get_hash(user.model.state_dict())
-
-
-    def apply_training_results(self, results):
-        # Apply results back to participants
-        user_map = {u.id: u for u in self.participants}
-        for user_id, state_dict, val_loss, val_acc in results:
-            user = user_map[user_id]
-            user.model.load_state_dict(state_dict)
-            user.currentAcc = val_acc
-
-            self.finalize_user_evaluation(user, val_loss, val_acc)
+            results = [r.get() for r in async_results] # Gather results from Multi-Processing
+        print(green(f"Parallel execution time: {time.perf_counter() - start_pool:.2f} seconds"))
+        return results
 
 
     def let_malicious_users_do_their_work(self):
         for i in range(len(self.participants)):
             if self.participants[i].attitude == "bad":                
                 print(red("Address {} going to provide random weights".format(self.participants[i].address[0:16]+"...")))
-                # manipulated_state_dict = manipulate(self.participants[i].model)
                 manipulated_state_dict = manipulate(self.participants[i].model,scale=self.malicious_noise_scale,)
                 self.participants[i].model.load_state_dict(manipulated_state_dict)
                 self.participants[i].hashedModel = self.get_hash(self.participants[i].model.state_dict())
                 loss, accuracy = test(self.participants[i].model, self.test, DEVICE)
                 print("{:<17} {} |  Testing  | Accuracy {:>3.0f} % | Loss ∞\n".format("Account testing:   ",
                                                                                 self.participants[i].address[0:16]+"...",
-                                                                                accuracy*100))
-    
+                                                                                accuracy*100, loss))
+                # TODO: Why is test_loss not used here?
 
     def update_users_attitude(self):
         for user in self.participants:
@@ -471,7 +514,9 @@ class PytorchModel:
                 loss, accuracy = test(user.model, self.test, DEVICE)
                 print("{:<17} {} |  Testing  | Accuracy {:>3.0f} % | Loss ∞\n".format("Account testing:   ",
                                                                                 user.address[0:16]+"...",
-                                                                                accuracy*100))
+                                                                                accuracy*100, loss))
+                # TODO: Why is loss not used here?
+
 
     def _freerider_submit_with_noise(self, user):
         """Freerider reuses the global model with configurable noise."""
@@ -730,12 +775,7 @@ class PytorchModel:
 
     
 # PYTORCH FUNCTIONS
-def train(
-    net,
-    trainloader: torch.utils.data.DataLoader,
-    epochs: int,
-    device: torch.device,
-) -> None:
+def train(net, trainloader: torch.utils.data.DataLoader, epochs: int, device: torch.device) -> None:
 
     # Compile ONCE per process (not per batch)
     if device.type == "cuda":
@@ -768,12 +808,12 @@ def train(
             scaler.update()
 
 
-def test(
-    net,
-    testloader: torch.utils.data.DataLoader,
-    device: torch.device,
-) -> Tuple[float, float]:
-
+def test(net, testloader: torch.utils.data.DataLoader, device: torch.device) -> Tuple[float, float]:
+    """
+    Evaluate model on test set: forward pass only (no gradients), with optional AMP on CUDA
+    Accumulate total cross-entropy loss and count correct predictions for accuracy
+    Returns (total_loss, accuracy) over the entire test dataset
+    """
     criterion = nn.CrossEntropyLoss()
     net.eval()
 
@@ -880,21 +920,22 @@ def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, d
         model.to(device)
 
         # Rebuild dataloaders inside the process
-        train_loader = DataLoader(train_ds, batch_size=batchsize, shuffle=shuffle, pin_memory=pin_memory)
-        val_loader = DataLoader(val_ds, batch_size=batchsize, shuffle=False, pin_memory=pin_memory)
+        train_loader = DataLoader(train_ds, batch_size=batchsize, shuffle=shuffle, pin_memory=pin_memory) # TODO: Investigate if this breaks something
+        val_loader = DataLoader(val_ds, batch_size=batchsize, shuffle=False, pin_memory=pin_memory) # TODO: Investigate if this breaks something
 
-        train(model, train_loader, epochs, device)
-        loss, acc = test(model, val_loader, device)
+        train(model, train_loader, epochs, device) # Line 285 in original code
+        val_loss, val_acc = test(model, val_loader, device) # Line 286 in original code
 
+        # del: Mark for GC
         del train_loader
         del val_loader
 
-        print(f"[{device_label(device, device_id)}] User {user_id} done | Acc: {acc:.3f}, Loss: {loss:.3f}")
+        print(f"[{device_label(device, device_id)}] User {user_id} done | Acc: {val_acc:.3f}, Loss: {val_loss:.3f}")
         
         # Ensure all GPU work is complete before worker exits
         if device.type == "cuda":
             torch.cuda.synchronize(device)
-        return user_id, model.state_dict(), loss, acc
+        return user_id, model.state_dict(), val_loss, val_acc
 
 
 def print_training_mode(num_gpus: int, num_processes: int):

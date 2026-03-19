@@ -19,8 +19,8 @@ class ExperimentConfiguration:
                  contribution_score_strategy="loss_only", # Options: dotproduct, naive, accuracy, None (defaults to dotproduct)
                  freerider_noise_scale=1.0,
                  freerider_start_round=3,
-                 malicious_start_round=3,
                  malicious_noise_scale=1.0,
+                 malicious_start_round=3,
                  force_merge_all=False,
                  use_nobody_is_kicked=False,
                  aggregation_rule="FedAVG"
