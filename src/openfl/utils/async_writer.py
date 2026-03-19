@@ -156,3 +156,12 @@ class AsyncWriter:
 class NullWriter:
     def submitResult(self, *args, **kwargs):
         pass
+
+    def writeResult(self, *args, **kwargs):
+        pass
+
+    def writeComment(self, *args, **kwargs):
+        pass
+
+    def finish(self, *args, **kwargs):
+        pass
