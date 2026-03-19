@@ -2,6 +2,7 @@ from datetime import datetime
 import multiprocessing as mp
 from pathlib import Path
 import experiment_runner as ExperimentRunner
+from analysis import ExperimentLogger
 from experiment_configuration import ExperimentConfiguration
 from openfl.utils.async_writer import AsyncWriter
 
