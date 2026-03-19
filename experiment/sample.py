@@ -30,6 +30,8 @@ config = ExperimentConfiguration(
     number_of_inactive_contributors=0,
     aggregation_rule="positives_only"
 )
+PRESET = "mnist_openfl_w_outlier"
+config = ExperimentConfiguration(preset=PRESET, use_defaults=True)
 
 # OVERSKRIV variabler her for testing. eksempel: config = ExperimentConfiguration(minimum_rounds=1), hvis du kun vil køre een round#DATASET = "cifar-10"
 RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/sample")
@@ -78,7 +80,17 @@ def main():
 def getPath(experimentConfig: ExperimentConfiguration):
     time = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
 
-    filename = f"{experimentConfig.contribution_score_strategy}-{experimentConfig.freerider_start_round}-{experimentConfig.freerider_noise_scale}-{experimentConfig.malicious_start_round}-{experimentConfig.malicious_noise_scale}-{experimentConfig.use_outlier_detection}.csv"
+    filename = (
+        f"{PRESET}-"
+        f"{DATASET}-"
+        f"{config.contribution_score_strategy}-"
+        f"{config.freerider_start_round}-"
+        f"{config.freerider_noise_scale}-"
+        f"{config.malicious_start_round}-"
+        f"{config.malicious_noise_scale}-"
+        f"{config.use_outlier_detection}-"
+        f"{config.aggregation_rule}.csv"
+    )
 
     path = Path(RESULTDATAFOLDER).joinpath(time).joinpath(filename)
 

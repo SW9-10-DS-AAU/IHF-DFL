@@ -775,7 +775,12 @@ class PytorchModel:
 
     
 # PYTORCH FUNCTIONS
-def train(net, trainloader: torch.utils.data.DataLoader, epochs: int, device: torch.device) -> None:
+def train(
+    net,
+    trainloader: torch.utils.data.DataLoader,
+    epochs: int,
+    device: torch.device,
+) -> None:
 
     # Compile ONCE per process (not per batch)
     if device.type == "cuda":
