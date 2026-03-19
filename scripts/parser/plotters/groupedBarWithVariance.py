@@ -40,9 +40,11 @@ def  grouped_bar_with_variance(
         show_yerr = any(low != 0 or up != 0 for low, up in zip(lows, ups))
 
         xpos = x - 0.4 + i * width + width / 2
+        bar_means = np.array(means[i], dtype=float)
+        bar_means[missing[i]] = np.nan
         ax.bar(
             xpos,
-            means[i],
+            bar_means,
             width,
             yerr = [lows, ups] if show_yerr else None,
             capsize=4,

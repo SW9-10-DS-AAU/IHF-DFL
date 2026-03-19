@@ -10,6 +10,7 @@ import torch.nn.functional as F
 import torch.multiprocessing as mp
 import os
 import time
+import math
 from web3 import Web3
 from termcolor import colored
 from typing import Tuple, Dict
@@ -17,6 +18,10 @@ from collections import OrderedDict
 from torchvision import transforms
 from torchvision.datasets import CIFAR10, MNIST
 from torch.utils.data import DataLoader, random_split
+torch._dynamo.config.cache_size_limit = 512
+import logging
+logging.getLogger("torch._inductor").setLevel(logging.ERROR)
+logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
 
 
 RNG = np.random.default_rng()
@@ -30,6 +35,8 @@ AMP = USE_CUDA # Optional: mixed precision on CUDA
 
 # cuDNN autotune for fixed-size inputs (both MNIST 28x28 and CIFAR-10 32x32)
 torch.backends.cudnn.benchmark = USE_CUDA
+if DEVICE.type == "cuda":
+    torch.set_float32_matmul_precision("high")
 
 def model_to_device(net: nn.Module) -> nn.Module:
     # Move model once; keep it on the chosen device
@@ -525,6 +532,7 @@ class PytorchModel:
         print("-----------------------------------------------------------------------------------\n")
     
     
+
     def exchange_models(self):
         print("Users exchanging models...")
         for user in self.participants:
@@ -570,26 +578,20 @@ class PytorchModel:
         blob = b"".join(parts)
         return Web3.keccak(blob)  #remove hex to match old, with improved algo.
 
-    
     def evaluation(self):
         print("Users evaluating models...")
 
-        # Counts how many users have been disqualified from the experiment
+        scalar = 100 # Adds more decimals for precision (Adding 0 gives another decimal, vice versa)
+        MAX_UINT16_SIZE = 65535
         count_dq = len(self.disqualified)
 
-        no_of_users = len(self.participants) + count_dq
+        feedback_matrix = np.zeros((1, len(self.participants) + count_dq, len(self.participants) + count_dq))[0]
+        n = len(self.participants) + count_dq
+        accuracy_matrix = [[0 for _ in range(n)] for _ in range(n)]
+        loss_matrix = [[0 for _ in range(n)] for _ in range(n)]
+        prev_accs = [0 for _ in range(n)]
+        prev_losses = [0 for _ in range(n)]
 
-        # Initialize arrays to zeroes
-
-        # Feedback/evaluation scores between all user pairs
-        feedback_matrix = np.zeros((1, no_of_users, no_of_users))[0]
-        accuracy_matrix = [[0 for _ in range(no_of_users)] for _ in range(no_of_users)]
-        loss_matrix = [[0 for _ in range(no_of_users)] for _ in range(no_of_users)]
-        prev_accs = [0 for _ in range(no_of_users)]
-        prev_losses = [0 for _ in range(no_of_users)]
-
-
-        # Each user evaluates the models of all other users and fills the matrices accordingly
         for feedbackGiver in self.participants:
             valloader = feedbackGiver.val
             bad_att = feedbackGiver.attitude == "bad"
@@ -603,62 +605,66 @@ class PytorchModel:
                 if not bad_att and not free_att:
                     loss, accuracy = test(user.model, valloader, DEVICE)
                     prev_loss, prev_acc = test(self.global_model, valloader, DEVICE)
-                    prev_acc = round(prev_acc * 100)
-                    prev_loss = round(prev_loss)
+                    prev_acc = round(prev_acc * 100 * scalar)
+                    prev_loss = safe_scale(prev_loss, scalar, MAX_UINT16_SIZE)
 
                 if bad_att:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
                     accuracy_matrix[feedbackGiver.id][user.id] = 0
-                    loss_matrix[feedbackGiver.id][user.id] = 100000
+                    loss_matrix[feedbackGiver.id][user.id] = 65535
                     prev_loss, prev_acc = test(self.global_model, valloader, DEVICE)
-                    prev_accs[feedbackGiver.id] = round(prev_acc * 100)
-                    prev_losses[feedbackGiver.id] = round(prev_loss)
+                    prev_accs[feedbackGiver.id] = round(prev_acc * 100 * scalar)
+                    prev_losses[feedbackGiver.id] = safe_scale(prev_loss, scalar, MAX_UINT16_SIZE)
 
                 elif free_att:
                     feedback_matrix[feedbackGiver.id][user.id] = 0
                     if accuracy_last_round == -1:
-                        loss_last_round, accuracy_last_round = test(self.global_model, valloader, DEVICE)  # TODO: Unitest her
-                        accuracy_last_round *= 100
-                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy_last_round)
-                    loss_matrix[feedbackGiver.id][user.id] = round(loss_last_round)
-                    prev_accs[feedbackGiver.id] = round(accuracy_last_round)
-                    prev_losses[feedbackGiver.id] = round(loss_last_round)
+                        loss_last_round, accuracy_last_round = test(self.global_model, valloader, DEVICE)
+                        accuracy_last_round = round(accuracy_last_round * 100 * scalar)
+                        loss_last_round = safe_scale(loss_last_round, scalar, MAX_UINT16_SIZE)
+                    accuracy_matrix[feedbackGiver.id][user.id] = accuracy_last_round
+                    loss_matrix[feedbackGiver.id][user.id] = min(loss_last_round, MAX_UINT16_SIZE)
+                    prev_accs[feedbackGiver.id] = accuracy_last_round
+                    prev_losses[feedbackGiver.id] = loss_last_round
 
                 elif len(feedbackGiver.cheater) > 0 and user in feedbackGiver.cheater:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
-                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
-                    loss_matrix[feedbackGiver.id][user.id] = round(loss)
+                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
+                    loss_matrix[feedbackGiver.id][user.id] = safe_scale(loss, scalar, MAX_UINT16_SIZE)
                     prev_accs[feedbackGiver.id] = prev_acc
                     prev_losses[feedbackGiver.id] = prev_loss
 
-
-                elif accuracy > feedbackGiver.currentAcc - 0.07: # 7% Worse TODO: Evt tweak
+                elif accuracy > feedbackGiver.currentAcc - 0.07 : # 7% Worse
                     feedback_matrix[feedbackGiver.id][user.id] = 1
-                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
-                    loss_matrix[feedbackGiver.id][user.id] = round(loss)
+                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
+                    loss_matrix[feedbackGiver.id][user.id] = safe_scale(loss, scalar, MAX_UINT16_SIZE)
                     prev_accs[feedbackGiver.id] = prev_acc
                     prev_losses[feedbackGiver.id] = prev_loss
 
-                elif accuracy > feedbackGiver.currentAcc - 0.14: # 14% Worse TODO: Evt tweak
+                elif accuracy > feedbackGiver.currentAcc - 0.14: # 14% Worse
                     feedback_matrix[feedbackGiver.id][user.id] = 0
-                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
-                    loss_matrix[feedbackGiver.id][user.id] = round(loss)
+                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
+                    loss_matrix[feedbackGiver.id][user.id] = safe_scale(loss, scalar, MAX_UINT16_SIZE)
                     prev_accs[feedbackGiver.id] = prev_acc
                     prev_losses[feedbackGiver.id] = prev_loss
 
-                else : # Even Worse
+                else:
                     feedback_matrix[feedbackGiver.id][user.id] = -1
-                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100)
-                    loss_matrix[feedbackGiver.id][user.id] = round(loss)
+                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
+                    loss_matrix[feedbackGiver.id][user.id] = safe_scale(loss, scalar, MAX_UINT16_SIZE)
                     prev_accs[feedbackGiver.id] = prev_acc
                     prev_losses[feedbackGiver.id] = prev_loss
 
                 if self.force_merge_all:
                     feedback_matrix[feedbackGiver.id][user.id] = 0
 
-            # RESET
+            # Reset
             feedbackGiver.userToEvaluate = []
-        
+        # acc_mat = [[x / 10 for x in sublist] for sublist in accuracy_matrix]
+        # loss_mat = [[x / 10 for x in sublist] for sublist in loss_matrix]
+        # prev_accs_divided = [x / 10 for x in prev_accs]
+        # prev_losses_divided = [x / 10 for x in prev_losses]
+
         print("FEEDBACK MATRIX:")
         print(feedback_matrix)
         print("-----------------------------------------------------------------------------------")
@@ -674,6 +680,7 @@ class PytorchModel:
         print("PREVIOUS LOSSES:")
         print(prev_losses)
         print("-----------------------------------------------------------------------------------")
+
         return feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses
 
     
@@ -684,28 +691,33 @@ def train(
     epochs: int,
     device: torch.device,
 ) -> None:
-    """Train the network."""
-    # Define loss and optimizer
+
+    # Compile ONCE per process (not per batch)
+    if device.type == "cuda":
+        try:
+            net = torch.compile(net, mode="reduce-overhead")
+        except Exception:
+            pass
+
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
-    #print("User {}  |  Epoche {}  |  Batches {}".format(user, epochs, len(trainloader)))
-    #print(f"Training {epochs} epoch(s) w/ {len(trainloader)} batches each")
 
-    scaler = torch.amp.GradScaler('cuda', enabled=AMP)
+    use_amp = device.type == "cuda"
+    scaler = torch.amp.GradScaler(enabled=use_amp)
+
     net.train()
 
-    # Train the network
-    for epoch in range(epochs):  # loop over the dataset multiple times
-        running_loss = 0.0
+    for _ in range(epochs):
         for images, labels in trainloader:
             images = images.to(device, non_blocking=NON_BLOCKING)
             labels = labels.to(device, non_blocking=NON_BLOCKING)
 
-            # zero the parameter gradients
             optimizer.zero_grad(set_to_none=True)
-            with torch.amp.autocast('cuda', enabled=AMP):
+
+            with torch.amp.autocast("cuda", enabled=use_amp):
                 outputs = net(images)
                 loss = criterion(outputs, labels)
+
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
@@ -716,28 +728,33 @@ def test(
     testloader: torch.utils.data.DataLoader,
     device: torch.device,
 ) -> Tuple[float, float]:
-    """Validate the network on the entire test set."""
+
     criterion = nn.CrossEntropyLoss()
     net.eval()
+
     correct = 0
     total = 0
     loss = 0.0
+
+    use_amp = device.type == "cuda"
+
     with torch.no_grad():
         for images, labels in testloader:
             images = images.to(device, non_blocking=NON_BLOCKING)
             labels = labels.to(device, non_blocking=NON_BLOCKING)
-            with torch.amp.autocast('cuda', enabled=AMP):
+
+            with torch.amp.autocast("cuda", enabled=use_amp):
                 outputs = net(images)
                 loss += criterion(outputs, labels).item()
                 _, predicted = torch.max(outputs, 1)
+
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
+
     accuracy = correct / total
-    
     loss = min(sys.float_info.max, loss)
 
     return loss, accuracy
-
     
 def green(text):
     return colored(text, "green")
@@ -862,3 +879,14 @@ def device_label(device: torch.device, device_id: int = 0) -> str:
         return f"GPU {device_id}"
     else:
         return "CPU"
+
+def safe_scale(value, scalar, max_val):
+    if not math.isfinite(value):
+        return max_val
+
+    scaled = value * scalar
+
+    if not math.isfinite(scaled):
+        return max_val
+
+    return min(round(scaled), max_val)

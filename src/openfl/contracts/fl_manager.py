@@ -1,5 +1,5 @@
 from web3 import Web3
-from openfl.ml.pytorch_model import gb, rb, b, green, red
+from openfl.ml.pytorch_model import b
 from openfl.api import ConnectionHelper
 
 class FLManager(ConnectionHelper):
@@ -74,8 +74,6 @@ class FLManager(ConnectionHelper):
         return 
 
 
-    
-    
     def get_model_of(self, p, c):
         return self.manager.functions.ModelOf(p.address, c).call({"to": self.manager.address,
                                                                   "from": p.address})
@@ -91,8 +89,6 @@ class FLManager(ConnectionHelper):
             "from": p.address
         })
 
-
-    
     
     def deploy_challenge_contract(self, *args):
         print(b("Starting simulation..."))

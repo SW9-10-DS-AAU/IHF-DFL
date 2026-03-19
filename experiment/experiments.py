@@ -4,7 +4,6 @@ import multiprocessing as mp
 from pathlib import Path
 import re
 import traceback
-from unittest import skip
 import experiment_runner as ExperimentRunner
 from experiment_configuration import ExperimentConfiguration
 from itertools import product
@@ -18,14 +17,16 @@ DATASETSLOW = "cifar.10"
 DATASETFAST = "mnist"
 RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData")
 
-datasets = [ DATASETFAST ]
-strategy_options = ["dotproduct"]
-#strategy_options = ["naive", "dotproduct"]
+datasets = [ DATASETSLOW ]
+#strategy_options = ["dotproduct", "naive", "accuracy"]
+strategy_options = [ "naive", "dotproduct", "accuracy_only", "loss_only", "accuracy_loss" ]
 outlier_detection_options = [ True ]
-free_rider_activation_round_options = [3]
-malicious_activation_round_options = [3]
-free_rider_noise_options = [1.0]
-malicious_noise_options = [1.0]
+free_rider_activation_round_options = [1, 3, 5]
+#malicious_activation_round_options = [1, 3, 5]
+free_rider_noise_options = [1.0, 0.5, 0.1, 0.01, 0.0]
+#malicious_noise_options = [1.0, 0.5, 0.05, 0.01]
+#forced_ones = [ True, False ]
+forced_ones = [ False ]
 
 #strategy_options = ["accuracy"]
 #free_rider_activation_round_options = [1]
@@ -49,23 +50,53 @@ OUTPUTHEADERS = [
     "GasTransactions",
     ]
 
-
-
 # OUTPUTHEADERS = [
 #     "GRS"
 # ]
 WRITERBUFFERSIZE = 200
+@dataclass(frozen=True)
+class Skip:
+    strategy: str
+    outlier_detection: bool
+    free_rider_activation_round: int
+    free_rider_noise: float
+    malicious_activation_round: int
+    malicious_noise: float
+    dataset: str
+skips: list[Skip] = []
 
 def main(author):
+    global skips
     startTime = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
 
     if (args.skipFolder is not None):
         parseSkips()
 
-    for strategy, outlier_detection, free_rider_activation_round, free_rider_noise, malicious_activation_round, malicious_noise, dataset in product(strategy_options, outlier_detection_options, free_rider_activation_round_options, free_rider_noise_options, malicious_activation_round_options, malicious_noise_options, datasets):
-        # Set up configuration for the experiment run
-        if (strategy == "accuracy" and outlier_detection == True or (strategy == "naive" and outlier_detection == True)):
-            continue #As accuracy mode always uses making having both on redundent
+    oldProduct = product(
+        strategy_options,
+        outlier_detection_options,
+        free_rider_activation_round_options,
+        free_rider_noise_options,
+        #malicious_activation_round_options,
+        #malicious_noise_options,
+        datasets,
+        forced_ones)
+    
+    productVar = [
+        (strategy, outlier_detection, free_rider_activation_round, free_rider_noise, dataset, forced)
+        for (strategy, outlier_detection, free_rider_activation_round, free_rider_noise, dataset, forced)
+        in oldProduct
+    ]
+    total = len(productVar)
+    skipsCount = len(skips)
+
+    for i, (strategy, outlier_detection, free_rider_activation_round, free_rider_noise, dataset, forced) in enumerate(productVar, start=1):
+        #malicious_activation_round, malicious_noise, -- removed
+        malicious_activation_round = free_rider_activation_round
+        malicious_noise = free_rider_noise
+
+        progress_bar(i-1, skipsCount, total)
+
         
         # Auto skips
         if (shouldSkip(Skip(strategy, outlier_detection, free_rider_activation_round, free_rider_noise, malicious_activation_round, malicious_noise, dataset))):
@@ -81,7 +112,16 @@ def main(author):
             freerider_start_round = free_rider_activation_round,
             freerider_noise_scale = free_rider_noise,
             malicious_start_round = malicious_activation_round,
-            malicious_noise_scale=malicious_noise,
+            malicious_noise_scale = malicious_noise,
+            force_merge_all = forced,
+            punish_factor= 3,
+            punish_factor_contrib= 3,
+            epochs=25,
+            batch_size=128,
+            number_of_good_contributors=6,
+            number_of_bad_contributors=1,
+            number_of_freerider_contributors=1,
+            minimum_rounds=25,
         )
         
         path = getPath(config, startTime, dataset)
@@ -107,11 +147,12 @@ def main(author):
 
         #experiment.model.visualize_simulation("experiment/figures")
 
-        #ExperimentRunner.print_transactions(experiment)
+    #ExperimentRunner.print_transactions(experiment)
+
 
 def getPath(experimentConfig: ExperimentConfiguration, time: datetime, dataset):
 
-    filename = f"{dataset}-{experimentConfig.contribution_score_strategy}-{experimentConfig.freerider_start_round}-{experimentConfig.freerider_noise_scale}-{experimentConfig.malicious_start_round}-{experimentConfig.malicious_noise_scale}-{experimentConfig.use_outlier_detection}.csv"
+    filename = f"{dataset}-{experimentConfig.contribution_score_strategy}-{experimentConfig.freerider_start_round}-{experimentConfig.freerider_noise_scale}-{experimentConfig.malicious_start_round}-{experimentConfig.malicious_noise_scale}-{experimentConfig.use_outlier_detection}-{experimentConfig.force_merge_all}.csv"
 
     path = Path(RESULTDATAFOLDER).joinpath(time).joinpath(filename)
 
@@ -122,19 +163,8 @@ parser.add_argument("--skipFolder", type=str)
 parser.add_argument("--author", type=str)
 args = parser.parse_args()
 
-@dataclass(frozen=True)
-class Skip:
-    strategy: str
-    outlier_detection: bool
-    free_rider_activation_round: int
-    free_rider_noise: float
-    malicious_activation_round: int
-    malicious_noise: float
-    dataset: str
-
-skips: list[Skip] = []
-
 def parseSkips():
+    global skips
     if not Path.exists(RESULTDATAFOLDER):
         return
 
@@ -147,17 +177,19 @@ def parseSkips():
     
     for file in files:
         m = re.fullmatch(
-            r"(?P<dataset>[^-]+)-(?P<strategy>[^-]+)-(?P<activationRound>[^-]+)-"
-            r"(?P<noise>[^-]+)-(?P<maliciousRound>[^-]+)-(?P<maliciousNoise>[^-]+)-(?P<outlierDetection>[^-]+)\.csv", file)
-        m2 = re.fullmatch(
-            r"(?P<strategy>[^-]+)-(?P<activationRound>[^-]+)-"
-            r"(?P<noise>[^-]+)-(?P<maliciousRound>[^-]+)-(?P<maliciousNoise>[^-]+)-(?P<outlierDetection>[^-]+)\.csv", file)
+            r"(?P<dataset>[^-]+)-"
+            r"(?P<strategy>[^-]+)-"
+            r"(?P<activationRound>[^-]+)-"
+            r"(?P<noise>[^-]+)-"
+            r"(?P<maliciousRound>[^-]+)-"
+            r"(?P<maliciousNoise>[^-]+)-"
+            r"(?P<outlierDetection>[^-]+)-"
+            r"(?P<forced>[^-]+)\.csv",
+            file
+        )
         if m:
             dataset = m.group("dataset")
             groups = m
-        elif m2:
-            dataset = DATASETSLOW
-            groups = m2
         else:
             print("Did not match")
             continue
@@ -182,6 +214,13 @@ def shouldSkip(config: Skip):
     print("not skipping")
     return False
 
+def progress_bar(i, skipsCount, total):
+    percent = (i / total) * 100
+    totalPercent = ((i + skipsCount) / total) * 100
+    print(
+        f"Progress: {i}/{total} ({percent:.2f}%)\nTotal Progress: {i + skipsCount}/{total} ({totalPercent:.2f}%)\n",
+        flush=True)
+
 if __name__ == "__main__":
     author = args.author if args.author is not None else input("Author?\n")
     mp.freeze_support()
@@ -190,4 +229,3 @@ if __name__ == "__main__":
         print("Terminating:", p.pid)
         p.terminate()
     print("Done :)")
-

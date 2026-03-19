@@ -8,6 +8,7 @@ from parser.parseExports import runProcessor
 from parser.experiment_specs import ExperimentSpec
 from parser.gasCosts import GasStats
 from parser.types.round import Round
+from parser.helpers.setLegendLocation import LegendPosition
 
 
 grs_by_method_round = {}
@@ -20,7 +21,7 @@ def get_target_user_ids(participants, target_attitude):
 
 def prepare_grs_by_round(
     rounds: list[Round], 
-    participants: dict[int, Participant], 
+    participants: dict[str, Participant], 
     experiment_specs: ExperimentSpec, 
     gasStats: GasStats, 
     outDir: str, 
@@ -70,7 +71,8 @@ def grsGraph(
     usePreviousTests: bool,
     windowAndFileName: str,
     RESULTDATAFOLDER: str,
-    filter: Callable[[ExperimentSpec], bool] | None = None
+    legend_position: LegendPosition,
+    filter: Callable[[ExperimentSpec], bool] | None = None,
 ):
     grs_by_method_round.clear()
 
@@ -97,9 +99,10 @@ def grsGraph(
     line_graph(
         data,
         False,
-        x_label="Round",
-        y_label="GRS",
-        title=title,
+        "Round",
+        "GRS",
+        title,
+        legendPosition=legend_position,
         vline=freeridingRoundStart,
         windowAndFileName=windowAndFileName
     )

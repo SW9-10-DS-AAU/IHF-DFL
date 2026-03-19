@@ -26,7 +26,7 @@ def _filtered_lines(path: Path) -> Tuple[list[str], list[str]]:
 
 def load_data(path: str):
   rounds: list[Round] = []
-  participants: dict[int, Participant] = {}
+  participants: dict[str, Participant] = {}
 
   last_time = None
 
@@ -56,7 +56,7 @@ def load_data(path: str):
           _punishments=parse(row["punishments"]),
           _contributionScores=parse(row["contributionScores"]),
           _feedbackMatrix=parse(row["feedbackMatrix"]),
-          _disqualifiedUsers=parse(row["disqualifiedUsers"]), # This is wrong, but a workaround has been found, and this gets overwritten later
+          _disqualifiedUsers=parse(row["disqualifiedUsers"]),
           _gasTransactions=parse(row["GasTransactions"]),
           _lastTime=last_time
       )
@@ -70,12 +70,11 @@ def load_data(path: str):
       for entry in user_status_list:
           uid, curAcc, att, futAtt, attSwitch, addr = parse_user_status(entry)
 
-          if uid not in participants:
-              participants[uid] = Participant(uid, curAcc, att, futAtt, attSwitch, addr)
+          if addr not in participants:
+              participants[addr] = Participant(uid, curAcc, att, futAtt, attSwitch, addr)
 
           state = ParticipantState(uid, curAcc, att, futAtt, attSwitch, addr)
-          participants[uid].states.append(state)
-    
+          participants[addr].states.append(state)
     
   gasStats = parse_gas_stats(next((s.replace("# $gasCosts$", "") for s in leftOver if s.startswith("# $gasCosts$")), None))
   experimentConfig = parse_experiment_spec(leftOver)
