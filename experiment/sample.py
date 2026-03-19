@@ -1,10 +1,14 @@
 from datetime import datetime
+import sys
 import multiprocessing as mp
 from pathlib import Path
 import experiment_runner as ExperimentRunner
-from analysis import ExperimentLogger
 from experiment_configuration import ExperimentConfiguration
 from openfl.utils.async_writer import AsyncWriter
+
+# Add the repo root to sys.path so `analysis` package is importable from here
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from analysis import ExperimentLogger
 
 config = ExperimentConfiguration(
     min_buy_in=int(1e18),
