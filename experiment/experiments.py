@@ -95,6 +95,8 @@ def main(author): # single preset
     total = len(productVar)
     skipsCount = len(skips)
 
+    time = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
+
     for i, (
         strategy,
         outlier_detection,
@@ -140,8 +142,7 @@ def main(author): # single preset
         config.aggregation_rule = aggregation_rule
         config.force_merge_all = forced
 
-        # path = getPath(config, dataset, preset , RESULTDATAFOLDER)
-        path = getPath(config, dataset, preset , RESULTDATAFOLDER)
+        path = getPath(config, time, dataset, preset, RESULTDATAFOLDER)
 
         try:
 

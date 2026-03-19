@@ -42,7 +42,6 @@ class ExperimentLogger:
                        grs=None,
                        sub_personal_acc=None, sub_personal_loss=None,
                        sub_global_acc=None, sub_global_loss=None,
-                       contribution_score=None,
                        round_reputation_assigned=None,
                        reward_delta=None,
                        is_reward=None,

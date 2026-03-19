@@ -225,26 +225,25 @@ def grs_by_user(merged_users: pd.DataFrame) -> pd.DataFrame:
 
 def global_acc_by_aggregation_strategy(acc_over_agg: pd.DataFrame, metadata: pd.DataFrame) -> pd.DataFrame:
     """
-    Two-stage aggregation of global accuracy by contribution score strategy and round.
+    Two-stage aggregation of global accuracy by aggregation rule and round.
 
-    Stage 1: mean accuracy per (experiment_id, contribution_score_strategy, round).
+    Stage 1: mean accuracy per (experiment_id, aggregation_rule, round).
     Stage 2: mean and std of those per-experiment means across runs.
 
-    Returns DataFrame with columns: contribution_score_strategy, round,
+    Returns DataFrame with columns: aggregation_rule, round,
     accuracy_mean, accuracy_std.
     """
     _require_nonempty(acc_over_agg, "acc_over_agg")
-    # TODO: Change to aggregation_strategy when implemented
-    df = _with_meta(acc_over_agg, metadata, ["contribution_score_strategy"])
+    df = _with_meta(acc_over_agg, metadata, ["aggregation_rule"])
     per_experiment = (
         df
-        .groupby(["experiment_id", "contribution_score_strategy", "round"])
+        .groupby(["experiment_id", "aggregation_rule", "round"])
         .agg(accuracy=("objective_global_accuracy", "mean"))
         .reset_index()
     )
     agg = (
         per_experiment
-        .groupby(["contribution_score_strategy", "round"])
+        .groupby(["aggregation_rule", "round"])
         .agg(
             accuracy_mean=("accuracy", "mean"),
             accuracy_std= ("accuracy", "std"),
@@ -256,26 +255,25 @@ def global_acc_by_aggregation_strategy(acc_over_agg: pd.DataFrame, metadata: pd.
 
 def global_loss_by_aggregation_strategy(loss_over_agg: pd.DataFrame, metadata: pd.DataFrame) -> pd.DataFrame:
     """
-    Two-stage aggregation of global loss by contribution score strategy and round.
+    Two-stage aggregation of global loss by aggregation rule and round.
 
-    Stage 1: mean loss per (experiment_id, contribution_score_strategy, round).
+    Stage 1: mean loss per (experiment_id, aggregation_rule, round).
     Stage 2: mean and std of those per-experiment means across runs.
 
-    Returns DataFrame with columns: contribution_score_strategy, round,
+    Returns DataFrame with columns: aggregation_rule, round,
     loss_mean, loss_std.
     """
     _require_nonempty(loss_over_agg, "loss_over_agg")
-    # TODO: Change to aggregation_strategy when implemented
-    df = _with_meta(loss_over_agg, metadata, ["contribution_score_strategy"])
+    df = _with_meta(loss_over_agg, metadata, ["aggregation_rule"])
     per_experiment = (
         df
-        .groupby(["experiment_id", "contribution_score_strategy", "round"])
+        .groupby(["experiment_id", "aggregation_rule", "round"])
         .agg(loss=("objective_global_loss", "mean"))
         .reset_index()
     )
     agg = (
         per_experiment
-        .groupby(["contribution_score_strategy", "round"])
+        .groupby(["aggregation_rule", "round"])
         .agg(
             loss_mean=("loss", "mean"),
             loss_std= ("loss", "std"),
@@ -372,6 +370,12 @@ def agg_contribution_score_by_role_relative(
         if row["role"] == "freerider" and freerider_col:
             return row[freerider_col]
         return 0
+
+    # Exclude round 0 (baseline): no contribution scores exist there, so the left-join
+    # fills them with 0. Those zeros land at negative relative rounds (e.g. round 0 with
+    # freerider_start_round=3 → relative_round=-3), dragging down the pre-activation average
+    # and making scores appear to drop before activation. Fixed 2026-03-19.
+    # df = df[df["round"] > 0]
 
     df["activation_round"] = df.apply(_activation, axis=1)
     df["relative_round"] = df["round"] - df["activation_round"]

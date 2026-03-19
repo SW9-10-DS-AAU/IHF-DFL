@@ -43,12 +43,12 @@ OUTPUTHEADERS = [
 WRITERBUFFERSIZE = 200
 
 def main():
-    startTime = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
+    time = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
 
     try:
-        path = getPath(config, DATASET, preset, RESULTDATAFOLDER)
+        path = getPath(config, time, DATASET, preset, RESULTDATAFOLDER)
         writer = AsyncWriter(path, OUTPUTHEADERS, WRITERBUFFERSIZE, config, "sample")
-        metadata = {**vars(config), "dataset": DATASET, "timestamp": startTime}
+        metadata = {**vars(config), "dataset": DATASET, "timestamp": time}
         logger = ExperimentLogger(experiment_id=path.stem, metadata=metadata)
         experiment = ExperimentRunner.run_experiment(DATASET, config, writer, logger)
         writer.finish()

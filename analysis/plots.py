@@ -281,17 +281,15 @@ def plot_grs_by_user(grs_users: pd.DataFrame) -> plt.Figure:
     return fig
 
 
-# For each round plot the global accuracy (int)
-# TODO: Need to log aggregation strategy instead of contrib score
 def plot_global_acc_by_aggregation_strategy(acc_by_strategy: pd.DataFrame) -> plt.Figure:
     """
-    One line per strategy, mean accuracy over rounds with ±1 std shading.
+    One line per aggregation rule, mean accuracy over rounds with ±1 std shading.
 
-    Expects columns: contribution_score_strategy, round, accuracy_mean, accuracy_std.
+    Expects columns: aggregation_rule, round, accuracy_mean, accuracy_std.
     """
     fig, ax = plt.subplots(figsize=(9, 4))
 
-    for strategy, group in acc_by_strategy.groupby("contribution_score_strategy"):
+    for strategy, group in acc_by_strategy.groupby("aggregation_rule"):
         color = STRATEGY_COLORS.get(strategy)
         group = group.sort_values("round")
         ax.plot(group["round"], group["accuracy_mean"], label=strategy, color=color, linewidth=2)
@@ -306,7 +304,7 @@ def plot_global_acc_by_aggregation_strategy(acc_by_strategy: pd.DataFrame) -> pl
     ax.set_xlabel("Round")
     ax.set_ylabel("Global Accuracy") # TODO: Not a percentage
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    ax.legend(title="Strategy")
+    ax.legend(title="Agg. Strategy")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
 
@@ -314,16 +312,15 @@ def plot_global_acc_by_aggregation_strategy(acc_by_strategy: pd.DataFrame) -> pl
 
 
 
-# TODO: Need to log aggregation strategy instead of contrib score
 def plot_global_loss_by_aggregation_strategy(loss_by_strategy: pd.DataFrame) -> plt.Figure:
     """
-    One line per strategy, mean loss over rounds with ±1 std shading.
+    One line per aggregation rule, mean loss over rounds with ±1 std shading.
 
-    Expects columns: contribution_score_strategy, round, loss_mean, loss_std.
+    Expects columns: aggregation_rule, round, loss_mean, loss_std.
     """
     fig, ax = plt.subplots(figsize=(9, 4))
 
-    for strategy, group in loss_by_strategy.groupby("contribution_score_strategy"):
+    for strategy, group in loss_by_strategy.groupby("aggregation_rule"):
         color = STRATEGY_COLORS.get(strategy)
         group = group.sort_values("round")
         ax.plot(group["round"], group["loss_mean"], label=strategy, color=color, linewidth=2)
@@ -338,7 +335,7 @@ def plot_global_loss_by_aggregation_strategy(loss_by_strategy: pd.DataFrame) -> 
     ax.set_xlabel("Round")
     ax.set_ylabel("Global Loss") # TODO: Not a percentage
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    ax.legend(title="Strategy")
+    ax.legend(title="Agg. Strategy")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
 

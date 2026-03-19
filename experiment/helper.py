@@ -5,10 +5,8 @@ from pathlib import Path
 from experiment.experiment_configuration import ExperimentConfiguration
 
 
-def getPath(config: ExperimentConfiguration, dataset: str, preset: str, resultDataFolder: Path):
+def getPath(config: ExperimentConfiguration, time: str, dataset: str, preset: str, resultDataFolder: Path):
     # Filename for csv and pickle logging files
-
-    time = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
 
     filename = (
         f"{preset}-"
