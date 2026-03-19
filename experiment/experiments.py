@@ -5,17 +5,13 @@ from pathlib import Path
 import re
 import sys
 import traceback
-import experiment_runner as ExperimentRunner
-from experiment_configuration import ExperimentConfiguration
 from itertools import product
 from dataclasses import dataclass
+from helper import getPath
 import argparse
-import uuid
-
 import experiment_runner as ExperimentRunner
 from experiment_configuration import ExperimentConfiguration
 from experiment_presets import PRESETS
-
 from openfl.utils.async_writer import AsyncWriter
 from selector import choose_from_list
 
@@ -29,15 +25,9 @@ RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData
 
 # ---------------- PRESET SEARCH SPACE ----------------
 
-preset = PRESETS["mnist_openfl_w_outlier"]
-
-strategy_options = preset.contribution_score_strategy
-outlier_detection_options = preset.use_outlier_detection
-free_rider_activation_round_options = preset.freerider_start_round
-free_rider_noise_options = preset.freerider_noise_scale
-aggregation_rule_options = preset.aggregation_rule
-
-datasets = ["mnist"]
+# preset = "test"
+preset = "mnist_openfl_w_outlier"
+datasets = [ DATASETFAST ]
 forced_ones = [False]
 
 
@@ -85,8 +75,6 @@ skips: list[Skip] = []
 
 def main(author): # single preset
     preset_config = PRESETS[preset]
-
-
     startTime = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
 
     if args.skipFolder is not None:
@@ -152,7 +140,8 @@ def main(author): # single preset
         config.aggregation_rule = aggregation_rule
         config.force_merge_all = forced
 
-        path = getPath(config, startTime, dataset, preset)
+        # path = getPath(config, dataset, preset , RESULTDATAFOLDER)
+        path = getPath(config, dataset, preset , RESULTDATAFOLDER)
 
         try:
 
@@ -184,24 +173,6 @@ def main(author): # single preset
 
     #ExperimentRunner.print_transactions(experiment)
 
-# ---------------- PATH ----------------
-
-def getPath(config: ExperimentConfiguration, time: str, dataset: str, preset: str):
-    filename = (
-        f"{preset}-"
-        f"{dataset}-"
-        f"{config.contribution_score_strategy}-"
-        f"{config.freerider_start_round}-"
-        f"{config.freerider_noise_scale}-"
-        f"{config.malicious_start_round}-"
-        f"{config.malicious_noise_scale}-"
-        f"{config.use_outlier_detection}-"
-        f"{config.aggregation_rule}-"
-        f"{{{uuid.uuid4()}}}.csv"
-    )
-    return RESULTDATAFOLDER.joinpath(time).joinpath(filename)
-
-    # Filename for csv
 
 # ---------------- ARGUMENTS ----------------
 

@@ -558,7 +558,7 @@ class PytorchModel:
         # -------------------------
         n_clients = len(client_models)
 
-        if aggregation_rule == "Fed_AVG":
+        if aggregation_rule == "FedAVG":
             weights = [1.0 / n_clients] * n_clients
 
         elif aggregation_rule == "positives_only":
