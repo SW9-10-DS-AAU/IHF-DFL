@@ -68,7 +68,7 @@ class ExperimentLogger:
 
     # -------- VOTE --------
 
-    def log_vote(self, round=None, giver_id=None, receiver_id=None, giver_address=None, receiver_address=None, votes_feedback_score=None, votes_prev_accuracy=None, votes_prev_loss=None, votes_accuracy=None, votes_loss=None):
+    def log_vote(self, round=None, giver_id=None, receiver_id=None, giver_address=None, receiver_address=None, vote_feedback_score=None, vote_prev_accuracy=None, vote_prev_loss=None, vote_accuracy=None, vote_loss=None):
         self._vote_rows.append({
             "experiment_id": self.experiment_id,
             "round": round,
@@ -76,11 +76,11 @@ class ExperimentLogger:
             "receiver_id": receiver_id,
             "giver_address": giver_address,
             "receiver_address": receiver_address,
-            "votes_feedback_score": votes_feedback_score,
-            "votes_prev_accuracy": votes_prev_accuracy,
-            "votes_prev_loss": votes_prev_loss,
-            "votes_accuracy": votes_accuracy,
-            "votes_loss": votes_loss,
+            "vote_feedback_score": vote_feedback_score,
+            "vote_prev_accuracy": vote_prev_accuracy,
+            "vote_prev_loss": vote_prev_loss,
+            "vote_accuracy": vote_accuracy,
+            "vote_loss": vote_loss,
         })
 
     # -------- CONTRIBUTION SCORES --------
@@ -186,7 +186,7 @@ class NullExperimentLogger:
 
     def log_global_round(self, round=None, round_time=None, obj_global_acc=None, obj_global_loss=None, reward_pool=None, punishment_pool=None): pass
     def log_user_round(self, round=None, user_id=None, state=None, behavior=None, role=None, grs=None, sub_personal_acc=None, sub_personal_loss=None, sub_global_acc=None, sub_global_loss=None, contribution_score=None, round_reputation_assigned=None, reward_delta=None, is_reward=None, merged=None): pass
-    def log_vote(self, round=None, giver_id=None, receiver_id=None, giver_address=None, receiver_address=None, votes_feedback_score=None, votes_prev_accuracy=None, votes_prev_loss=None, votes_accuracy=None, votes_loss=None): pass
+    def log_vote(self, round=None, giver_id=None, receiver_id=None, giver_address=None, receiver_address=None, vote_feedback_score=None, vote_prev_accuracy=None, vote_prev_loss=None, vote_accuracy=None, vote_loss=None): pass
     def log_contribution_scores(self, round=None, user_ids=None, user_addresses=None, scores=None, raw_values=None, outlier_info=None, previous_avg=None): pass
     def log_receipt(self, round=None, tx_type=None, tx_hash=None, gas_used=None): pass
     def log_warning(self, round=None, message=None): pass
