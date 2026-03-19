@@ -1206,11 +1206,11 @@ class FLChallenge(FLManager):
                     receiver_id=_receiver.id,
                     giver_address=_giver.address,
                     receiver_address=_receiver.address,
-                    votes_feedback_score=_feedback_vote,
-                    votes_prev_accuracy=_user_acc,
-                    votes_prev_loss=_user_loss,
-                    votes_accuracy=accuracy_matrix[_giver.id][_receiver.id] if accuracy_matrix is not None else None,
-                    votes_loss=loss_matrix[_giver.id][_receiver.id]         if loss_matrix     is not None else None,
+                    vote_feedback_score=_feedback_vote,
+                    vote_prev_accuracy=_user_acc,
+                    vote_prev_loss=_user_loss,
+                    vote_accuracy=accuracy_matrix[_giver.id][_receiver.id] if accuracy_matrix is not None else None,
+                    vote_loss=loss_matrix[_giver.id][_receiver.id]         if loss_matrix     is not None else None,
                 )
 
         # ---- per-user round ----

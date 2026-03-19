@@ -84,7 +84,7 @@ def normalize_run(run: RunData) -> RunData:
              .drop(columns='user_id')
 
         v['is_outlier'] = v.apply(
-            lambda row: any(np.isclose(row['votes_accuracy'], val)
+            lambda row: any(np.isclose(row['vote_accuracy'], val)
                             for val in row['current_excluded_values'])
                         if isinstance(row['current_excluded_values'], list) else False,
             axis=1
