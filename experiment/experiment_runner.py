@@ -145,6 +145,7 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
           "punish_factor_contrib":             cfg.punish_factor_contrib,
           "first_round_fee":                   cfg.first_round_fee,
           "fork":                              cfg.fork,
+          "dataset":                           cfg.dataset,
           "freerider_start_round":             cfg.freerider_start_round,
           "freerider_noise_scale":             cfg.freerider_noise_scale,
           "malicious_start_round":             cfg.malicious_start_round,
