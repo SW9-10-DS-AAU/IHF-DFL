@@ -26,7 +26,8 @@ RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData
 # ---------------- PRESET SEARCH SPACE ----------------
 
 # preset = "test"
-preset = "mnist_openfl_w_outlier"
+preset = "aggregation_rules_test_model_performance_mnist"
+_use_defaults = False
 datasets = [ DATASETFAST ]
 forced_ones = [False]
 
@@ -112,7 +113,7 @@ def main(author): # single preset
 
         progress_bar(i - 1, skipsCount, total)
 
-        config = ExperimentConfiguration(preset=preset, use_defaults=True)
+        config = ExperimentConfiguration(preset=preset, use_defaults=_use_defaults)
         config.preset_name = preset
 
         skipConfig = Skip(
