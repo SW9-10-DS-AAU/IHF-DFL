@@ -114,6 +114,7 @@ def main(author): # single preset
 
         config = ExperimentConfiguration(preset=preset, use_defaults=True)
         config.preset_name = preset
+        config.dataset = dataset
 
         skipConfig = Skip(
             preset=preset,
