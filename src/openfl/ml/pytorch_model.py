@@ -984,48 +984,25 @@ def safe_scale(value, scalar, max_val):
 
 
 # OLD — BUG: division by zero when all scores <= 0
-# def positives_only(contrib_scores):
-#     positive_sum = sum(score for score in contrib_scores if score > 0)
-#     aggregation_scores = [score / positive_sum if score > 0 else 0 for score in contrib_scores]
-#     return aggregation_scores
-
 def positives_only(contrib_scores):
-    # Only positive contributors get weight; negatives are zeroed out.
-    # Falls back to equal weights (FedAVG) if no participant has a positive score.
-    positive_sum = sum(score for score in contrib_scores if score > 0)
-    if positive_sum == 0:
-        n = len(contrib_scores)
-        return [1.0 / n] * n
-    return [score / positive_sum if score > 0 else 0 for score in contrib_scores]
+     positive_sum = sum(score for score in contrib_scores if score > 0)
+     if positive_sum <= 0:
+         raise Exception("No positive contribution scores; cannot normalize")
+     aggregation_scores = [score / positive_sum if score > 0 else 0 for score in contrib_scores]
+     return aggregation_scores
 
 
 # OLD — BUG: denominator n+1 is only correct when scores already sum to 1
-# def plus_one_normalize(contrib_scores):
-#     n = len(contrib_scores)
-#     normalized_scores = [score+1 for score in contrib_scores]
-#     sum_ = n + 1
-#     aggregation_scores = [score / sum_ for score in normalized_scores]
-#     return aggregation_scores
-
 def plus_one_normalize(contrib_scores):
-    # Shifts all scores up by 1 so negative contributors still get some weight,
-    # then normalizes by the true sum of shifted scores.
-    normalized_scores = [score + 1 for score in contrib_scores]
-    total = sum(normalized_scores)
-    return [score / total for score in normalized_scores]
+     normalized_scores = [score+1 for score in contrib_scores]
+     sum_ = sum(normalized_scores)
+     aggregation_scores = [score / sum_ for score in normalized_scores]
+     return aggregation_scores
 
 
 # OLD — BUG: denominator n*more_than_one+1 is only correct when scores already sum to 1
-# def plus_more_than_one_normalize(contrib_scores, more_than_one=1.1):
-#     n = len(contrib_scores)
-#     normalized_scores = [score+more_than_one for score in contrib_scores]
-#     sum_ = n * more_than_one + 1
-#     aggregation_scores = [score / sum_ for score in normalized_scores]
-#     return aggregation_scores
-
 def plus_more_than_one_normalize(contrib_scores, more_than_one=1.1):
-    # Like plus_one_normalize but shifts by more_than_one (default 1.1),
-    # giving slightly more weight to higher contributors than the +1 variant.
-    normalized_scores = [score + more_than_one for score in contrib_scores]
-    total = sum(normalized_scores)
-    return [score / total for score in normalized_scores]
+     normalized_scores = [score+more_than_one for score in contrib_scores]
+     sum_ = sum(normalized_scores)
+     aggregation_scores = [score / sum_ for score in normalized_scores]
+     return aggregation_scores

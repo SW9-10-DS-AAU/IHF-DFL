@@ -150,7 +150,7 @@ PRESETS = {
         number_of_good_contributors=4,
         number_of_bad_contributors=1,
         number_of_freerider_contributors=1,
-        minimum_rounds=50,
+        minimum_rounds=5,
         epochs=1,
         batch_size=32,
         use_outlier_detection=[True],
@@ -159,7 +159,7 @@ PRESETS = {
         freerider_start_round=[1, 5, 10],
         malicious_noise_scale=[0, 0.1,1.0],
         malicious_start_round=[1, 5, 10],
-        aggregation_rule=["positives_only", "plus_one_normalize", "FedAVG"],
+        aggregation_rule=["plus_one_normalize"],
     )
 }
 
