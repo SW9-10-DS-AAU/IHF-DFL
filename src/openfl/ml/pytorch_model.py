@@ -1087,11 +1087,6 @@ def stratified_split(dataset, lengths, generator=None):
         # Compute proportional split sizes
         cls_lengths = [int(l / len(dataset) * cls_len) for l in lengths]
 
-        # Fix rounding issues
-        diff = cls_len - sum(cls_lengths)
-        for i in range(diff):
-            cls_lengths[i % len(cls_lengths)] += 1
-
         # Assign indices
         start = 0
         for i, length in enumerate(cls_lengths):
