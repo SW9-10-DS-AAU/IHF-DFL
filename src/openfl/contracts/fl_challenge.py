@@ -986,12 +986,16 @@ class FLChallenge(FLManager):
                 info = {}
                 mad_losses = remove_outliers_mad(losses, mad_threshold, collector=info, label="current")
                 # One average accuracy and loss per user
+                if len(mad_losses) == 0:
+                    raise ValueError("Mad losses length 0 after MAD filtering")
+
                 avg_loss = np.mean(mad_losses)
                 avg_losses.append(avg_loss) # int
                 per_user_outlier_info.append({**prev_info, **info}) # Merge prev (global baseline) and current (per-user) MAD info into one dict; keys are prefixed ("previous_*" / "current_*") so they don't collide
-            except ValueError:
-                print("An error occured")
-                per_user_outlier_info.append({})
+            except Exception as e:
+                raise Exception(
+                    f"Error during MAD outlier removal for user {u.address} with losses {losses}"
+                ) from e
 
         norm_losses = normalize_contribution_scores_new(avg_losses, avg_prev_loss, 'loss')
         print(f"normalized losses: {norm_losses}")
