@@ -52,7 +52,8 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
                               experiment_config.freerider_start_round,
                               experiment_config.malicious_start_round,
                               experiment_config.malicious_noise_scale,
-                              experiment_config.force_merge_all)
+                              experiment_config.force_merge_all,
+                              experiment_config.use_nobody_is_kicked)
 
   for i in range(experiment_config.number_of_bad_contributors):
       pytorch_model.add_participant("bad",experiment_config.malicious_start_round)
@@ -64,14 +65,17 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
       pytorch_model.add_participant("inactive",1)
 
 
-  manager = Manager.FLManager(pytorch_model, True).init(experiment_config.number_of_good_contributors, 
-                                              experiment_config.number_of_bad_contributors,
-                                              experiment_config.number_of_freerider_contributors,
-                                              experiment_config.number_of_inactive_contributors,
-                                              experiment_config.minimum_rounds,
-                                              RPC_ENDPOINT,
-                                              experiment_config.fork,
-                                              PRIVKEYS)
+  manager = Manager.FLManager(pytorch_model, True).init(
+      experiment_config.number_of_good_contributors,
+      experiment_config.number_of_bad_contributors,
+      experiment_config.number_of_freerider_contributors,
+      experiment_config.number_of_inactive_contributors,
+      experiment_config.minimum_rounds,
+      RPC_ENDPOINT,
+      experiment_config.fork,
+      PRIVKEYS,
+      experiment_config.use_nobody_is_kicked,
+      )
   manager.build_contract()
 
   configs = manager.deploy_challenge_contract(experiment_config.min_buy_in,
@@ -80,7 +84,8 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
                                           experiment_config.minimum_rounds,
                                           experiment_config.punish_factor,
                                           experiment_config.punish_factor_contrib,
-                                          experiment_config.first_round_fee)
+                                          experiment_config.first_round_fee,
+                                          experiment_config.use_nobody_is_kicked)
   writer.writeComment(f"$startingUserConfig${[p.getStatus() for p in pytorch_model.participants]}")
 
   extra_configs = {}
@@ -140,11 +145,13 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
           "punish_factor_contrib":             cfg.punish_factor_contrib,
           "first_round_fee":                   cfg.first_round_fee,
           "fork":                              cfg.fork,
+          "dataset":                           cfg.dataset,
           "freerider_start_round":             cfg.freerider_start_round,
           "freerider_noise_scale":             cfg.freerider_noise_scale,
           "malicious_start_round":             cfg.malicious_start_round,
           "malicious_noise_scale":             cfg.malicious_noise_scale,
           "force_merge_all":                   cfg.force_merge_all,
+          "aggregation_rule":                  cfg.aggregation_rule,
       }
 
       all_users = pytorch_model.participants + pytorch_model.disqualified

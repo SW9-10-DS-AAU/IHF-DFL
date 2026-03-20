@@ -1,66 +1,88 @@
+from experiment_presets import PRESETS, DefaultPreset, ExperimentPreset, FullPreset
+
+
 class ExperimentConfiguration:
-    def __init__(self,
-                 number_of_good_contributors=4,
-                 number_of_bad_contributors=1,
-                 number_of_freerider_contributors=1,
-                 number_of_inactive_contributors=0,
-                 reward=int(1e18),
-                 minimum_rounds=5,
-                 min_buy_in=int(1e18),
-                 max_buy_in=int(1e18),
-                 standard_buy_in=int(1e18),
-                 epochs=1,
-                 batch_size=32,
-                 punish_factor=3,
-                 punish_factor_contrib=3,
-                 first_round_fee=50, # Percentage of buy-in to charge as fee in first round
-                 fork=True,
-                 use_outlier_detection = True,
-                 contribution_score_strategy="accuracy_only", # Options: dotproduct, naive, accuracy, None (defaults to dotproduct)
-                 freerider_noise_scale=1.0,
-                 freerider_start_round=3,
-                 malicious_noise_scale=1.0,
-                 malicious_start_round=3,
-                 force_merge_all=False): # Sets all entries in fbb to zeroes
 
-        # Store the fork mode
-        self.fork = fork
+    def __init__(self, preset: str, use_defaults: bool = True):
 
+        if preset not in PRESETS:
+            raise ValueError(f"Preset '{preset}' not found")
 
-        # Apply scaling only if we’re on Sepolia (fork = False)
-        if not fork:
-            scale = 0.005  # scale down
-            reward = int(reward * scale)
-            min_buy_in = int(min_buy_in * scale)
-            max_buy_in = int(max_buy_in * scale)
-            standard_buy_in = int(standard_buy_in * scale)
+        p = PRESETS[preset]
 
-        # Store everything
-        self.number_of_good_contributors = number_of_good_contributors
-        self.number_of_bad_contributors = number_of_bad_contributors
-        self.number_of_freerider_contributors = number_of_freerider_contributors
-        self.number_of_inactive_contributors = number_of_inactive_contributors
-        self.reward = reward
-        self.minimum_rounds = minimum_rounds
-        self.min_buy_in = min_buy_in
-        self.max_buy_in = max_buy_in
-        self.standard_buy_in = standard_buy_in
-        self.epochs = epochs
-        self.batch_size = batch_size
-        self.punish_factor = punish_factor
-        self.punish_factor_contrib = punish_factor_contrib
-        self.first_round_fee = first_round_fee
-        self.contribution_score_strategy = contribution_score_strategy
-        self.use_outlier_detection = use_outlier_detection
-        self.freerider_noise_scale = freerider_noise_scale
-        self.freerider_start_round = freerider_start_round
-        self.malicious_start_round = malicious_start_round
-        self.malicious_noise_scale = malicious_noise_scale
-        self.force_merge_all = force_merge_all
+        if use_defaults:
+            if not isinstance(p, ExperimentPreset):
+                raise TypeError(
+                    f"Preset '{preset}' must be ExperimentPreset when use_defaults=True"
+                )
+
+            d: DefaultPreset = PRESETS["default"]
+
+            # defaults
+            self.fork = d.fork
+            self.reward = d.reward
+            self.standard_buy_in = d.standard_buy_in
+            self.min_buy_in = d.min_buy_in
+            self.max_buy_in = d.max_buy_in
+            self.first_round_fee = d.first_round_fee
+            self.punish_factor = d.punish_factor
+            self.punish_factor_contrib = d.punish_factor_contrib
+            self.force_merge_all = d.force_merge_all
+            self.use_nobody_is_kicked = d.use_nobody_is_kicked
+            self.number_of_inactive_contributors = d.number_of_inactive_contributors
+
+            # experiment
+            self.number_of_good_contributors = _unwrap_first(p.number_of_good_contributors)
+            self.number_of_bad_contributors = _unwrap_first(p.number_of_bad_contributors)
+            self.number_of_freerider_contributors = _unwrap_first(p.number_of_freerider_contributors)
+            self.minimum_rounds = _unwrap_first(p.minimum_rounds)
+            self.epochs = _unwrap_first(p.epochs)
+            self.batch_size = _unwrap_first(p.batch_size)
+            self.use_outlier_detection = _unwrap_first(p.use_outlier_detection)
+            self.contribution_score_strategy = _unwrap_first(p.contribution_score_strategy)
+            self.freerider_noise_scale = _unwrap_first(p.freerider_noise_scale)
+            self.freerider_start_round = _unwrap_first(p.freerider_start_round)
+            self.malicious_start_round = _unwrap_first(p.malicious_start_round)
+            self.malicious_noise_scale = _unwrap_first(p.malicious_noise_scale)
+            self.aggregation_rule = _unwrap_first(p.aggregation_rule)
+
+        else:
+
+            if not isinstance(p, FullPreset):
+                raise TypeError(
+                    f"Preset '{preset}' must be FullPreset when use_defaults=False"
+                )
+
+            for k, v in p.__dict__.items():
+                setattr(self, k, v)
 
     @property
     def number_of_contributors(self):
-        return (self.number_of_good_contributors +
-                self.number_of_bad_contributors +
-                self.number_of_freerider_contributors +
-                self.number_of_inactive_contributors)
+        return (
+            self.number_of_good_contributors
+            + self.number_of_bad_contributors
+            + self.number_of_freerider_contributors
+            + self.number_of_inactive_contributors
+        )
+
+def _unwrap_first(value):
+    if isinstance(value, list):
+        return value[0]
+    return value
+
+
+
+
+
+
+
+
+
+
+ # Apply scaling only if we’re on Sepolia (fork = False)
+        #if not fork:
+        #    scale = 0.005  # scale down
+        #    reward = int(reward * scale)
+        #    min_buy_in = int(min_buy_in * scale)
+        #    max_buy_in = int(max_buy_in * scale)
+        #    standard_buy_in = int(standard_buy_in * scale)

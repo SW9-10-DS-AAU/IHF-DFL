@@ -13,13 +13,9 @@ pragma solidity =0.8.9;
 
 import "./OpenFLModel.sol";
 
-contract OpenFLManager {
-    mapping(address => mapping(uint256 => address)) public ModelOf;
-    mapping(address => uint256) public ModelCountOf;
+contract OpenFLModel_nobody_is_kicked is OpenFLModel {
 
-    constructor() {}
-
-    function deployModel(
+    constructor(
         bytes32 _modelHash,
         uint _min_collateral,
         uint _max_collateral,
@@ -27,14 +23,10 @@ contract OpenFLManager {
         uint8 _min_rounds,
         uint8 _punishfactor,
         uint8 _punishfactorContrib,
-        uint8 _freeriderPenalty,
-        bool _useNobodyIsKicked
-    ) public payable {
-        ModelCountOf[msg.sender] += 1;
-        require(msg.value >= _reward + _min_collateral, "NEV");
-        require(_useNobodyIsKicked == false, "_useNobodyIsKicked is true. Most likely wrong manager contract deployed. -Rune");
-
-        OpenFLModel model = new OpenFLModel{value: _reward}(
+        uint8 _freeriderPenalty
+    )
+        payable
+        OpenFLModel(
             _modelHash,
             _min_collateral,
             _max_collateral,
@@ -43,9 +35,35 @@ contract OpenFLManager {
             _punishfactor,
             _punishfactorContrib,
             _freeriderPenalty
-        );
-        model.register{value: msg.value - _reward}(msg.sender);
-        ModelOf[msg.sender][ModelCountOf[msg.sender]] = address(model);
+        )
+    {}
 
+
+    function settle() public override {
+        emit EndRound(
+            round,
+            0,
+            0,
+            0
+        );
+
+        // Reset variables
+        for (uint i = 0; i < participants.length; i++) {
+            User storage user = users[participants[i]];
+            if (user.isRegistered && !user.isDisqualified) {
+                user.nrOfVotesFromUser = 0;
+                user.roundReputation = 0;
+                user.nrOfRoundsParticipated += 1;
+                user.isPunished = false;
+                for (uint j = 0; j < participants.length; j++) {
+                    delete hasVoted[user.addr][participants[j]];
+                }
+            }
+        }
+
+        round += 1;
+        votesPerRound = 0;
+        nrOfProvidedHashedWeights = 0;
+        delete punishedAddresses;
     }
 }

@@ -180,7 +180,7 @@ class Net_MNIST(nn.Module):
 
         
 class PytorchModel:
-    def __init__(self, DATASET, _goodParticipants, _totalParticipants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, data_distribution : str = None):
+    def __init__(self, DATASET, _goodParticipants, _totalParticipants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, use_nobody_is_kicked: bool = False, data_distribution : str = None):
         self.DATASET = DATASET
         if self.DATASET == "mnist":
             self.global_model = Net_MNIST().to(DEVICE)
@@ -206,7 +206,7 @@ class PytorchModel:
         self.default_collateral = default_collateral
         self.max_collateral = max_collateral
         self.force_merge_all = force_merge_all
-
+        self.use_nobody_is_kicked = use_nobody_is_kicked
 
 
         if freerider_noise_scale < 0:
@@ -597,8 +597,7 @@ class PytorchModel:
         ))
         return manipulate(copy.deepcopy(user.model), scale=self.freerider_noise_scale)
 
-
-    def the_merge(self, _users):
+    def the_merge(self, _users, aggregation_rule: str):
         # No qualified users → skip merge this round
         if not _users:
             print("-----------------------------------------------------------------------------------")
@@ -606,40 +605,90 @@ class PytorchModel:
             print("-----------------------------------------------------------------------------------\n")
             return
 
-        ids, client_models = [], []
+        client_models, contribution_scores = [], []
+
         for u in _users:
-            ids.append(u.id)
             client_models.append(u.model)
-            print("Account {} participating in merge".format(u.address[0:16]+"..."))
-            #print(test(c[1],self.test,DEVICE))
+            print("Account {} participating in merge".format(u.address[0:16] + "..."))
+            contribution_scores.append(u.contribution_score)
+
+        print("Using aggregation rule: {}".format(aggregation_rule))
+
+        # -------------------------
+        # Compute weights (UNIFIED)
+        # -------------------------
+        n_clients = len(client_models)
+
+        if aggregation_rule == "FedAVG":
+            weights = [1.0 / n_clients] * n_clients
+
+        elif aggregation_rule == "positives_only":
+            weights = positives_only(contribution_scores)
+
+        elif aggregation_rule == "plus_one_normalize":
+            weights = plus_one_normalize(contribution_scores)
+
+        elif aggregation_rule == "plus_more_than_one_normalize":
+            weights = plus_more_than_one_normalize(contribution_scores)
+
+        else:
+            raise ValueError(f"Unknown merge strategy: {aggregation_rule}")
+
+        for i, u in enumerate(_users):
+            u.merge_weight = weights[i]
+
+        assert abs(sum(weights) - 1.0) < 1e-6, "Aggregation weights must sum to 1"
+
+
+        # -------------------------
+        # Cache client state_dicts (IMPORTANT OPTIMIZATION)
+        # -------------------------
+        client_state_dicts = [m.state_dict() for m in client_models]
 
         with torch.no_grad():
             global_dict = self.global_model.state_dict()
+
             for k in global_dict.keys():
+                # Stack all client parameters
                 stacked = torch.stack([
-                    client_models[i].state_dict()[k].to(
+                    client_state_dicts[i][k].to(
                         device=global_dict[k].device,
                         dtype=global_dict[k].dtype
                     )
-                    for i in range(len(client_models))
+                    for i in range(n_clients)
                 ], dim=0)
-                global_dict[k] = stacked.mean(0)
+
+                # Prepare weights tensor (once per param for correct device/dtype)
+                w = torch.tensor(weights, device=stacked.device, dtype=stacked.dtype)
+                w = w.view(-1, *([1] * (stacked.dim() - 1)))
+
+                # Weighted aggregation (covers ALL rules including FedAvg)
+                global_dict[k] = (stacked * w).sum(0)
+
             self.global_model.load_state_dict(global_dict)
-        
-        loss, accuracy = test(self.global_model,self.test,DEVICE)
+
+        # -------------------------
+        # Evaluation
+        # -------------------------
+        loss, accuracy = test(self.global_model, self.test, DEVICE)
         self.accuracy.append(accuracy)
         self.loss.append(loss)
-        print("-----------------------------------------------------------------------------------")
-        print(b("Merged Model: Accuracy {:>3.0f} % | Loss {:>6,.2f}".format(accuracy*100,loss)))
 
+        for i, u in enumerate(_users):
+            print(f"User {u.address[0:16]}... merge_weight: {weights[i]:.4f}")
+
+        print("-----------------------------------------------------------------------------------")
+        print(b("Merged Model: Accuracy {:>3.0f} % | Loss {:>6,.2f}".format(accuracy * 100, loss)))
+
+        # -------------------------
+        # Distribute global model
+        # -------------------------
         for u in self.participants:
-            u.previousModel = copy.deepcopy(u.model) #the model from this round
-            u.model.load_state_dict(self.global_model.state_dict()) #the global model
-           
+            u.previousModel = copy.deepcopy(u.model)
+            u.model.load_state_dict(self.global_model.state_dict())
+
         print("-----------------------------------------------------------------------------------\n")
-    
-    
-        
+
     def exchange_models(self):
         print("Users exchanging models...")
         for user in self.participants:
@@ -651,7 +700,6 @@ class PytorchModel:
                     continue
                 user.userToEvaluate.append(j)
         print("-----------------------------------------------------------------------------------")
-    
 
     def verify_models(self, on_chain_hashes):
         print("Users verifying models...")
@@ -789,7 +837,12 @@ class PytorchModel:
 
     
 # PYTORCH FUNCTIONS
-def train(net, trainloader: torch.utils.data.DataLoader, epochs: int, device: torch.device) -> None:
+def train(
+    net,
+    trainloader: torch.utils.data.DataLoader,
+    epochs: int,
+    device: torch.device,
+) -> None:
 
     # Compile ONCE per process (not per batch)
     if device.type == "cuda":
@@ -991,6 +1044,8 @@ def safe_scale(value, scalar, max_val):
 
     return min(round(scaled), max_val)
 
+
+
 def stratified_split(dataset, lengths, generator=None):
     if sum(lengths) != len(dataset):
         raise ValueError("Sum of input lengths does not equal the length of the dataset")
@@ -1048,4 +1103,29 @@ def stratified_split(dataset, lengths, generator=None):
     result = [Subset(actual_dataset, split) for split in splits]
     return result
 
+
+
+# OLD — BUG: division by zero when all scores <= 0
+def positives_only(contrib_scores):
+     positive_sum = sum(score for score in contrib_scores if score > 0)
+     if positive_sum <= 0:
+         raise Exception("No positive contribution scores; cannot normalize")
+     aggregation_scores = [score / positive_sum if score > 0 else 0 for score in contrib_scores]
+     return aggregation_scores
+
+
+# OLD — BUG: denominator n+1 is only correct when scores already sum to 1
+def plus_one_normalize(contrib_scores):
+     normalized_scores = [score+1 for score in contrib_scores]
+     sum_ = sum(normalized_scores)
+     aggregation_scores = [score / sum_ for score in normalized_scores]
+     return aggregation_scores
+
+
+# OLD — BUG: denominator n*more_than_one+1 is only correct when scores already sum to 1
+def plus_more_than_one_normalize(contrib_scores, more_than_one=1.1):
+     normalized_scores = [score+more_than_one for score in contrib_scores]
+     sum_ = sum(normalized_scores)
+     aggregation_scores = [score / sum_ for score in normalized_scores]
+     return aggregation_scores
 
