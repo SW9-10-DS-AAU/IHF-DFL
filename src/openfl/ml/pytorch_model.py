@@ -573,10 +573,11 @@ class PytorchModel:
         else:
             raise ValueError(f"Unknown merge strategy: {aggregation_rule}")
 
-        assert abs(sum(weights) - 1.0) < 1e-6, "Aggregation weights must sum to 1"
-
         for i, u in enumerate(_users):
             u.merge_weight = weights[i]
+
+        assert abs(sum(weights) - 1.0) < 1e-6, "Aggregation weights must sum to 1"
+
 
         # -------------------------
         # Cache client state_dicts (IMPORTANT OPTIMIZATION)

@@ -29,7 +29,6 @@ RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData
 preset = "aggregation_rules_test_model_performance_mnist"
 _use_defaults = False
 datasets = [ DATASETFAST ]
-forced_ones = [False]
 
 
 # ---------------- OUTPUT ----------------
@@ -87,7 +86,6 @@ def main(author): # single preset
         preset_config.freerider_start_round,
         preset_config.freerider_noise_scale,
         datasets,
-        forced_ones,
         preset_config.aggregation_rule,
     )
 
@@ -104,7 +102,6 @@ def main(author): # single preset
         freerider_round,
         freerider_noise,
         dataset,
-        forced,
         aggregation_rule,
     ) in enumerate(productVar, start=1):
 
@@ -142,7 +139,6 @@ def main(author): # single preset
         config.malicious_start_round = malicious_activation_round
         config.malicious_noise_scale = malicious_noise
         config.aggregation_rule = aggregation_rule
-        config.force_merge_all = forced
 
         path = getPath(config, time, dataset, preset, RESULTDATAFOLDER)
 

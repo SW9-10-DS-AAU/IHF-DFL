@@ -761,13 +761,12 @@ class FLChallenge(FLManager):
 
         txs = []
         for u, score in zip(_users, self.scores):
-            u.is_contrib_score_negative = True if score < 0 else False
             u.contribution_score = score
 
             if self.fork:
                 tx = super().build_tx(u.address, self.modelAddress)
                 tx_hash = self.model.functions.submitContributionScore(
-                    score
+                    int(Decimal(score) * Decimal('1e18'))
                 ).transact(tx)
             else:  # TODO: Dobbeltjek at logic er rigtig her.
                 nonce = self.w3.eth.get_transaction_count(u.address)
@@ -776,7 +775,7 @@ class FLChallenge(FLManager):
                     nonce,
                 )
                 cl = self.model.functions.submitContributionScore(
-                    score,
+                    int(Decimal(score) * Decimal('1e18')),
                 ).build_transaction(cl)
                 pk = u.privateKey
                 signed = self.w3.eth.account.sign_transaction(cl, private_key=pk)
@@ -784,10 +783,7 @@ class FLChallenge(FLManager):
             txs.append(tx_hash)
 
             print(green(f"\nUSER @ {u.id}"))
-            if u. is_contrib_score_negative:
-                print(green(f"{'NEGATIVE CONTRIBUTION SCORE:':25}{u.contribution_score}"))
-            else:
-                print(green(f"{'CONTRIBUTION SCORE:':25}{u.contribution_score}"))
+            print(green(f"{'CONTRIBUTION SCORE:':25}{u.contribution_score}"))
 
         for i, txHash in enumerate(txs):
             self.track_transaction(i, txHash, len(txs), "contrib")
@@ -895,7 +891,7 @@ class FLChallenge(FLManager):
 
         for i in range(len(norm_accuracies)):
             res = (norm_accuracies[i] + norm_losses[i]) / (sum_na + sum_nl)
-            score = int(Decimal(res) * Decimal('1e18'))
+            score = res
             scores.append(score)
 
         print(f"scores = {scores}")
@@ -954,7 +950,7 @@ class FLChallenge(FLManager):
             print(colored(f"{msg}", "yellow"))
             self._log_warning(msg)
 
-        scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in norm_accuracies]
+        scores = norm_accuracies
         print(f"scores = {scores}")
 
         self._log_contribution_scores(users, scores, avg_accuracies, per_user_outlier_info, avg_prev_acc)
@@ -1017,7 +1013,7 @@ class FLChallenge(FLManager):
             print(colored(f"{msg}", "yellow"))
             self._log_warning(msg)
 
-        scores = [int(Decimal(norm_accuracy_score) * Decimal('1e18')) for norm_accuracy_score in norm_losses]
+        scores = norm_losses
 
         print(f"scores = {scores}")
 
