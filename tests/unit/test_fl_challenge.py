@@ -642,7 +642,7 @@ class TestCalcContributionScoresMAD:
 
         filtered_global_update = torch.tensor([0.0, 1.0])
 
-        with patch.object(fl_challenge, 'trim_global_update_using_mad', return_value=filtered_global_update) as mock_trim:
+        with patch.object(fl_challenge, 'trim_global_update_using_mad', return_value=(filtered_global_update, [])) as mock_trim:
             with patch('openfl.contracts.fl_challenge.calc_contribution_scores_dotproduct', return_value=[10, 20, 30]) as mock_math:
                 scores = fl_challenge._calculate_scores_dotproduct(participants)
 

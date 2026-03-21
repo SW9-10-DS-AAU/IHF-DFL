@@ -1,4 +1,6 @@
 import os
+import platform
+import psutil
 import time
 from pathlib import Path
 from openfl.ml import pytorch_model as PM
@@ -10,9 +12,10 @@ from web3 import Web3, Account
 from openfl.utils.async_writer import AsyncWriter
 
 
-def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=None):
+def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=None, logger=None):
 
   dataset_name = dataset_name.replace(".", "-")
+  experiment_config.dataset = dataset_name
 
   experiment_start = time.perf_counter()
   RPC_ENDPOINT = require_env_var("RPC_URL")
@@ -87,11 +90,12 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
           experiment_config.contribution_score_strategy
       )
 
-  model = Challenge.FLChallenge(manager, 
+  model = Challenge.FLChallenge(manager,
                       configs,
                       pytorch_model,
                       experiment_config,
-                      writer)
+                      writer,
+                      logger)
 
 
   model.simulate(rounds=experiment_config.minimum_rounds)
@@ -102,6 +106,50 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
   print(f"TOTAL EXPERIMENT TIME: {total_experiment_time:.2f} seconds")
   writer.writeComment(f"TOTAL EXPERIMENT TIME: {total_experiment_time:.2f} seconds")
   print("="*75 + "\n")
+
+  if logger is not None:
+      try:
+          import torch
+          gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "None"
+      except (ImportError, Exception):
+          gpu_name = "Unknown"
+
+      hardware = {
+          "cpu_name":  platform.processor(),
+          "cpu_cores": psutil.cpu_count(logical=False),
+          "ram_gb":    round(psutil.virtual_memory().total / (1024**3), 2),
+          "gpu_name":  gpu_name,
+          "os_name":   platform.system(),
+      }
+
+      cfg = experiment_config
+      config = {
+          "contribution_score_strategy":       cfg.contribution_score_strategy,
+          "use_outlier_detection":             cfg.use_outlier_detection,
+          "number_of_good_contributors":       cfg.number_of_good_contributors,
+          "number_of_bad_contributors":        cfg.number_of_bad_contributors,
+          "number_of_freerider_contributors":  cfg.number_of_freerider_contributors,
+          "number_of_inactive_contributors":   cfg.number_of_inactive_contributors,
+          "reward":                            cfg.reward,
+          "minimum_rounds":                    cfg.minimum_rounds,
+          "min_buy_in":                        cfg.min_buy_in,
+          "max_buy_in":                        cfg.max_buy_in,
+          "standard_buy_in":                   cfg.standard_buy_in,
+          "epochs":                            cfg.epochs,
+          "batch_size":                        cfg.batch_size,
+          "punish_factor":                     cfg.punish_factor,
+          "punish_factor_contrib":             cfg.punish_factor_contrib,
+          "first_round_fee":                   cfg.first_round_fee,
+          "fork":                              cfg.fork,
+          "dataset":                           cfg.dataset,
+          "freerider_start_round":             cfg.freerider_start_round,
+          "freerider_noise_scale":             cfg.freerider_noise_scale,
+          "malicious_start_round":             cfg.malicious_start_round,
+          "malicious_noise_scale":             cfg.malicious_noise_scale,
+          "force_merge_all":                   cfg.force_merge_all,
+      }
+
+      logger.log_setup(total_experiment_time, hardware, config)
 
   return Experiment(model, manager)
 
