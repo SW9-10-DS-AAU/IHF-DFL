@@ -147,7 +147,7 @@ class ExperimentLogger:
 
     # -------- SETUP --------
 
-    def log_setup(self, total_experiment_time=None, hardware=None, config=None, users_roster=None):
+    def log_setup(self, total_experiment_time=None, hardware=None, config=None):
         """Capture a one-time snapshot of experiment context."""
         self._setup = {
             "total_experiment_time": total_experiment_time,
@@ -190,6 +190,6 @@ class NullExperimentLogger:
     def log_contribution_scores(self, round=None, user_ids=None, user_addresses=None, scores=None, raw_values=None, outlier_info=None, previous_avg=None): pass
     def log_receipt(self, round=None, tx_type=None, tx_hash=None, gas_used=None): pass
     def log_warning(self, round=None, message=None): pass
-    def log_setup(self, total_experiment_time=None, hardware=None, config=None, users_roster=None): pass
+    def log_setup(self, total_experiment_time=None, hardware=None, config=None): pass
     def finalize(self): pass
     def save(self, path=None): pass

@@ -15,7 +15,7 @@ from termcolor import colored
 import matplotlib.pyplot as plt
 from web3.exceptions import ContractLogicError
 from openfl.contracts import FLManager
-from openfl.ml.pytorch_model import gb, rb, b, green, red
+from openfl.ml.pytorch_model import gb, rb, b, green, red, yellow
 from openfl.utils import printer, config
 from openfl.api.connection_helper import ConnectionHelper
 from openfl.utils.async_writer import AsyncWriter, NullWriter
@@ -841,6 +841,10 @@ class FLChallenge(FLManager):
         """
         Accuracy-Loss-based scoring: use accuracy and loss directly as contribution score.
         """
+        if self.experiment_config.use_outlier_detection:
+            msg = "accuracy_loss strategy does not support MAD outlier detection — outlier_info will not be logged."
+            print(yellow(f"WARNING: {msg}"))
+            self._log_warning(msg)
         # accuracies: 1d array
         # losses: 1d array
         # prev_acc, prev_loss: int
@@ -899,6 +903,7 @@ class FLChallenge(FLManager):
             scores.append(score)
 
         print(f"scores = {scores}")
+        self._log_contribution_scores(users, scores, raw_values=None, outlier_info=None, previous_avg=None)
         return scores
     # Output: An array of user scores
     # Find out who was merged
