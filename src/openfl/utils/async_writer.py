@@ -112,6 +112,7 @@ class AsyncWriter:
           ("force_merge_all", cfg.force_merge_all, "Whether to force merging all participants"),
           ("first_round_fee", cfg.first_round_fee, "fee for first round"),
           ("fork", cfg.fork, "True=local fork, False=real net"),
+          ("dataset", cfg.dataset, "dataset used for experiment"),
           ("contribution_score_strategy", cfg.contribution_score_strategy, "scoring method"),
           ("use_outlier_detection", cfg.use_outlier_detection, "Whether to use outlier detection"),
           ("freerider_start_round", cfg.freerider_start_round, "When freeriders should start freeriding"),
@@ -119,7 +120,7 @@ class AsyncWriter:
           ("malicious_start_round", cfg.malicious_start_round, "When malicious users should start attacking"),
           ("malicious_noise_scale", cfg.malicious_noise_scale, "How much noise a malicious user should add"),
       ]
-      file.write("# ------Config--------")
+      file.write("# ------Config--------\n")
       file.writelines([
         f"# {name}: {value} ({desc})\n"
         for (name, value, desc) in fields
@@ -147,7 +148,7 @@ class AsyncWriter:
             ("os_name", os_name, "operating system"),
         ]
 
-        file.write("# ------Specs--------")
+        file.write("# ------Specs--------\n")
         file.writelines([
             f"# {name}: {value} ({desc})\n"
             for (name, value, desc) in fields
