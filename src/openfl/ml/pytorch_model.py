@@ -180,7 +180,7 @@ class Net_MNIST(nn.Module):
 
         
 class PytorchModel:
-    def __init__(self, DATASET, _goodParticipants, _totalParticipants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, use_nobody_is_kicked: bool = False, data_distribution : str = None):
+    def __init__(self, DATASET, _goodParticipants, _totalParticipants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, use_nobody_is_kicked: bool = False, data_distribution : str = None, dirichlet_alpha: float = None):
         self.DATASET = DATASET
         if self.DATASET == "mnist":
             self.global_model = Net_MNIST().to(DEVICE)
@@ -198,9 +198,14 @@ class PytorchModel:
         self.BATCHSIZE = batchsize
 
         if data_distribution is None:
-            self.data_distribution = "stratified_split_42"
+            self.data_distribution = "random_split_42"
         else:
             self.data_distribution = data_distribution
+
+        if dirichlet_alpha is None:
+            self.dirichlet_alpha = 0.5
+        else:
+            self.dirichlet_alpha = dirichlet_alpha
 
         self.train, self.val, self.test = self.load_data(self.NUMBER_OF_CONTRIBUTERS, _print=True)
         self.default_collateral = default_collateral
@@ -355,31 +360,35 @@ class PytorchModel:
         if images_needed < len(trainset):
             trainset,_ = random_split(trainset, [images_needed, len(trainset)-images_needed])
 
-        if self.data_distribution == "random_split_42" or self.data_distribution is None:
-            datasets = random_split(trainset, lengths, generator=torch.Generator().manual_seed(42))
-        elif self.data_distribution == "random_split":
-            datasets = random_split(trainset, lengths)
-        elif self.data_distribution == "stratified_split_42":
-            datasets = stratified_split(trainset, lengths, generator=torch.Generator().manual_seed(42))
-        elif self.data_distribution == "stratified_split":
-            datasets = stratified_split(trainset, lengths)
+        gen = torch.Generator().manual_seed(42) if "42" in str(self.data_distribution) else None
+
+        dist = self.data_distribution or "random_split"
+
+        if dist.startswith("random_split"):
+            datasets = random_split(trainset, lengths, generator=gen)
+
+        elif dist.startswith("stratified_split"):
+            datasets = stratified_split(trainset, lengths, generator=gen)
+
+        elif dist.startswith("dirichlet_split"):
+            datasets = dirichlet_split(trainset, NUM_CLIENTS, alpha=self.dirichlet_alpha, generator=gen)
+
         else:
             raise ValueError(f"Data distribution {self.data_distribution} not recognized")
 
         # Split each partition into train/val and create DataLoader
         trainloaders = []
         valloaders = []
-        for ds in datasets:
-            len_val = len(ds) // 10  # 10 % validation set
-            len_train = len(ds) - len_val
-            lengths = [len_train, len_val]
 
-            if self.data_distribution == "stratified_split_42":
-                ds_train, ds_val = stratified_split(ds, lengths, generator=torch.Generator().manual_seed(42))
-            elif self.data_distribution == "stratified_split":
-                ds_train, ds_val = stratified_split(ds, lengths)
+        for ds in datasets:
+            len_val = len(ds) // 10
+            len_train = len(ds) - len_val
+            tv_lengths = [len_train, len_val]
+
+            if "stratified" in str(self.data_distribution):
+                ds_train, ds_val = stratified_split(ds, tv_lengths, generator=gen)
             else:
-                ds_train, ds_val = random_split(ds, lengths)
+                ds_train, ds_val = random_split(ds, tv_lengths, generator=gen)
 
             trainloaders.append(DataLoader(
                 ds_train,
@@ -1043,6 +1052,86 @@ def safe_scale(value, scalar, max_val):
         return max_val
 
     return min(round(scaled), max_val)
+
+
+def dirichlet_split(dataset, num_clients, alpha=0.5, generator=None):
+    """
+    Dirichlet split that ensures:
+    - All clients have exactly len(dataset)//num_clients samples
+    - Non-IID distribution controlled by alpha
+    - Optional reproducibility with generator
+    """
+    # Handle Subset
+    if isinstance(dataset, Subset):
+        actual_dataset = dataset.dataset
+        indices = dataset.indices
+    else:
+        actual_dataset = dataset
+        indices = list(range(len(dataset)))
+
+    # Get labels
+    if hasattr(actual_dataset, "targets"):
+        targets = torch.tensor(actual_dataset.targets)[indices]
+    elif hasattr(actual_dataset, "labels"):
+        targets = torch.tensor(actual_dataset.labels)[indices]
+    else:
+        raise AttributeError("Dataset must have targets or labels attribute")
+
+    num_classes = len(torch.unique(targets))
+    class_indices = {c: (targets == c).nonzero(as_tuple=True)[0].tolist() for c in range(num_classes)}
+
+    # Shuffle class indices
+    seed = 42 if generator is not None else None
+    rng = np.random.default_rng(seed)
+    for c in class_indices:
+        rng.shuffle(class_indices[c])
+
+    splits = [[] for _ in range(num_clients)]
+    total_per_client = len(dataset) // num_clients
+    client_counts = [0] * num_clients  # track total assigned per client
+
+    # Allocate samples per class
+    for c in range(num_classes):
+        cls_idx = class_indices[c]
+        n_cls = len(cls_idx)
+
+        # Sample Dirichlet proportions
+        proportions = rng.dirichlet([alpha] * num_clients)
+        counts = (proportions * n_cls).astype(int)
+
+        # Fix rounding to match class total
+        diff = n_cls - counts.sum()
+        if diff > 0:
+            topk = np.argsort(proportions)[-diff:]
+            counts[topk] += 1
+
+        # Assign to clients, but do not exceed total_per_client
+        start = 0
+        for i in range(num_clients):
+            # adjust count if client is almost full
+            remaining_space = total_per_client - client_counts[i]
+            assign_count = min(counts[i], remaining_space)
+            end = start + assign_count
+            splits[i].extend(cls_idx[start:end])
+            client_counts[i] += assign_count
+            start += assign_count
+
+    # At this point, all clients should have exactly total_per_client
+    # If any client still has less (due to rounding), fill from leftover pool
+    assigned = set(idx for client in splits for idx in client)
+    all_indices = set(idx for cls in class_indices.values() for idx in cls)
+    remaining = list(all_indices - assigned)
+    rng.shuffle(remaining)
+
+    for i in range(num_clients):
+        current_len = len(splits[i])
+        if current_len < total_per_client:
+            needed = total_per_client - current_len
+            splits[i].extend(remaining[:needed])
+            remaining = remaining[needed:]
+
+    return [Subset(actual_dataset, split) for split in splits]
+
 
 
 
