@@ -1,16 +1,16 @@
 class ExperimentConfiguration:
     def __init__(self,
-                 number_of_good_contributors=6,
+                 number_of_good_contributors=4,
                  number_of_bad_contributors=1,
                  number_of_freerider_contributors=1,
                  number_of_inactive_contributors=0,
                  reward=int(1e18),
-                 minimum_rounds=25,
+                 minimum_rounds=5,
                  min_buy_in=int(1e18),
                  max_buy_in=int(1e18),
                  standard_buy_in=int(1e18),
-                 epochs=25,
-                 batch_size=128,
+                 epochs=1,
+                 batch_size=32,
                  punish_factor=3,
                  punish_factor_contrib=3,
                  first_round_fee=50, # Percentage of buy-in to charge as fee in first round
@@ -19,8 +19,8 @@ class ExperimentConfiguration:
                  contribution_score_strategy="accuracy_only", # Options: dotproduct, naive, accuracy, None (defaults to dotproduct)
                  freerider_noise_scale=1.0,
                  freerider_start_round=3,
-                 malicious_start_round=3,
                  malicious_noise_scale=1.0,
+                 malicious_start_round=3,
                  force_merge_all=False): # Sets all entries in fbb to zeroes
 
         # Store the fork mode

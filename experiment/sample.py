@@ -1,9 +1,15 @@
 from datetime import datetime
+import sys
 import multiprocessing as mp
 from pathlib import Path
 import experiment_runner as ExperimentRunner
 from experiment_configuration import ExperimentConfiguration
 from openfl.utils.async_writer import AsyncWriter
+from helper import getPath
+
+# Add the repo root to sys.path so `analysis` package is importable from here
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from analysis import ExperimentLogger
 
 config = ExperimentConfiguration(
     min_buy_in=int(1e18),
@@ -45,26 +51,23 @@ OUTPUTHEADERS = [
 WRITERBUFFERSIZE = 200
 
 def main():
-    path = getPath(config)
-    writer = AsyncWriter(path, OUTPUTHEADERS, WRITERBUFFERSIZE, config, "sample")
+    startTime = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
 
-    experiment = ExperimentRunner.run_experiment(DATASET, config, writer)
+    try:
+        path = getPath(config, startTime, DATASET, RESULTDATAFOLDER)
+        writer = AsyncWriter(path, OUTPUTHEADERS, WRITERBUFFERSIZE, config, "sample")
+        metadata = {**vars(config), "dataset": DATASET, "timestamp": startTime}
+        logger = ExperimentLogger(experiment_id=path.stem, metadata=metadata)
+        experiment = ExperimentRunner.run_experiment(DATASET, config, writer, logger)
+        writer.finish()
+        logger.save(path.with_suffix(".pkl"))
 
-    experiment.model.visualize_simulation("figures")
+        experiment.model.visualize_simulation("figures")
+        ExperimentRunner.print_transactions(experiment)
+    except Exception as e:
+        print(f"An error occurred during the experiment: {e}")
 
-    ExperimentRunner.print_transactions(experiment)
 
-    writer.finish()
-
-
-def getPath(experimentConfig: ExperimentConfiguration):
-    time = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
-
-    filename = f"{experimentConfig.contribution_score_strategy}-{experimentConfig.freerider_start_round}-{experimentConfig.freerider_noise_scale}-{experimentConfig.malicious_start_round}-{experimentConfig.malicious_noise_scale}-{experimentConfig.use_outlier_detection}.csv"
-
-    path = Path(RESULTDATAFOLDER).joinpath(time).joinpath(filename)
-
-    return path
 
 if __name__ == "__main__":
     mp.freeze_support()
