@@ -606,7 +606,7 @@ class PytorchModel:
         ))
         return manipulate(copy.deepcopy(user.model), scale=self.freerider_noise_scale)
 
-    def the_merge(self, _users, aggregation_rule: str):
+    def the_merge(self, _users, aggregation_rule: str, collector=None):
         # No qualified users → skip merge this round
         if not _users:
             print("-----------------------------------------------------------------------------------")
@@ -614,12 +614,12 @@ class PytorchModel:
             print("-----------------------------------------------------------------------------------\n")
             return
 
-        client_models, contribution_scores = [], []
+        client_models, users_contribution_scores, users_merge_weights = [], {}, {}
 
         for u in _users:
             client_models.append(u.model)
             print("Account {} participating in merge".format(u.address[0:16] + "..."))
-            contribution_scores.append(u.contribution_score)
+            users_contribution_scores[u.address] = u.contribution_score
 
         print("Using aggregation rule: {}".format(aggregation_rule))
 
@@ -629,30 +629,34 @@ class PytorchModel:
         n_clients = len(client_models)
 
         if aggregation_rule == "FedAVG":
-            weights = [1.0 / n_clients] * n_clients
+            users_merge_weights = {u.address: 1.0 / n_clients for u in _users}
 
         elif aggregation_rule == "positives_only":
-            weights = positives_only(contribution_scores)
+            users_merge_weights = positives_only(users_contribution_scores)
 
         elif aggregation_rule == "plus_one_normalize":
-            weights = plus_one_normalize(contribution_scores)
+            users_merge_weights = plus_one_normalize(users_contribution_scores)
 
         elif aggregation_rule == "plus_more_than_one_normalize":
-            weights = plus_more_than_one_normalize(contribution_scores)
+            users_merge_weights = plus_more_than_one_normalize(users_contribution_scores)
 
         else:
             raise ValueError(f"Unknown merge strategy: {aggregation_rule}")
 
-        for i, u in enumerate(_users):
-            u.merge_weight = weights[i]
+        for u in _users:
+            u.merge_weight = users_merge_weights[u.address]
 
-        assert abs(sum(weights) - 1.0) < 1e-6, "Aggregation weights must sum to 1"
+        if collector is not None:
+            collector.update(users_merge_weights)
+
+        assert abs(sum(users_merge_weights.values()) - 1.0) < 1e-6, "Aggregation weights must sum to 1"
 
 
         # -------------------------
         # Cache client state_dicts (IMPORTANT OPTIMIZATION)
         # -------------------------
         client_state_dicts = [m.state_dict() for m in client_models]
+        ordered_weights = [users_merge_weights[u.address] for u in _users]
 
         with torch.no_grad():
             global_dict = self.global_model.state_dict()
@@ -668,7 +672,7 @@ class PytorchModel:
                 ], dim=0)
 
                 # Prepare weights tensor (once per param for correct device/dtype)
-                w = torch.tensor(weights, device=stacked.device, dtype=stacked.dtype)
+                w = torch.tensor(ordered_weights, device=stacked.device, dtype=stacked.dtype)
                 w = w.view(-1, *([1] * (stacked.dim() - 1)))
 
                 # Weighted aggregation (covers ALL rules including FedAvg)
@@ -683,8 +687,8 @@ class PytorchModel:
         self.accuracy.append(accuracy)
         self.loss.append(loss)
 
-        for i, u in enumerate(_users):
-            print(f"User {u.address[0:16]}... merge_weight: {weights[i]:.4f}")
+        for u in _users:
+            print(f"User {u.address[0:16]}... merge_weight: {users_merge_weights[u.address]:.4f}")
 
         print("-----------------------------------------------------------------------------------")
         print(b("Merged Model: Accuracy {:>3.0f} % | Loss {:>6,.2f}".format(accuracy * 100, loss)))
@@ -1190,26 +1194,27 @@ def stratified_split(dataset, lengths, generator=None):
 
 
 # OLD — BUG: division by zero when all scores <= 0
-def positives_only(contrib_scores):
-     positive_sum = sum(score for score in contrib_scores if score > 0)
+def positives_only(users_contrib_scores: dict):
+     positive_sum = sum(score for score in users_contrib_scores.values() if score > 0)
      if positive_sum <= 0:
          raise Exception("No positive contribution scores; cannot normalize")
-     aggregation_scores = [score / positive_sum if score > 0 else 0 for score in contrib_scores]
+     aggregation_scores = {user_id: score / positive_sum if score > 0 else 0 for user_id, score in users_contrib_scores.items()}
      return aggregation_scores
 
 
 # OLD — BUG: denominator n+1 is only correct when scores already sum to 1
-def plus_one_normalize(contrib_scores):
-     normalized_scores = [score+1 for score in contrib_scores]
-     sum_ = sum(normalized_scores)
-     aggregation_scores = [score / sum_ for score in normalized_scores]
+def plus_one_normalize(users_contrib_scores: dict):
+     # normalized_scores = [score + 1 for score in users_contrib_scores]
+     normalized_scores = {user_id: score + 1 for user_id, score in users_contrib_scores.items()}
+     sum_ = sum(normalized_scores.values())
+     aggregation_scores = {user_id: score / sum_ for user_id, score in normalized_scores.items()}
      return aggregation_scores
 
 
 # OLD — BUG: denominator n*more_than_one+1 is only correct when scores already sum to 1
-def plus_more_than_one_normalize(contrib_scores, more_than_one=1.1):
-     normalized_scores = [score+more_than_one for score in contrib_scores]
-     sum_ = sum(normalized_scores)
-     aggregation_scores = [score / sum_ for score in normalized_scores]
+def plus_more_than_one_normalize(users_contrib_scores: dict, more_than_one=1.1):
+     normalized_scores = {user_id: score + more_than_one for user_id, score in users_contrib_scores.items()}
+     sum_ = sum(normalized_scores.values())
+     aggregation_scores = {user_id: score / sum_ for user_id, score in normalized_scores.items()}
      return aggregation_scores
 

@@ -120,7 +120,7 @@ class AsyncWriter:
           ("malicious_start_round", cfg.malicious_start_round, "When malicious users should start attacking"),
           ("malicious_noise_scale", cfg.malicious_noise_scale, "How much noise a malicious user should add"),
       ]
-      file.write("# ------Config--------")
+      file.write("# ------Config--------\n")
       file.writelines([
         f"# {name}: {value} ({desc})\n"
         for (name, value, desc) in fields
@@ -148,7 +148,7 @@ class AsyncWriter:
             ("os_name", os_name, "operating system"),
         ]
 
-        file.write("# ------Specs--------")
+        file.write("# ------Specs--------\n")
         file.writelines([
             f"# {name}: {value} ({desc})\n"
             for (name, value, desc) in fields

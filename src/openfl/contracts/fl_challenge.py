@@ -1170,6 +1170,7 @@ class FLChallenge(FLManager):
                 reward_delta=None,
                 is_reward=None,
                 merged=None,
+                merge_weight=None
             )
 
     def _log_global_round(self, round, round_time, punishment_pool):
@@ -1186,7 +1187,7 @@ class FLChallenge(FLManager):
 
     def _log_round(self, current_round, round_time,
                    accuracy_matrix, loss_matrix, prev_accs, prev_losses,
-                   contributors, receipt):
+                   contributors, receipt, users_weight_collector):
         if self._logger is None:
             return
 
@@ -1233,6 +1234,7 @@ class FLChallenge(FLManager):
                 reward_delta=_addr_to_reward.get(_user.address, None),
                 is_reward=_addr_to_ir.get(_user.address, None),
                 merged=any(u.id == _user.id for u in contributors),
+                merge_weight=users_weight_collector.get(_user.address, None)
             )
         for _user in self.pytorch_model.disqualified:
             self._logger.log_user_round(
@@ -1247,6 +1249,7 @@ class FLChallenge(FLManager):
                 reward_delta=_addr_to_reward.get(_user.address, None),
                 is_reward=_addr_to_ir.get(_user.address, None),
                 merged=False,
+                merge_weight=None
             )
 
         # ---- global round ----
@@ -1324,16 +1327,18 @@ class FLChallenge(FLManager):
             # A roundRep of 0, does not nec. mean mal.
             contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0] # Keeps track of who will be merged in the_merge()
 
+            users_weight_collector = {}
+
             # Ordering of the merge. If dotproduct we merge before contribution score
             if self.experiment_config.contribution_score_strategy == "dotproduct":
-                self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule)
+                self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule, collector=users_weight_collector)
 
             print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
             self.contribution_score(contributors)
 
             # If not dotproduct, we calculate contribution score before the merge
             if not self.experiment_config.contribution_score_strategy == "dotproduct":
-                self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule)
+                self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule, collector=users_weight_collector)
             receipt = self.close_round()
 
             print(b(f"Round {self.pytorch_model.round - 1} actually completed:"))
@@ -1352,7 +1357,7 @@ class FLChallenge(FLManager):
             self._log_round(
                 _current_round, _round_time,
                 accuracy_matrix, loss_matrix, prev_accs, prev_losses,
-                contributors, receipt,
+                contributors, receipt, users_weight_collector
             )
 
             grs = [(user.address, user._globalrep[-1]) for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
