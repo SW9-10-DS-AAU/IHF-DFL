@@ -15,7 +15,7 @@ from openfl.utils.async_writer import AsyncWriter
 def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=None, logger=None):
 
   dataset_name = dataset_name.replace(".", "-")
-
+  experiment_config.dataset = dataset_name
   experiment_start = time.perf_counter()
   RPC_ENDPOINT = require_env_var("RPC_URL")
     
@@ -154,19 +154,7 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
           "aggregation_rule":                  cfg.aggregation_rule,
       }
 
-      all_users = pytorch_model.participants + pytorch_model.disqualified
-      users_roster = [
-          {
-              "id":               u.id,
-              "address":          u.address,
-              "role":             u.futureAttitude,
-              "activation_round": u.attitudeSwitch,
-              "starting_grs":     u._globalrep[0],
-          }
-          for u in all_users
-      ]
-
-      logger.log_setup(total_experiment_time, hardware, config, users_roster)
+      logger.log_setup(total_experiment_time, hardware, config)
 
   return Experiment(model, manager)
 
