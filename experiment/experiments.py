@@ -26,7 +26,7 @@ RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData
 # ---------------- PRESET SEARCH SPACE ----------------
 
 # preset = "test"
-preset = "aggregation_rules_test_model_performance_mnist"
+preset = "aggregation_rules_test_model_performance_people_get_kicked_now_mnist"
 _use_defaults = False
 datasets = [ DATASETFAST ]
 
