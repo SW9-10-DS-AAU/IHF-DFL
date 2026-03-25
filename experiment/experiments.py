@@ -184,7 +184,6 @@ args = parser.parse_args()
 # ---------------- SKIP PARSING ----------------
 
 def parseSkips():
-
     if not RESULTDATAFOLDER.exists():
         return
 
@@ -211,7 +210,9 @@ def parseSkips():
             r"(?P<maliciousRound>[^-]+)-"
             r"(?P<maliciousNoise>[^-]+)-"
             r"(?P<outlierDetection>[^-]+)-"
-            r"(?P<aggregationRule>[^-]+)\.csv",
+            r"(?P<aggregationRule>[^-]+)"
+            r"(?:-\{[0-9a-fA-F-]+\})?"  # <-- optional UUID part
+            r"\.csv",
             file,
         )
 
