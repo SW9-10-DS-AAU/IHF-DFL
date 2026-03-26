@@ -206,6 +206,8 @@ class PytorchModel:
         self.loss = [loss]
 
         self.round = 1
+        self.previous_global_model = None
+        self.pre_pre_merge_model = None
         print("===================================================================================")
         print("Pytorch Model created:\n")
         print(str(self.global_model))
@@ -544,6 +546,9 @@ class PytorchModel:
             print("-----------------------------------------------------------------------------------\n")
             return
 
+        self.pre_pre_merge_model = self.previous_global_model
+        self.previous_global_model = copy.deepcopy(self.global_model)
+
         client_models, users_contribution_scores, users_merge_weights = [], {}, {}
 
         for u in _users:
@@ -569,6 +574,9 @@ class PytorchModel:
 
         elif aggregation_rule == "plus_more_than_one_normalize":
             users_merge_weights = plus_more_than_one_normalize(users_contribution_scores)
+
+        elif aggregation_rule == "binary_switch":
+            users_merge_weights = binary_switch(users_contribution_scores, positives_only, plus_one_normalize, self.previous_global_model, self.pre_pre_merge_model, self.round)
 
         else:
             raise ValueError(f"Unknown merge strategy: {aggregation_rule}")
@@ -1012,3 +1020,29 @@ def plus_more_than_one_normalize(users_contrib_scores: dict, more_than_one=1.1):
      sum_ = sum(normalized_scores.values())
      aggregation_scores = {user_id: score / sum_ for user_id, score in normalized_scores.items()}
      return aggregation_scores
+
+
+def models_are_equal(model_a, model_b, tolerance=1e-6):
+    # Tolerance is used to check whether both models are within a tolerance. If so, return True (they are alike), otherwise false
+    previous_model_params = model_a.state_dict()
+    pre_previous_model_params = model_b.state_dict()
+
+    if previous_model_params.keys() != pre_previous_model_params.keys():
+        return False
+
+    return all(
+        torch.allclose(previous_model_params[k].float(), pre_previous_model_params[k].float(), atol=tolerance) # atol is absolute tolerance - how much deviation is allowed between 2 values
+        for k in previous_model_params
+    )
+
+
+def binary_switch(users_contrib_scores, func_1, func_2, previous_global_model, pre_pre_merge_model, current_round):
+    if current_round <= 1 or pre_pre_merge_model is None:
+        return func_1(users_contrib_scores)
+
+    converged = models_are_equal(previous_global_model, pre_pre_merge_model)
+
+    if converged:
+        return func_2(users_contrib_scores)
+    else:
+        return func_1(users_contrib_scores)
