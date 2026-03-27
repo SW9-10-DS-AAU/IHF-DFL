@@ -181,12 +181,13 @@ PRESETS = {
         epochs=1,
         batch_size=32,
         use_outlier_detection=[True],
-        contribution_score_strategy=["loss_only", "accuracy_only"],
-        freerider_noise_scale=[0, 0.1,1.0],
-        freerider_start_round=[1, 5, 10],
-        malicious_noise_scale=[0, 0.1,1.0],
-        malicious_start_round=[1, 5, 10],
-        aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize"],
+        contribution_score_strategy=["loss_only"], #loss_only is the only loss'os
+        freerider_noise_scale=[0.01, 0], # 0.0 
+        freerider_start_round=[1], # 1
+        malicious_noise_scale=[1], # 0.01
+        malicious_start_round=[0.01, 0], # 1
+        aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize"], # 6
+
     )
 }
 
