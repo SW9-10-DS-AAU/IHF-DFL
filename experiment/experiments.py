@@ -26,7 +26,7 @@ RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData
 # ---------------- PRESET SEARCH SPACE ----------------
 
 # preset = "test"
-preset = "aggregation_rules_test_model_performance_mnist"
+preset = "aggregation_rules_test_model_performance_people_get_kicked_now_mnist"
 _use_defaults = False
 datasets = [ DATASETFAST ]
 
@@ -184,7 +184,6 @@ args = parser.parse_args()
 # ---------------- SKIP PARSING ----------------
 
 def parseSkips():
-
     if not RESULTDATAFOLDER.exists():
         return
 
@@ -211,7 +210,9 @@ def parseSkips():
             r"(?P<maliciousRound>[^-]+)-"
             r"(?P<maliciousNoise>[^-]+)-"
             r"(?P<outlierDetection>[^-]+)-"
-            r"(?P<aggregationRule>[^-]+)\.csv",
+            r"(?P<aggregationRule>[^-]+)"
+            r"(?:-\{[0-9a-fA-F-]+\})?"  # <-- optional UUID part
+            r"\.csv",
             file,
         )
 
