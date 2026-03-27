@@ -29,8 +29,8 @@ class ExperimentPreset:
     contribution_score_strategy: list[str]
     freerider_noise_scale: list[float]
     freerider_start_round: list[int]
-    malicious_noise_scale: list[float]
-    malicious_start_round: list[int]
+    malicious_noise_scale: list[float] | None
+    malicious_start_round: list[int] | None
     aggregation_rule: list[str]
 
 
@@ -184,8 +184,6 @@ PRESETS = {
         contribution_score_strategy=["loss_only", "accuracy_only"],
         freerider_noise_scale=[0, 0.1,1.0],
         freerider_start_round=[1, 5, 10],
-        malicious_noise_scale=[0, 0.1,1.0],
-        malicious_start_round=[1, 5, 10],
         aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize"],
     )
 }
