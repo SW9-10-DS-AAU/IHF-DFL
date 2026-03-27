@@ -182,6 +182,7 @@ class PytorchModel:
         self.max_collateral = max_collateral
         self.force_merge_all = force_merge_all
         self.use_nobody_is_kicked = use_nobody_is_kicked
+        self.has_switched = False
 
 
         if freerider_noise_scale < 0:
@@ -207,6 +208,8 @@ class PytorchModel:
         self.loss = [loss]
 
         self.round = 1
+        self.previous_global_model = None
+        self.two_previous_global_model = None
         print("===================================================================================")
         print("Pytorch Model created:\n")
         print(str(self.global_model))
@@ -560,6 +563,11 @@ class PytorchModel:
             print("-----------------------------------------------------------------------------------\n")
             return
 
+        pre_merge_snapshot = copy.deepcopy(self.global_model)
+
+        self.two_previous_global_model = self.previous_global_model
+        self.previous_global_model = pre_merge_snapshot
+
         client_models, users_contribution_scores, users_merge_weights = [], {}, {}
 
         for u in _users:
@@ -585,6 +593,9 @@ class PytorchModel:
 
         elif aggregation_rule == "plus_more_than_one_normalize":
             users_merge_weights = plus_more_than_one_normalize(users_contribution_scores)
+
+        elif aggregation_rule == "binary_switch":
+            users_merge_weights = self.binary_switch(users_contribution_scores, positives_only, plus_one_normalize)
 
         else:
             raise ValueError(f"Unknown merge strategy: {aggregation_rule}")
@@ -793,6 +804,33 @@ class PytorchModel:
         print("-----------------------------------------------------------------------------------")
 
         return feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses
+
+    @staticmethod
+    def models_are_equal(model_a, model_b):
+        previous_model_params = model_a.state_dict()
+        pre_previous_model_params = model_b.state_dict()
+
+        if previous_model_params.keys() != pre_previous_model_params.keys():
+            return False
+
+        return all(
+            torch.equal(previous_model_params[x], pre_previous_model_params[x])
+            for x in previous_model_params
+        )
+
+    def binary_switch(self, users_contrib_scores, func_1, func_2):
+        if self.has_switched: return func_2(users_contrib_scores)
+
+        if self.round <= 1 or self.two_previous_global_model is None:
+            return func_1(users_contrib_scores)
+
+        converged = self.models_are_equal(self.previous_global_model, self.two_previous_global_model)
+
+        if converged:
+            self.has_switched = True
+            return func_2(users_contrib_scores)
+
+        return func_1(users_contrib_scores)
 
     
 # PYTORCH FUNCTIONS
