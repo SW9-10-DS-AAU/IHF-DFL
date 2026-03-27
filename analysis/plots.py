@@ -287,7 +287,7 @@ def plot_global_acc_by_aggregation_strategy(acc_by_strategy: pd.DataFrame) -> pl
 
     Expects columns: aggregation_rule, round, accuracy_mean, accuracy_std.
     """
-    fig, ax = plt.subplots(figsize=(9, 4))
+    fig, ax = plt.subplots(figsize=(12, 6))
 
     for strategy, group in acc_by_strategy.groupby("aggregation_rule"):
         color = STRATEGY_COLORS.get(strategy)

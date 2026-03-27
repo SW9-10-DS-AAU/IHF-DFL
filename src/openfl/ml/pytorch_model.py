@@ -160,23 +160,24 @@ class Net_MNIST(nn.Module):
 
         
 class PytorchModel:
-    def __init__(self, DATASET, _goodParticipants, _totalParticipants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, use_nobody_is_kicked: bool = False):
+    def __init__(self, DATASET, _good_participants, _bad_participants, _freerider_participants, _total_participants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, use_nobody_is_kicked: bool = False):
         self.DATASET = DATASET
         if self.DATASET == "mnist":
             self.global_model = Net_MNIST().to(DEVICE)
         else:
             self.global_model = Net_CIFAR().to(DEVICE)
-        
-        self.NUMBER_OF_CONTRIBUTERS = _totalParticipants
-        self.NUMBER_OF_BAD_CONTRIBUTORS = 0
-        self.NUMBER_OF_FREERIDER_CONTRIBUTORS = 0
+
+        self.NUMBER_OF_GOOD_CONTRIBUTORS = _good_participants
+        self.NUMBER_OF_BAD_CONTRIBUTORS = _bad_participants
+        self.NUMBER_OF_FREERIDER_CONTRIBUTORS = _freerider_participants
+        self.NUMBER_OF_CONTRIBUTORS = _total_participants
         self.NUMBER_OF_INACTIVE_CONTRIBUTORS = 0
         self.DATA = None
         self.participants = []
         self.disqualified = []
         self.EPOCHS = epochs
         self.BATCHSIZE = batchsize
-        self.train, self.val, self.test = self.load_data(self.NUMBER_OF_CONTRIBUTERS, _print=True)
+        self.train, self.val, self.test = self.load_data(self.NUMBER_OF_CONTRIBUTORS, _print=True)
         self.default_collateral = default_collateral
         self.max_collateral = max_collateral
         self.force_merge_all = force_merge_all
@@ -214,36 +215,21 @@ class PytorchModel:
         print(str(self.global_model))
         print("\n===================================================================================")
 
+        for i in range(self.NUMBER_OF_GOOD_CONTRIBUTORS):
+            self.add_participant("good")
 
+        for i in range(self.NUMBER_OF_BAD_CONTRIBUTORS):
+            self.add_participant("bad")
 
-        for i in range(_goodParticipants):
-            if self.DATASET == "mnist":
-                _model = Net_MNIST().to(DEVICE)
-            else:
-                _model = Net_CIFAR().to(DEVICE)
+        for i in range(self.NUMBER_OF_FREERIDER_CONTRIBUTORS):
+            self.add_participant("freerider")
+
+        for i in range(self.NUMBER_OF_INACTIVE_CONTRIBUTORS):
+            self.add_participant("inactive")
+
             
-            optimizer = optim.SGD(_model.parameters(), lr=0.001, momentum=0.9)
-            criterion = nn.CrossEntropyLoss()
-            _attitude = "good"
-                
-            self.participants.append(Participant(i, 
-                                                 self.train[i], 
-                                                 self.val[i], 
-                                                 _model, 
-                                                 optimizer, 
-                                                 criterion,
-                                                 _attitude,
-                                                 self.default_collateral,
-                                                 self.max_collateral,
-                                                 None,
-                                                 len(self.participants)
-                                                ))
-            print("Participant added: {} {}".format(gb(_attitude.upper()[0]+_attitude[1:]), gb("User")))
-    
-            
-    def add_participant(self, _attitude, _attitudeSwitch=1):
-        
-        _train, _val, _test = self.load_data(self.NUMBER_OF_CONTRIBUTERS)
+    def add_participant(self, _attitude):
+        _train, _val, _test = self.load_data(self.NUMBER_OF_CONTRIBUTORS)
         
         if self.DATASET == "mnist":
             _model = Net_MNIST().to(DEVICE)
@@ -252,19 +238,28 @@ class PytorchModel:
             
         optimizer = optim.SGD(_model.parameters(), lr=0.001, momentum=0.9)
         criterion = nn.CrossEntropyLoss()
-        
-        if _attitude == "bad":
+
+
+        if _attitude == "good":
+            self.NUMBER_OF_GOOD_CONTRIBUTORS +=1
+            _attitudeSwitch = None
+        elif _attitude == "bad":
             self.NUMBER_OF_BAD_CONTRIBUTORS +=1
             _attitudeSwitch = self.malicious_start_round
-        if _attitude == "freerider":
+        elif _attitude == "freerider":
             self.NUMBER_OF_FREERIDER_CONTRIBUTORS +=1
             _attitudeSwitch = self.freerider_start_round
-        if _attitude == "inactive":
+        elif _attitude == "inactive":
             self.NUMBER_OF_INACTIVE_CONTRIBUTORS +=1
-        l = len(self.participants)
+            _attitudeSwitch = None
+        else:
+            _attitudeSwitch = None
+            raise Exception("Unknown attitude {}".format(_attitude))
+
+        length = len(self.participants)
         self.participants.append(Participant(len(self.participants), 
-                                             _train[l], 
-                                             _val[l], 
+                                             _train[length],
+                                             _val[length],
                                              _model, 
                                              optimizer, 
                                              criterion,
@@ -272,7 +267,7 @@ class PytorchModel:
                                              self.default_collateral,
                                              self.max_collateral,
                                              _attitudeSwitch,
-                                             len(self.participants)
+                                             length
                                             ))
         
         print("Participant added: {:<9} {}".format(rb(_attitude.upper()[0]+_attitude[1:]), rb("User")))
@@ -464,10 +459,31 @@ class PytorchModel:
                 self.participants[i].model.load_state_dict(manipulated_state_dict)
                 self.participants[i].hashedModel = self.get_hash(self.participants[i].model.state_dict())
                 loss, accuracy = test(self.participants[i].model, self.test, DEVICE)
+
+                self.participants[i].currentAcc = accuracy
+                self.participants[i].currentLoss = loss
+
                 print("{:<17} {} |  Testing  | Accuracy {:>3.0f} % | Loss ∞\n".format("Account testing:   ",
                                                                                 self.participants[i].address[0:16]+"...",
                                                                                 accuracy*100, loss))
-                # TODO: Why is test_loss not used here?
+
+
+
+    def let_freerider_users_do_their_work(self):
+        for i in range(len(self.participants)):
+            if self.participants[i].attitude == "freerider":
+                print(red("Address {} going to provide random weights".format(self.participants[i].address[0:16]+"...")))
+                manipulated_state_dict = manipulate(self.participants[i].model,scale=self.freerider_noise_scale,)
+                self.participants[i].model.load_state_dict(manipulated_state_dict)
+                self.participants[i].hashedModel = self.get_hash(self.participants[i].model.state_dict())
+                loss, accuracy = test(self.participants[i].model, self.test, DEVICE)
+
+                self.participants[i].currentAcc = accuracy
+                self.participants[i].currentLoss = loss
+
+                print("{:<17} {} |  Testing  | Accuracy {:>3.0f} % | Loss ∞\n".format("Account testing:   ",
+                                                                                self.participants[i].address[0:16]+"...",
+                                                                                accuracy*100, loss))
 
     def update_users_attitude(self):
         for user in self.participants:
@@ -479,46 +495,46 @@ class PytorchModel:
                 user.color = get_color(None, user.attitude)
     
 
-    def let_freerider_users_do_their_work(self):
-        for user in self.participants:
-            if user.attitude == "freerider":
-              
-                # # Freerider has no data and must therefore provide something random
-                # # After first round freerider can copy other participants
-                # if self.round == 1:
-                #     print(red("Account {} going to provide ".format(user.address[0:8]+"...") \
-                #                   + "random weights; starts copycat-ing " \
-                #                   + "next round"))
-                #
-                #     new_state_dict = manipulate(copy.deepcopy(user.model))
-                # else:
-                #     foreign_model = copy.deepcopy(self.participants[0].previousModel)
-                #     new_state_dict = foreign_model.state_dict()
-                #
-                # user.model.load_state_dict(new_state_dict)
-                #
-                # if self.round > 1:
-                #     print(red("Address {} going to add random noise to weights".format(user.address[0:16]+"...")))
-                #     user.model.load_state_dict(add_noise(copy.deepcopy(user.model)))
-                if self.round < self.freerider_start_round:
-                    print(yellow(
-                        "Address {} waiting until round {} to start freeriding".format(
-                            user.address[0:16] + "...",
-                            self.freerider_start_round,
-                        )
-                    ))
-                    new_state_dict = manipulate(copy.deepcopy(user.model))
-                else:
-                    new_state_dict = self._freerider_submit_with_noise(user)
-
-
-                user.model.load_state_dict(new_state_dict)
-                user.hashedModel = self.get_hash(user.model.state_dict())
-                loss, accuracy = test(user.model, self.test, DEVICE)
-                print("{:<17} {} |  Testing  | Accuracy {:>3.0f} % | Loss ∞\n".format("Account testing:   ",
-                                                                                user.address[0:16]+"...",
-                                                                                accuracy*100, loss))
-                # TODO: Why is loss not used here?
+    # def let_freerider_users_do_their_work(self):
+    #     for user in self.participants:
+    #         if user.attitude == "freerider":
+    #
+    #             # # Freerider has no data and must therefore provide something random
+    #             # # After first round freerider can copy other participants
+    #             # if self.round == 1:
+    #             #     print(red("Account {} going to provide ".format(user.address[0:8]+"...") \
+    #             #                   + "random weights; starts copycat-ing " \
+    #             #                   + "next round"))
+    #             #
+    #             #     new_state_dict = manipulate(copy.deepcopy(user.model))
+    #             # else:
+    #             #     foreign_model = copy.deepcopy(self.participants[0].previousModel)
+    #             #     new_state_dict = foreign_model.state_dict()
+    #             #
+    #             # user.model.load_state_dict(new_state_dict)
+    #             #
+    #             # if self.round > 1:
+    #             #     print(red("Address {} going to add random noise to weights".format(user.address[0:16]+"...")))
+    #             #     user.model.load_state_dict(add_noise(copy.deepcopy(user.model)))
+    #             if self.round < self.freerider_start_round:
+    #                 print(yellow(
+    #                     "Address {} waiting until round {} to start freeriding".format(
+    #                         user.address[0:16] + "...",
+    #                         self.freerider_start_round,
+    #                     )
+    #                 ))
+    #                 new_state_dict = manipulate(copy.deepcopy(user.model))
+    #             else:
+    #                 new_state_dict = self._freerider_submit_with_noise(user)
+    #
+    #
+    #             user.model.load_state_dict(new_state_dict)
+    #             user.hashedModel = self.get_hash(user.model.state_dict())
+    #             loss, accuracy = test(user.model, self.test, DEVICE)
+    #             print("{:<17} {} |  Testing  | Accuracy {:>3.0f} % | Loss ∞\n".format("Account testing:   ",
+    #                                                                             user.address[0:16]+"...",
+    #                                                                             accuracy*100, loss))
+    #             # TODO: Why is loss not used here?
 
 
     def _freerider_submit_with_noise(self, user):

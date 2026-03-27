@@ -49,19 +49,27 @@ def load_runs(directory: Path) -> list[RunData]:
     return runs
 
 
-def load_runs_recursive(root: Path, prefix: str | None = None) -> list[RunData]:
+def load_runs_recursive(
+    root: Path,
+    prefix: str | None = None,
+    experiment_ids: list[str] | None = None,
+) -> list[RunData]:
     """Recursively walk subdirectories and load all .pkl files.
 
     Args:
-        root:   Root directory to search under.
-        prefix: Optional timestamp prefix (e.g. "26-02-26"). Only .pkl files
-                whose immediate parent folder name starts with this string are
-                loaded. Pass None (default) to load everything.
+        root:           Root directory to search under.
+        prefix:         Optional timestamp prefix (e.g. "26-02-26"). Only .pkl files
+                        whose immediate parent folder name starts with this string are
+                        loaded. Pass None (default) to load everything.
+        experiment_ids: Optional list of GUIDs to load (e.g. "af165b73-71d2-45b7-b1a4-afcfc07b3af4").
+                        Matched as a substring of the .pkl filename stem. Pass None (default) to load everything.
     """
     root = Path(root)
     runs = []
     for pkl_file in sorted(root.rglob("*.pkl")):
         if prefix is not None and not pkl_file.parent.name.startswith(prefix):
+            continue
+        if experiment_ids is not None and not any(guid in pkl_file.stem for guid in experiment_ids):
             continue
         try:
             runs.append(load_run(pkl_file))
