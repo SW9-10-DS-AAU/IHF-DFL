@@ -42,8 +42,10 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
     PRIVKEYS = None
 
   pytorch_model = PM.PytorchModel(dataset_name, 
-                              experiment_config.number_of_good_contributors, 
-                              experiment_config.number_of_contributors, 
+                              experiment_config.number_of_good_contributors,
+                              experiment_config.number_of_bad_contributors,
+                              experiment_config.number_of_freerider_contributors,
+                              experiment_config.number_of_contributors,
                               experiment_config.epochs, 
                               experiment_config.batch_size, 
                               experiment_config.standard_buy_in,
@@ -54,15 +56,6 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
                               experiment_config.malicious_noise_scale,
                               experiment_config.force_merge_all,
                               experiment_config.use_nobody_is_kicked)
-
-  for i in range(experiment_config.number_of_bad_contributors):
-      pytorch_model.add_participant("bad",experiment_config.malicious_start_round)
-
-  for i in range(experiment_config.number_of_freerider_contributors):
-      pytorch_model.add_participant("freerider",experiment_config.freerider_start_round)
-      
-  for i in range(experiment_config.number_of_inactive_contributors):
-      pytorch_model.add_participant("inactive",1)
 
 
   manager = Manager.FLManager(pytorch_model, True).init(
