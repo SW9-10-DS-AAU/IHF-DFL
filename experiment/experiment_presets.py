@@ -187,8 +187,34 @@ PRESETS = {
         malicious_noise_scale=[0.1],
         malicious_start_round=None,
         aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize"], # 3
-
+    ),
+    "aggregation_rules_test_model_performance_people_get_kicked_now_cifar": FullPreset(
+        fork=True,
+        reward=int(1e18),
+        standard_buy_in=int(1e18),
+        min_buy_in=int(1e18),
+        max_buy_in=int(1e18),
+        first_round_fee=50,
+        punish_factor=3,
+        punish_factor_contrib=3,
+        force_merge_all=False,
+        use_nobody_is_kicked=True,
+        number_of_inactive_contributors=0,
+        number_of_good_contributors=6,
+        number_of_bad_contributors=1,
+        number_of_freerider_contributors=1,
+        minimum_rounds=50,
+        epochs=25,
+        batch_size=128,
+        use_outlier_detection=[True],
+        contribution_score_strategy=["loss_only"], #loss_only is the only loss'os
+        freerider_noise_scale=[0.0], # 0.0
+        freerider_start_round=[1], # 1
+        malicious_noise_scale=[0.1],
+        malicious_start_round=None,
+        aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize", "binary_switch"], # 3
     )
 }
+
 
 # If you want to overwrite a value from the default preset, you need to create a FullPreset class inside PRESETS.
