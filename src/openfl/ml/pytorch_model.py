@@ -181,6 +181,7 @@ class PytorchModel:
         self.max_collateral = max_collateral
         self.force_merge_all = force_merge_all
         self.use_nobody_is_kicked = use_nobody_is_kicked
+        self.has_switched = False
 
 
         if freerider_noise_scale < 0:
@@ -207,7 +208,7 @@ class PytorchModel:
 
         self.round = 1
         self.previous_global_model = None
-        self.pre_pre_merge_model = None
+        self.two_previous_global_model = None
         print("===================================================================================")
         print("Pytorch Model created:\n")
         print(str(self.global_model))
@@ -546,8 +547,10 @@ class PytorchModel:
             print("-----------------------------------------------------------------------------------\n")
             return
 
-        self.pre_pre_merge_model = self.previous_global_model
-        self.previous_global_model = copy.deepcopy(self.global_model)
+        pre_merge_snapshot = copy.deepcopy(self.global_model)
+
+        self.two_previous_global_model = self.previous_global_model
+        self.previous_global_model = pre_merge_snapshot
 
         client_models, users_contribution_scores, users_merge_weights = [], {}, {}
 
@@ -576,7 +579,7 @@ class PytorchModel:
             users_merge_weights = plus_more_than_one_normalize(users_contribution_scores)
 
         elif aggregation_rule == "binary_switch":
-            users_merge_weights = binary_switch(users_contribution_scores, positives_only, plus_one_normalize, self.previous_global_model, self.pre_pre_merge_model, self.round)
+            users_merge_weights = self.binary_switch(users_contribution_scores, positives_only, plus_one_normalize)
 
         else:
             raise ValueError(f"Unknown merge strategy: {aggregation_rule}")
@@ -785,6 +788,33 @@ class PytorchModel:
         print("-----------------------------------------------------------------------------------")
 
         return feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses
+
+    @staticmethod
+    def models_are_equal(model_a, model_b):
+        previous_model_params = model_a.state_dict()
+        pre_previous_model_params = model_b.state_dict()
+
+        if previous_model_params.keys() != pre_previous_model_params.keys():
+            return False
+
+        return all(
+            torch.equal(previous_model_params[x], pre_previous_model_params[x])
+            for x in previous_model_params
+        )
+
+    def binary_switch(self, users_contrib_scores, func_1, func_2):
+        if self.has_switched: return func_2(users_contrib_scores)
+
+        if self.round <= 1 or self.two_previous_global_model is None:
+            return func_1(users_contrib_scores)
+
+        converged = self.models_are_equal(self.previous_global_model, self.two_previous_global_model)
+
+        if converged:
+            self.has_switched = True
+            return func_2(users_contrib_scores)
+
+        return func_1(users_contrib_scores)
 
     
 # PYTORCH FUNCTIONS
@@ -1020,29 +1050,3 @@ def plus_more_than_one_normalize(users_contrib_scores: dict, more_than_one=1.1):
      sum_ = sum(normalized_scores.values())
      aggregation_scores = {user_id: score / sum_ for user_id, score in normalized_scores.items()}
      return aggregation_scores
-
-
-def models_are_equal(model_a, model_b, tolerance=1e-6):
-    # Tolerance is used to check whether both models are within a tolerance. If so, return True (they are alike), otherwise false
-    previous_model_params = model_a.state_dict()
-    pre_previous_model_params = model_b.state_dict()
-
-    if previous_model_params.keys() != pre_previous_model_params.keys():
-        return False
-
-    return all(
-        torch.allclose(previous_model_params[k].float(), pre_previous_model_params[k].float(), atol=tolerance) # atol is absolute tolerance - how much deviation is allowed between 2 values
-        for k in previous_model_params
-    )
-
-
-def binary_switch(users_contrib_scores, func_1, func_2, previous_global_model, pre_pre_merge_model, current_round):
-    if current_round <= 1 or pre_pre_merge_model is None:
-        return func_1(users_contrib_scores)
-
-    converged = models_are_equal(previous_global_model, pre_pre_merge_model)
-
-    if converged:
-        return func_2(users_contrib_scores)
-    else:
-        return func_1(users_contrib_scores)
