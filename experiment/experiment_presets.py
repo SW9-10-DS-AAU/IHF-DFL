@@ -114,8 +114,8 @@ PRESETS = {
         contribution_score_strategy=["loss_only", "accuracy_only", "accuracy_loss", "naive", "dotproduct"],
         freerider_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         freerider_start_round=[1, 3, 5],
-        malicious_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
-        malicious_start_round=[1, 3, 5],
+        malicious_noise_scale=None,
+        malicious_start_round=None,
         aggregation_rule= ["FedAVG"],
     ),
 
@@ -130,8 +130,8 @@ PRESETS = {
         contribution_score_strategy=["dotproduct"],
         freerider_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         freerider_start_round=[1, 3, 5],
-        malicious_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
-        malicious_start_round=[1, 3, 5],
+        malicious_noise_scale=None,
+        malicious_start_round=None,
         aggregation_rule= ["FedAVG"],
     ),
 
@@ -157,8 +157,8 @@ PRESETS = {
         contribution_score_strategy=["loss_only", "accuracy_only"],
         freerider_noise_scale=[0, 0.1,1.0],
         freerider_start_round=[1, 5, 10],
-        malicious_noise_scale=[0, 0.1,1.0],
-        malicious_start_round=[1, 5, 10],
+        malicious_noise_scale=None,
+        malicious_start_round=None,
         aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize"],
     ),
 
@@ -177,15 +177,15 @@ PRESETS = {
         number_of_good_contributors=4,
         number_of_bad_contributors=1,
         number_of_freerider_contributors=1,
-        minimum_rounds=100,
+        minimum_rounds=50,
         epochs=1,
         batch_size=32,
         use_outlier_detection=[True],
         contribution_score_strategy=["loss_only"], #loss_only is the only loss'os
-        freerider_noise_scale=[0], # 0.0
+        freerider_noise_scale=[0.01], # 0.0
         freerider_start_round=[1], # 1
-        malicious_noise_scale=[1], # 0.01
-        malicious_start_round=[0.01], # 1
+        malicious_noise_scale=[0.1],
+        malicious_start_round=None,
         aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize"], # 3
 
     )
