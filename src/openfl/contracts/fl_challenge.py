@@ -1273,7 +1273,12 @@ class FLChallenge(FLManager):
           9) Close round, print summary
         At the end, all users exit the system.
         """
-        self.pytorch_model.print_client_data_distributions()
+
+        #TODO remove this shit
+        data1 = self.pytorch_model.get_client_data_distribution()
+        data2 = self.pytorch_model.get_client_data_distribution()
+        assert data1 == data2, "Data distribution should be the same across calls"
+
 
         print(self.modelAddress)
         self.register_all_users()

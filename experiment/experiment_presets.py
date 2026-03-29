@@ -32,6 +32,8 @@ class ExperimentPreset:
     malicious_noise_scale: list[float]
     malicious_start_round: list[int]
     aggregation_rule: list[str]
+    data_distribution: list[str]
+    dirichlet_alpha: list[float] | None
 
 
 # Full preset (used when use_defaults=False)
@@ -69,6 +71,8 @@ PRESETS = {
         malicious_noise_scale=[1.0],
         malicious_start_round=[3],
         aggregation_rule=["FedAVG"],
+        data_distribution= ["random_split_42"],
+        dirichlet_alpha= None,
     ),
 
     "mnist_openfl_w_outlier": ExperimentPreset(
@@ -85,6 +89,8 @@ PRESETS = {
         malicious_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         malicious_start_round=[1, 3, 5],
         aggregation_rule= ["FedAVG"],
+        data_distribution= ["random_split_42"],
+        dirichlet_alpha= None,
     ),
 
     "mnist_openfl_w/o_outlier": ExperimentPreset(
@@ -101,6 +107,8 @@ PRESETS = {
         malicious_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         malicious_start_round=[1, 3, 5],
         aggregation_rule= ["FedAVG"],
+        data_distribution= ["random_split_42"],
+        dirichlet_alpha= None,
     ),
 
     "cifar_openfl_w_outlier": ExperimentPreset(
@@ -117,6 +125,8 @@ PRESETS = {
         malicious_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         malicious_start_round=[1, 3, 5],
         aggregation_rule= ["FedAVG"],
+        data_distribution= ["random_split_42"],
+        dirichlet_alpha= None,
     ),
 
     "cifar_openfl_w/o_outlier": ExperimentPreset(
@@ -133,6 +143,8 @@ PRESETS = {
         malicious_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         malicious_start_round=[1, 3, 5],
         aggregation_rule= ["FedAVG"],
+        data_distribution= ["random_split_42"],
+        dirichlet_alpha= None,
     ),
 
     "aggregation_rules_test_model_performance_mnist": FullPreset(
@@ -160,6 +172,8 @@ PRESETS = {
         malicious_noise_scale=[0, 0.1,1.0],
         malicious_start_round=[1, 5, 10],
         aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize"],
+        data_distribution= ["random_split_42"],
+        dirichlet_alpha= None,
     ),
 
     "aggregation_rules_test_model_performance_people_get_kicked_now_mnist": FullPreset(
@@ -187,6 +201,8 @@ PRESETS = {
         malicious_noise_scale=[0, 0.1,1.0],
         malicious_start_round=[1, 5, 10],
         aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize"],
+        data_distribution= ["random_split_42"],
+        dirichlet_alpha= None,
     )
 }
 

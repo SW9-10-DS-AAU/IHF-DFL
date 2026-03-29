@@ -29,20 +29,7 @@ logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
 
 from collections import Counter
 
-def print_label_distribution(loader, name="Dataset"):
-    """
-    Prints the distribution of labels in a DataLoader.
-    """
-    label_counts = Counter()
-    for _, labels in loader:
-        label_counts.update(labels.numpy())  # Convert tensor to numpy for Counter
 
-    total = sum(label_counts.values())
-    print(f"{name} | Total samples: {total}")
-    for label in range(10):
-        count = label_counts[label]
-        print(f"  Label {label}: {count} ({count/total*100:.2f}%)")
-    print("-" * 50)
 
 
 RNG = np.random.default_rng()
@@ -268,25 +255,43 @@ class PytorchModel:
                                                 ))
             print("Participant added: {} {}".format(gb(_attitude.upper()[0]+_attitude[1:]), gb("User")))
 
-    def print_client_data_distributions(self):
-        """
-        Prints the label distribution for every client's train/val sets and the global test set.
-        """
+    def get_client_data_distribution(self):
         if self.DATA is None:
             self.load_data(self.NUMBER_OF_CONTRIBUTERS)
 
         trainloaders, valloaders, testloader = self.DATA
 
-        print("\n--- CLIENT DATA DISTRIBUTIONS ---")
-        print("\nUSING DATA DISTRIBUTION: ", self.data_distribution)
-        for i, (train_loader, val_loader) in enumerate(zip(trainloaders, valloaders)):
-            print(f"Client {i} Training Set:")
-            print_label_distribution(train_loader, name=f"Client {i} Train")
-            print(f"Client {i} Validation Set:")
-            print_label_distribution(val_loader, name=f"Client {i} Val")
+        result = {
+            "clients": [],
+            "test": {}
+        }
 
-        print("\nGlobal Test Set:")
-        print_label_distribution(testloader, name="Test Set")
+        for train_loader, val_loader in zip(trainloaders, valloaders):
+            train_dataset = train_loader.dataset
+            val_dataset = val_loader.dataset
+
+            client_info = {
+                "train": {
+                    "size": len(train_dataset),
+                    "label_counts": get_label_distribution(train_loader),
+                    "indices": train_dataset.indices if hasattr(train_dataset, "indices") else None
+                },
+                "val": {
+                    "size": len(val_dataset),
+                    "label_counts": get_label_distribution(val_loader),
+                    "indices": val_dataset.indices if hasattr(val_dataset, "indices") else None
+                }
+            }
+            result["clients"].append(client_info)
+
+        test_dataset = testloader.dataset
+        result["test"] = {
+            "size": len(test_dataset),
+            "label_counts": get_label_distribution(testloader),
+            "indices": test_dataset.indices if hasattr(test_dataset, "indices") else None
+        }
+
+        return result
             
     def add_participant(self, _attitude, _attitudeSwitch=1):
         
@@ -538,8 +543,7 @@ class PytorchModel:
 
     def update_users_attitude(self):
         for user in self.participants:
-            if user.attitudeSwitch == self.round \
-                and user.attitude != user.futureAttitude:
+            if user.attitudeSwitch == self.round and user.attitude != user.futureAttitude:
                 print(rb("Address {} going to switch attitude to {}".format(user.address[0:16]+"...",
                                                                             user.futureAttitude)))
                 user.attitude = user.futureAttitude
@@ -576,6 +580,7 @@ class PytorchModel:
                     ))
                     new_state_dict = manipulate(copy.deepcopy(user.model))
                 else:
+                    new_state_dict = self._freerider_submit_with_noise(user)
                     new_state_dict = self._freerider_submit_with_noise(user)
 
 
@@ -1193,6 +1198,14 @@ def stratified_split(dataset, lengths, generator=None):
 
 
 
+def get_label_distribution(loader):
+    counter = Counter()
+    for _, labels in loader:
+        counter.update(labels.tolist())
+    return dict(counter)
+
+
+
 # OLD — BUG: division by zero when all scores <= 0
 def positives_only(users_contrib_scores: dict):
      positive_sum = sum(score for score in users_contrib_scores.values() if score > 0)
@@ -1217,4 +1230,6 @@ def plus_more_than_one_normalize(users_contrib_scores: dict, more_than_one=1.1):
      sum_ = sum(normalized_scores.values())
      aggregation_scores = {user_id: score / sum_ for user_id, score in normalized_scores.items()}
      return aggregation_scores
+
+
 

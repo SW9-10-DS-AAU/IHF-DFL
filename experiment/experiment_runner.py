@@ -53,7 +53,9 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
                               experiment_config.malicious_start_round,
                               experiment_config.malicious_noise_scale,
                               experiment_config.force_merge_all,
-                              experiment_config.use_nobody_is_kicked)
+                              experiment_config.use_nobody_is_kicked,
+                              experiment_config.data_distribution,
+                              experiment_config.dirichlet_alpha)
 
   for i in range(experiment_config.number_of_bad_contributors):
       pytorch_model.add_participant("bad",experiment_config.malicious_start_round)

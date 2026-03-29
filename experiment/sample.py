@@ -11,10 +11,11 @@ from openfl.utils.async_writer import AsyncWriter
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from analysis import ExperimentLogger
 
-preset = "mnist_openfl_w_outlier"
+preset = "aggregation_rules_test_model_performance_mnist"
+_use_defaults = True
 # preset = "test"
 
-config = ExperimentConfiguration(preset=preset, use_defaults=True)
+config = ExperimentConfiguration(preset=preset, use_defaults=_use_defaults)
 
 DATASETSLOW = "cifar.10"
 DATASETFAST = "mnist"

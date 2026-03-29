@@ -45,6 +45,8 @@ class ExperimentConfiguration:
             self.malicious_start_round = _unwrap_first(p.malicious_start_round)
             self.malicious_noise_scale = _unwrap_first(p.malicious_noise_scale)
             self.aggregation_rule = _unwrap_first(p.aggregation_rule)
+            self.data_distribution = _unwrap_first(p.data_distribution)
+            self.dirichlet_alpha = _unwrap_first(p.dirichlet_alpha)
 
         else:
 
