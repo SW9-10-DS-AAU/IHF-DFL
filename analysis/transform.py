@@ -68,9 +68,17 @@ def normalize_run(run: RunData) -> RunData:
             if col in u.columns:
                 u[col] = u[col] / 10000
 
+        for col in _GLOBAL_ACC_COLS:
+            if col in g.columns:
+                g[col] = g[col] / 10000
+
         for col in _USERS_LOSS_COLS:
             if col in u.columns:
                 u[col] = u[col] / 100
+
+        for col in _GLOBAL_LOSS_COLS:
+            if col in g.columns:
+                g[col] = g[col] / 100
 
         # if "round" in u.columns:
         #     u["is_baseline"] = u["round"] == 0

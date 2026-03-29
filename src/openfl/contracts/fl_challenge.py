@@ -1310,11 +1310,13 @@ class FLChallenge(FLManager):
         for i in range(rounds):
             print(b(f"Round {self.pytorch_model.round} starts..."))
             _round_start = time.perf_counter()
+
             self.pytorch_model.update_users_attitude()
 
             self.pytorch_model.federated_training()
 
             self.pytorch_model.let_malicious_users_do_their_work()
+
             self.pytorch_model.let_freerider_users_do_their_work()
             
             self.user_register_slot()
