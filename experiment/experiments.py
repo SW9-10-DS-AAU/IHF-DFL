@@ -67,6 +67,8 @@ class Skip:
     malicious_activation_round: int
     malicious_noise: float
     aggregation_rule: str
+    data_distribution: str
+    dirichlet_alpha: float | None
 
 skips: list[Skip] = []
 
@@ -80,16 +82,49 @@ def main(author): # single preset
     if args.skipFolder is not None:
         parseSkips()
 
-    oldProduct = product(
+    productVar = []
+
+    for (
+            strategy,
+            outlier_detection,
+            freerider_round,
+            freerider_noise,
+            dataset,
+            aggregation_rule,
+            data_distribution,
+    ) in product(
         preset_config.contribution_score_strategy,
         preset_config.use_outlier_detection,
         preset_config.freerider_start_round,
         preset_config.freerider_noise_scale,
         datasets,
         preset_config.aggregation_rule,
-    )
+        preset_config.data_distribution,
+    ):
 
-    productVar = list(oldProduct)
+        if data_distribution in {"dirichlet_split", "dirichlet_split_42"}:
+            for alpha in preset_config.dirichlet_alpha:
+                productVar.append((
+                    strategy,
+                    outlier_detection,
+                    freerider_round,
+                    freerider_noise,
+                    dataset,
+                    aggregation_rule,
+                    data_distribution,
+                    alpha,
+                ))
+        else:
+            productVar.append((
+                strategy,
+                outlier_detection,
+                freerider_round,
+                freerider_noise,
+                dataset,
+                aggregation_rule,
+                data_distribution,
+                None,
+            ))
 
     total = len(productVar)
     skipsCount = len(skips)
@@ -103,6 +138,8 @@ def main(author): # single preset
         freerider_noise,
         dataset,
         aggregation_rule,
+        data_distribution,
+        dirichlet_alpha
     ) in enumerate(productVar, start=1):
 
         malicious_activation_round = freerider_round
@@ -124,6 +161,8 @@ def main(author): # single preset
             malicious_activation_round=malicious_activation_round,
             malicious_noise=malicious_noise,
             aggregation_rule=aggregation_rule,
+            data_distribution=data_distribution,
+            dirichlet_alpha=dirichlet_alpha
         )
 
         if shouldSkip(skipConfig):
@@ -139,6 +178,8 @@ def main(author): # single preset
         config.malicious_start_round = malicious_activation_round
         config.malicious_noise_scale = malicious_noise
         config.aggregation_rule = aggregation_rule
+        config.data_distribution = data_distribution
+        config.dirichlet_alpha = dirichlet_alpha
 
         path = getPath(config, time, dataset, preset, RESULTDATAFOLDER)
 
@@ -211,6 +252,8 @@ def parseSkips():
             r"(?P<maliciousNoise>[^-]+)-"
             r"(?P<outlierDetection>[^-]+)-"
             r"(?P<aggregationRule>[^-]+)"
+            r"-(?P<dataDistribution>[^-]+)"
+            r"(?:-(?P<dirichletAlpha>[^-]+))"
             r"(?:-\{[0-9a-fA-F-]+\})?"  # <-- optional UUID part
             r"\.csv",
             file,
@@ -231,6 +274,8 @@ def parseSkips():
                 malicious_activation_round=int(m.group("maliciousRound")),
                 malicious_noise=float(m.group("maliciousNoise")),
                 aggregation_rule=m.group("aggregationRule"),
+                data_distribution=m.group("dataDistribution"),
+                dirichlet_alpha=m.group("dirichletAlpha"),
             )
         )
 

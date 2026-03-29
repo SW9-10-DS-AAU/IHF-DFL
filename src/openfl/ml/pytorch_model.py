@@ -167,7 +167,7 @@ class Net_MNIST(nn.Module):
 
         
 class PytorchModel:
-    def __init__(self, DATASET, _good_participants, _bad_participants, _freerider_participants, _total_participants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, use_nobody_is_kicked: bool = False, data_distribution : str = None, dirichlet_alpha: float = None):
+    def __init__(self, DATASET, _good_participants, _bad_participants, _freerider_participants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, use_nobody_is_kicked: bool = False, data_distribution : str = None, dirichlet_alpha: float = None):
         self.DATASET = DATASET
         if self.DATASET == "mnist":
             self.global_model = Net_MNIST().to(DEVICE)
@@ -177,8 +177,8 @@ class PytorchModel:
         self.NUMBER_OF_GOOD_CONTRIBUTORS = _good_participants
         self.NUMBER_OF_BAD_CONTRIBUTORS = _bad_participants
         self.NUMBER_OF_FREERIDER_CONTRIBUTORS = _freerider_participants
-        self.NUMBER_OF_CONTRIBUTORS = _total_participants
         self.NUMBER_OF_INACTIVE_CONTRIBUTORS = 0
+        self.NUMBER_OF_CONTRIBUTORS = _good_participants + _bad_participants + _freerider_participants + self.NUMBER_OF_INACTIVE_CONTRIBUTORS
         self.DATA = None
         self.participants = []
         self.disqualified = []
@@ -195,7 +195,7 @@ class PytorchModel:
         else:
             self.dirichlet_alpha = dirichlet_alpha
 
-        self.train, self.val, self.test = self.load_data(self.NUMBER_OF_CONTRIBUTERS, _print=True)
+        self.train, self.val, self.test = self.load_data(self.NUMBER_OF_CONTRIBUTORS, _print=True)
         self.default_collateral = default_collateral
         self.max_collateral = max_collateral
         self.force_merge_all = force_merge_all
@@ -290,7 +290,7 @@ class PytorchModel:
 
     def get_client_data_distribution(self):
         if self.DATA is None:
-            self.load_data(self.NUMBER_OF_CONTRIBUTERS)
+            self.load_data(self.NUMBER_OF_CONTRIBUTORS)
 
         trainloaders, valloaders, testloader = self.DATA
 

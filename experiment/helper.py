@@ -17,6 +17,8 @@ def getPath(config: ExperimentConfiguration, time: str, dataset: str, preset: st
         f"{config.malicious_noise_scale}-"
         f"{config.use_outlier_detection}-"
         f"{config.aggregation_rule}-"
+        f"{config.data_distribution}-"
+        f"{config.dirichlet_alpha}-"
         f"{{{uuid.uuid4()}}}.csv"
     )
 
