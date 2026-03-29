@@ -208,11 +208,11 @@ PRESETS = {
         batch_size=128,
         use_outlier_detection=[True],
         contribution_score_strategy=["loss_only"], #loss_only is the only loss'os
-        freerider_noise_scale=[0.0], # 0.0
+        freerider_noise_scale=[0.01], # 0.0
         freerider_start_round=[1], # 1
         malicious_noise_scale=[0.1],
         malicious_start_round=None,
-        aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize", "binary_switch"], # 3
+        aggregation_rule=["binary_switch","positives_only", "FedAVG", "plus_one_normalize"], # 4
     )
 }
 
