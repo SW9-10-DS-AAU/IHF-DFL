@@ -819,17 +819,23 @@ class PytorchModel:
         )
 
     def binary_switch(self, users_contrib_scores, func_1, func_2):
-        if self.has_switched: return func_2(users_contrib_scores)
+        if self.has_switched:
+            print(f"  [binary_switch] At round {self.round}: Using {func_2.__name__}")
+            return func_2(users_contrib_scores)
 
         if self.round <= 1 or self.two_previous_global_model is None:
+            print(f"  [binary_switch] At round {self.round}: Using {func_1.__name__}")
             return func_1(users_contrib_scores)
 
         converged = self.models_are_equal(self.previous_global_model, self.two_previous_global_model)
 
         if converged:
             self.has_switched = True
+            print(f"  [binary_switch] Convergens detected at round {self.round}: Switching from {func_1.__name__} to {func_2.__name__}")
             return func_2(users_contrib_scores)
 
+
+        print(f"  [binary_switch] At round {self.round}: Using {func_1.__name__}")
         return func_1(users_contrib_scores)
 
     
