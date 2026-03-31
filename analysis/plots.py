@@ -516,7 +516,7 @@ def plot_merge_weights_by_behavior(agg_weights: pd.DataFrame, stats: pd.DataFram
             handle = Line2D([0], [0], color=color, linewidth=2)
             if behavior in stats_by_behavior.index:
                 row    = stats_by_behavior.loc[behavior]
-                merged = int(row["rounds_merged"])
+                merged = int(row["rounds_merged"]) if pd.notna(row["rounds_merged"]) else 0
                 total  = int(row["total_rounds"])
                 users  = int(row["user_count"])
                 label  = f"{role:<14}  {merged:>2}/{total:<2} rounds  ·  {users} user(s)"

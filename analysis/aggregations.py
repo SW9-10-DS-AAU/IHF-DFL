@@ -540,6 +540,7 @@ def agg_merge_stats_by_behavior(users: pd.DataFrame) -> pd.DataFrame:
 
     total = total.merge(rounds_merged, on="behavior", how="left")
     total = total.merge(user_counts, on="behavior", how="left")
+    total["rounds_merged"] = total["rounds_merged"].fillna(0).astype(int)
     total["pct_merged"] = total["rounds_merged"] / total["total_rounds"] * 100
     return total
 
