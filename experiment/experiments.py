@@ -26,9 +26,9 @@ RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData
 # ---------------- PRESET SEARCH SPACE ----------------
 
 # preset = "test"
-preset = "aggregation_rules_test_model_performance_people_get_kicked_now_mnist"
+preset = "aggregation_rules_test_model_performance_people_get_kicked_now_cifar"
 _use_defaults = False
-datasets = [ DATASETFAST ]
+datasets = [ DATASETSLOW ]
 
 
 # ---------------- OUTPUT ----------------
@@ -64,8 +64,8 @@ class Skip:
     outlier_detection: bool
     free_rider_activation_round: int
     free_rider_noise: float
-    malicious_activation_round: int
-    malicious_noise: float
+    malicious_activation_round: int | None
+    malicious_noise: float | None
     aggregation_rule: str
     data_distribution: str
     dirichlet_alpha: float | None
@@ -97,6 +97,8 @@ def main(author): # single preset
         preset_config.use_outlier_detection,
         preset_config.freerider_start_round,
         preset_config.freerider_noise_scale,
+        preset_config.malicious_start_round if preset_config.malicious_start_round is not None else [None],
+        preset_config.malicious_noise_scale if preset_config.malicious_noise_scale is not None else [None],
         datasets,
         preset_config.aggregation_rule,
         preset_config.data_distribution,
@@ -136,14 +138,13 @@ def main(author): # single preset
         outlier_detection,
         freerider_round,
         freerider_noise,
+        malicious_activation_round,
+        malicious_noise,
         dataset,
         aggregation_rule,
         data_distribution,
         dirichlet_alpha
     ) in enumerate(productVar, start=1):
-
-        malicious_activation_round = freerider_round
-        malicious_noise = freerider_noise
 
         progress_bar(i - 1, skipsCount, total)
 
@@ -175,8 +176,8 @@ def main(author): # single preset
         config.use_outlier_detection = outlier_detection
         config.freerider_start_round = freerider_round
         config.freerider_noise_scale = freerider_noise
-        config.malicious_start_round = malicious_activation_round
-        config.malicious_noise_scale = malicious_noise
+        config.malicious_start_round = malicious_activation_round if malicious_activation_round is not None else freerider_round
+        config.malicious_noise_scale = malicious_noise if malicious_noise is not None else freerider_noise
         config.aggregation_rule = aggregation_rule
         config.data_distribution = data_distribution
         config.dirichlet_alpha = dirichlet_alpha
@@ -259,9 +260,14 @@ def parseSkips():
             file,
         )
 
+
         if not m:
             print("Did not match:", file)
             continue
+
+        mal_round = m.group("maliciousRound")
+        mal_noise = m.group("maliciousNoise")
+
 
         skips.append(
             Skip(
@@ -271,8 +277,8 @@ def parseSkips():
                 outlier_detection=m.group("outlierDetection") == "True",
                 free_rider_activation_round=int(m.group("activationRound")),
                 free_rider_noise=float(m.group("noise")),
-                malicious_activation_round=int(m.group("maliciousRound")),
-                malicious_noise=float(m.group("maliciousNoise")),
+                malicious_activation_round=int(mal_round) if mal_round != "None" else None,
+                malicious_noise=float(mal_noise) if mal_noise != "None" else None,
                 aggregation_rule=m.group("aggregationRule"),
                 data_distribution=m.group("dataDistribution"),
                 dirichlet_alpha=m.group("dirichletAlpha"),
@@ -283,11 +289,10 @@ def parseSkips():
 # ---------------- SKIP CHECK ----------------
 
 def shouldSkip(config: Skip):
+    config = normalize_skip(config)
     for skip in skips:
-        if skip == config:
-            print("Skipping")
+        if normalize_skip(skip) == config:
             return True
-    print("not skipping")
     return False
 
 
@@ -302,6 +307,29 @@ def progress_bar(i, skipsCount, total):
         f"Progress: {i}/{total} ({percent:.2f}%)\n"
         f"Total Progress: {i + skipsCount}/{total} ({totalPercent:.2f}%)\n",
         flush=True,
+    )
+
+
+
+def normalize_skip(skip: Skip):
+    return Skip(
+        preset=skip.preset,
+        dataset=skip.dataset,
+        strategy=skip.strategy,
+        outlier_detection=skip.outlier_detection,
+        free_rider_activation_round=skip.free_rider_activation_round,
+        free_rider_noise=skip.free_rider_noise,
+        malicious_activation_round=(
+            skip.malicious_activation_round 
+            if skip.malicious_activation_round is not None 
+            else skip.free_rider_activation_round
+        ),
+        malicious_noise=(
+            skip.malicious_noise 
+            if skip.malicious_noise is not None 
+            else skip.free_rider_noise
+        ),
+        aggregation_rule=skip.aggregation_rule,
     )
 
 
