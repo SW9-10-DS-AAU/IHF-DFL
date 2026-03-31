@@ -879,7 +879,7 @@ class PytorchModel:
 
     def partial_switch_accuracy(self, users_contrib_scores, func_1, func_2):
 
-        current_accuracy = self.accuracy[-1] # latest accuracy
+        current_accuracy = self.accuracy[-1] # latest accuracy TODO Fix med rigtig accuracy
 
         accuracy_measure = current_accuracy  # How much % to use func_2 (0,47 -> 47% func_2)
 
