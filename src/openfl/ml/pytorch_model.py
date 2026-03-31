@@ -183,6 +183,7 @@ class PytorchModel:
         self.force_merge_all = force_merge_all
         self.use_nobody_is_kicked = use_nobody_is_kicked
         self.has_switched = False
+        self.aggregation_func_used = None
 
 
         if freerider_noise_scale < 0:
@@ -584,15 +585,19 @@ class PytorchModel:
 
         if aggregation_rule == "FedAVG":
             users_merge_weights = {u.address: 1.0 / n_clients for u in _users}
+            self.aggregation_func_used = "FedAVG"
 
         elif aggregation_rule == "positives_only":
             users_merge_weights = positives_only(users_contribution_scores)
+            self.aggregation_func_used = "positives_only"
 
         elif aggregation_rule == "plus_one_normalize":
             users_merge_weights = plus_one_normalize(users_contribution_scores)
+            self.aggregation_func_used = "plus_one_normalize"
 
         elif aggregation_rule == "plus_more_than_one_normalize":
             users_merge_weights = plus_more_than_one_normalize(users_contribution_scores)
+            self.aggregation_func_used = "plus_more_than_one_normalize"
 
         elif aggregation_rule == "binary_switch":
             users_merge_weights = self.binary_switch(users_contribution_scores, positives_only, plus_one_normalize)
@@ -821,10 +826,12 @@ class PytorchModel:
     def binary_switch(self, users_contrib_scores, func_1, func_2):
         if self.has_switched:
             print(f"  [binary_switch] At round {self.round}: Using {func_2.__name__}")
+            self.aggregation_func_used = f"binary_switch/{func_2.__name__}"
             return func_2(users_contrib_scores)
 
         if self.round <= 1 or self.two_previous_global_model is None:
             print(f"  [binary_switch] At round {self.round}: Using {func_1.__name__}")
+            self.aggregation_func_used = f"binary_switch/{func_1.__name__}"
             return func_1(users_contrib_scores)
 
         converged = self.models_are_equal(self.previous_global_model, self.two_previous_global_model)
@@ -832,11 +839,14 @@ class PytorchModel:
         if converged:
             self.has_switched = True
             print(f"  [binary_switch] Convergens detected at round {self.round}: Switching from {func_1.__name__} to {func_2.__name__}")
+            self.aggregation_func_used = f"binary_switch/{func_2.__name__}"
             return func_2(users_contrib_scores)
 
 
         print(f"  [binary_switch] At round {self.round}: Using {func_1.__name__}")
+        self.aggregation_func_used = f"binary_switch/{func_1.__name__}"
         return func_1(users_contrib_scores)
+
 
     
 # PYTORCH FUNCTIONS
