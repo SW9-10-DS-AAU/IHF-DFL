@@ -1275,9 +1275,7 @@ class FLChallenge(FLManager):
         """
 
         #TODO remove this shit
-        data1 = self.pytorch_model.get_client_data_distribution()
-        data2 = self.pytorch_model.get_client_data_distribution()
-        assert data1 == data2, "Data distribution should be the same across calls"
+        self.pytorch_model.print_client_data_distributions()
 
 
         print(self.modelAddress)
@@ -1477,7 +1475,7 @@ class FLChallenge(FLManager):
         axs[0].text(0, 0.1, f'dataset={self.pytorch_model.DATASET}\n'\
                                  + f'epochs={self.pytorch_model.EPOCHS}\n' \
                                  + f'rounds={self.pytorch_model.round-1}\n' \
-                                 + f'users={self.pytorch_model.NUMBER_OF_CONTRIBUTERS}\n' \
+                                 + f'users={self.pytorch_model.NUMBER_OF_CONTRIBUTORS}\n' \
                                  + f'malicious={self.pytorch_model.NUMBER_OF_BAD_CONTRIBUTORS}\n'\
                                  + f'copycat={self.pytorch_model.NUMBER_OF_FREERIDER_CONTRIBUTORS}', fontsize=15)
         axs[0].set_axis_off()

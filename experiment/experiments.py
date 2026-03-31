@@ -26,9 +26,9 @@ RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData
 # ---------------- PRESET SEARCH SPACE ----------------
 
 # preset = "test"
-preset = "aggregation_rules_test_model_performance_people_get_kicked_now_cifar"
+preset = "data_distribution_mnist"
 _use_defaults = False
-datasets = [ DATASETSLOW ]
+datasets = [ DATASETFAST ]
 
 
 # ---------------- OUTPUT ----------------
@@ -84,11 +84,25 @@ def main(author): # single preset
 
     productVar = []
 
+    malicious_rounds = (
+        preset_config.malicious_start_round
+        if preset_config.malicious_start_round is not None
+        else [None]
+    )
+
+    malicious_noises = (
+        preset_config.malicious_noise_scale
+        if preset_config.malicious_noise_scale is not None
+        else [None]
+    )
+
     for (
             strategy,
             outlier_detection,
             freerider_round,
             freerider_noise,
+            malicious_activation_round,
+            malicious_noise,
             dataset,
             aggregation_rule,
             data_distribution,
@@ -97,13 +111,20 @@ def main(author): # single preset
         preset_config.use_outlier_detection,
         preset_config.freerider_start_round,
         preset_config.freerider_noise_scale,
-        preset_config.malicious_start_round if preset_config.malicious_start_round is not None else [None],
-        preset_config.malicious_noise_scale if preset_config.malicious_noise_scale is not None else [None],
+        malicious_rounds,
+        malicious_noises,
         datasets,
         preset_config.aggregation_rule,
         preset_config.data_distribution,
     ):
 
+        # fallback to freerider values if any of the malicious params are None
+        if malicious_activation_round is None:
+            malicious_activation_round = freerider_round
+        if malicious_noise is None:
+            malicious_noise = freerider_noise
+
+        # only add dirichlet alpha to the product if the data distribution is dirichlet, otherwise set it to None
         if data_distribution in {"dirichlet_split", "dirichlet_split_42"}:
             for alpha in preset_config.dirichlet_alpha:
                 productVar.append((
@@ -111,6 +132,8 @@ def main(author): # single preset
                     outlier_detection,
                     freerider_round,
                     freerider_noise,
+                    malicious_activation_round,
+                    malicious_noise,
                     dataset,
                     aggregation_rule,
                     data_distribution,
@@ -122,6 +145,8 @@ def main(author): # single preset
                 outlier_detection,
                 freerider_round,
                 freerider_noise,
+                malicious_activation_round,
+                malicious_noise,
                 dataset,
                 aggregation_rule,
                 data_distribution,
@@ -267,6 +292,7 @@ def parseSkips():
 
         mal_round = m.group("maliciousRound")
         mal_noise = m.group("maliciousNoise")
+        alpha = m.group("dirichletAlpha")
 
 
         skips.append(
@@ -281,7 +307,7 @@ def parseSkips():
                 malicious_noise=float(mal_noise) if mal_noise != "None" else None,
                 aggregation_rule=m.group("aggregationRule"),
                 data_distribution=m.group("dataDistribution"),
-                dirichlet_alpha=m.group("dirichletAlpha"),
+                dirichlet_alpha=float(alpha) if alpha != "None" else None,
             )
         )
 
@@ -330,6 +356,8 @@ def normalize_skip(skip: Skip):
             else skip.free_rider_noise
         ),
         aggregation_rule=skip.aggregation_rule,
+        data_distribution=skip.data_distribution,
+        dirichlet_alpha=skip.dirichlet_alpha if skip.data_distribution in {"dirichlet_split", "dirichlet_split_42"} else None
     )
 
 

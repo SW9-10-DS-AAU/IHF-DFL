@@ -289,7 +289,29 @@ class PytorchModel:
                                             ))
         
         print("Participant added: {:<9} {}".format(rb(_attitude.upper()[0]+_attitude[1:]), rb("User")))
-        
+
+    def print_client_data_distributions(self):
+        """Prints the label distribution for every client's train/val sets and the global test set."""
+        if self.DATA is None:
+            self.load_data(self.NUMBER_OF_CONTRIBUTORS)
+
+        trainloaders, valloaders, testloader = self.DATA
+
+        print("\n--- CLIENT DATA DISTRIBUTIONS ---")
+        print("\nUSING DATA DISTRIBUTION:", self.data_distribution)
+        if "dirichlet" in self.data_distribution:
+            print(f"\nDirichlet alpha: {self.dirichlet_alpha}")
+
+        for i, (train_loader, val_loader) in enumerate(zip(trainloaders, valloaders)):
+            print(f"\nClient {i} Training Set:")
+            print_label_distribution(train_loader, name=f"Client {i} Train")
+
+            print(f"Client {i} Validation Set:")
+            print_label_distribution(val_loader, name=f"Client {i} Val")
+
+        print("\nGlobal Test Set:")
+        print_label_distribution(testloader, name="Test Set")
+
 
     def get_client_data_distribution(self):
         if self.DATA is None:
@@ -372,7 +394,7 @@ class PytorchModel:
             datasets = random_split(trainset, lengths, generator=gen)
 
         elif dist.startswith("stratified_split"):
-            datasets = stratified_split(trainset, lengths, generator=gen)
+            datasets = stratified_split(trainset, NUM_CLIENTS, generator=gen)
 
         elif dist.startswith("dirichlet_split"):
             datasets = dirichlet_split(trainset, NUM_CLIENTS, alpha=self.dirichlet_alpha, generator=gen)
@@ -1199,57 +1221,77 @@ def dirichlet_split(dataset, num_clients, alpha=0.5, generator=None):
 
 
 def stratified_split(dataset, lengths, generator=None):
-    if sum(lengths) != len(dataset):
-        raise ValueError("Sum of input lengths does not equal the length of the dataset")
+    from torch.utils.data import Subset
+    import torch
 
-    # Handle Subset by accessing the underlying dataset
+    # Normalize input
+    if isinstance(lengths, int):
+        num_splits = lengths
+        lengths = [1] * num_splits  # equal split
+    else:
+        num_splits = len(lengths)
+
+    total_length = sum(lengths)
+
+    # Handle subset
     if isinstance(dataset, Subset):
         actual_dataset = dataset.dataset
-        indices = dataset.indices
+        base_indices = list(dataset.indices)
     else:
         actual_dataset = dataset
-        indices = list(range(len(dataset)))
+        base_indices = list(range(len(dataset)))
 
-    # Extract labels from the actual dataset
+    # Get targets
     if hasattr(actual_dataset, "targets"):
         targets = actual_dataset.targets
     elif hasattr(actual_dataset, "labels"):
         targets = actual_dataset.labels
     else:
-        raise AttributeError("Dataset must have targets or labels attribute")
+        raise AttributeError("Dataset must have targets or labels")
 
-    targets = torch.tensor(targets)
-    targets = targets[indices]  # Filter to only the indices in this subset
+    targets = torch.as_tensor(targets, dtype=torch.long)[base_indices]
 
-    num_classes = len(torch.unique(targets))
-    class_indices = {c: (targets == c).nonzero(as_tuple=True)[0] for c in range(num_classes)}
+    # Group by class
+    classes = torch.unique(targets)
+    class_indices = {
+        int(c): (targets == c).nonzero(as_tuple=True)[0].tolist()
+        for c in classes
+    }
 
-    # Shuffle indices within each class using generator
+    # Shuffle per class
     for c in class_indices:
-        perm = torch.randperm(len(class_indices[c]), generator=generator)
-        class_indices[c] = class_indices[c][perm]
+        perm = torch.randperm(len(class_indices[c]), generator=generator).tolist()
+        class_indices[c] = [class_indices[c][i] for i in perm]
 
-    # Prepare splits
-    splits = [[] for _ in lengths]
+    splits = [[] for _ in range(num_splits)]
 
-    for c in range(num_classes):
+    # Split per class proportionally
+    for c in class_indices:
         cls_idx = class_indices[c]
         cls_len = len(cls_idx)
 
-        # Compute proportional split sizes
-        cls_lengths = [int(l / len(dataset) * cls_len) for l in lengths]
+        proportions = [l / total_length for l in lengths]
+        raw = [p * cls_len for p in proportions]
+        cls_lengths = [int(x) for x in raw]
 
-        # Assign indices
+        # distribute remainder
+        remainder = cls_len - sum(cls_lengths)
+        for i in range(remainder):
+            cls_lengths[i % num_splits] += 1
+
         start = 0
-        for i, length in enumerate(cls_lengths):
-            selected_cls_idx = cls_idx[start:start + length].tolist()
-            splits[i].extend([indices[idx] for idx in selected_cls_idx])
-            start += length
+        for i in range(num_splits):
+            selected_local = cls_idx[start:start + cls_lengths[i]]
+            selected_global = [base_indices[idx] for idx in selected_local]
+            splits[i].extend(selected_global)
+            start += cls_lengths[i]
 
-    # Return subsets without final shuffle (preserves stratification)
-    result = [Subset(actual_dataset, split) for split in splits]
-    return result
+    # Final shuffle
+    for i in range(num_splits):
+        perm = torch.randperm(len(splits[i]), generator=generator).tolist()
+        splits[i] = [splits[i][j] for j in perm]
 
+    return [Subset(actual_dataset, split) for split in splits]
 
 
 def get_label_distribution(loader):
@@ -1286,4 +1328,17 @@ def plus_more_than_one_normalize(users_contrib_scores: dict, more_than_one=1.1):
      return aggregation_scores
 
 
+def print_label_distribution(loader, name="Dataset"):
+    """
+    Prints the distribution of labels in a DataLoader.
+    """
+    label_counts = Counter()
+    for _, labels in loader:
+        label_counts.update(labels.numpy())  # Convert tensor to numpy for Counter
 
+    total = sum(label_counts.values())
+    print(f"{name} | Total samples: {total}")
+    for label in range(10):
+        count = label_counts[label]
+        print(f"  Label {label}: {count} ({count/total*100:.2f}%)")
+    print("-" * 50)
