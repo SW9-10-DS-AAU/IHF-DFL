@@ -3,6 +3,7 @@ from pathlib import Path
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
+from matplotlib.lines import Line2D
 import numpy as np
 import pandas as pd
 
@@ -475,6 +476,68 @@ def plot_round_kicked_by_strategy(
     ax.set_axisbelow(True)
     fig.tight_layout()
     return fig
+
+
+
+def plot_merge_weights_by_behavior(agg_weights: pd.DataFrame, stats: pd.DataFrame | None = None) -> plt.Figure:
+    """
+    One line per behavior, average merge weight over rounds with ±1 std shading.
+    Rounds where a behavior was never merged will have no point (NaN weight_mean).
+
+    Expects agg_weights columns: behavior, round, weight_mean, weight_std.
+    Expects stats columns: behavior, total_rounds, rounds_merged, pct_merged, users_merged.
+    """
+    fig, ax = plt.subplots(figsize=(9, 4))
+
+    for behavior, group in agg_weights.groupby("behavior"):
+        color = BEHAVIOR_COLORS.get(behavior, None)
+        group = group.sort_values("round")
+        ax.plot(group["round"], group["weight_mean"],
+                label=ROLE_LABELS.get(behavior, behavior), color=color, linewidth=2)
+        if "weight_std" in group.columns:
+            ax.fill_between(
+                group["round"],
+                group["weight_mean"] - group["weight_std"],
+                group["weight_mean"] + group["weight_std"],
+                alpha=0.15, color=color,
+            )
+
+    ax.set_xlabel("Round")
+    ax.set_ylabel("Merge Weight")
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.grid(True, alpha=0.3)
+
+    if stats is not None:
+        stats_by_behavior = stats.set_index("behavior")
+        handles, labels = [], []
+        for behavior in agg_weights["behavior"].unique():
+            color = BEHAVIOR_COLORS.get(behavior, "black")
+            role  = ROLE_LABELS.get(behavior, behavior)
+            handle = Line2D([0], [0], color=color, linewidth=2)
+            if behavior in stats_by_behavior.index:
+                row    = stats_by_behavior.loc[behavior]
+                merged = int(row["rounds_merged"])
+                total  = int(row["total_rounds"])
+                users  = int(row["user_count"])
+                label  = f"{role:<14}  {merged:>2}/{total:<2} rounds  ·  {users} user(s)"
+            else:
+                label = role
+            handles.append(handle)
+            labels.append(label)
+        ax.legend(
+            handles, labels,
+            title="Not-merged by behavior",
+            loc="lower right",
+            fontsize=8,
+            prop={"family": "monospace", "size": 8},
+            framealpha=0.9,
+            edgecolor="#cccccc",
+        )
+    else:
+        ax.legend(title="Behavior")
+    fig.tight_layout()
+    return fig
+
 
 
 def save_figure(fig: plt.Figure, path, dpi: int = 150):
