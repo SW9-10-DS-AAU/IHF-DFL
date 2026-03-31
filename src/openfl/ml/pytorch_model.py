@@ -844,17 +844,17 @@ class PytorchModel:
     def binary_switch(self, users_contrib_scores, func_1, func_2):
         if self.has_switched:
             print(f"  [binary_switch] At round {self.round}: Using {func_2.__name__}")
-            self.agg_func_1 = f"binary_switch/{func_1.__name__}"
+            self.agg_func_1 = func_1.__name__
             self.agg_weight_1 = 0.0
-            self.agg_func_2 = f"binary_switch/{func_2.__name__}"
+            self.agg_func_2 = func_2.__name__
             self.agg_weight_2 = 1.0
             return func_2(users_contrib_scores)
 
         if self.round <= 1 or self.two_previous_global_model is None:
             print(f"  [binary_switch] At round {self.round}: Using {func_1.__name__}")
-            self.agg_func_1 = f"binary_switch/{func_1.__name__}"
+            self.agg_func_1 = func_1.__name__
             self.agg_weight_1 = 1.0
-            self.agg_func_2 = f"binary_switch/{func_2.__name__}"
+            self.agg_func_2 = func_2.__name__
             self.agg_weight_2 = 0.0
             return func_1(users_contrib_scores)
 
@@ -863,17 +863,17 @@ class PytorchModel:
         if converged:
             self.has_switched = True
             print(f"  [binary_switch] Convergens detected at round {self.round}: Switching from {func_1.__name__} to {func_2.__name__}")
-            self.agg_func_1 = f"binary_switch/{func_1.__name__}"
+            self.agg_func_1 = func_1.__name__
             self.agg_weight_1 = 0.0
-            self.agg_func_2 = f"binary_switch/{func_2.__name__}"
+            self.agg_func_2 = func_2.__name__
             self.agg_weight_2 = 1.0
             return func_2(users_contrib_scores)
 
 
         print(f"  [binary_switch] At round {self.round}: Using {func_1.__name__}")
-        self.agg_func_1 = f"binary_switch/{func_1.__name__}"
+        self.agg_func_1 = func_1.__name__
         self.agg_weight_1 = 1.0
-        self.agg_func_2 = f"binary_switch/{func_2.__name__}"
+        self.agg_func_2 = func_2.__name__
         self.agg_weight_2 = 0.0
         return func_1(users_contrib_scores)
 
@@ -895,9 +895,9 @@ class PytorchModel:
         total = sum(mixed_weights.values())
         mixed_weights = {key: value / total for key, value in mixed_weights.items()}
 
-        self.agg_func_1 = f"partial_switch_accuracy/{func_1.__name__}"
+        self.agg_func_1 = func_1.__name__
         self.agg_weight_1 = 1 - accuracy_measure
-        self.agg_func_2 = f"partial_switch_accuracy/{func_2.__name__}"
+        self.agg_func_2 = func_2.__name__
         self.agg_weight_2 = accuracy_measure
 
         print(
