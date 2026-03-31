@@ -566,7 +566,6 @@ class PytorchModel:
                                                                                 accuracy*100, loss))
 
 
-
     def let_freerider_users_do_their_work(self):
         for i in range(len(self.participants)):
             if self.participants[i].attitude == "freerider":
@@ -590,48 +589,6 @@ class PytorchModel:
                                                                             user.futureAttitude)))
                 user.attitude = user.futureAttitude
                 user.color = get_color(None, user.attitude)
-    
-
-    # def let_freerider_users_do_their_work(self):
-    #     for user in self.participants:
-    #         if user.attitude == "freerider":
-    #
-    #             # # Freerider has no data and must therefore provide something random
-    #             # # After first round freerider can copy other participants
-    #             # if self.round == 1:
-    #             #     print(red("Account {} going to provide ".format(user.address[0:8]+"...") \
-    #             #                   + "random weights; starts copycat-ing " \
-    #             #                   + "next round"))
-    #             #
-    #             #     new_state_dict = manipulate(copy.deepcopy(user.model))
-    #             # else:
-    #             #     foreign_model = copy.deepcopy(self.participants[0].previousModel)
-    #             #     new_state_dict = foreign_model.state_dict()
-    #             #
-    #             # user.model.load_state_dict(new_state_dict)
-    #             #
-    #             # if self.round > 1:
-    #             #     print(red("Address {} going to add random noise to weights".format(user.address[0:16]+"...")))
-    #             #     user.model.load_state_dict(add_noise(copy.deepcopy(user.model)))
-    #             if self.round < self.freerider_start_round:
-    #                 print(yellow(
-    #                     "Address {} waiting until round {} to start freeriding".format(
-    #                         user.address[0:16] + "...",
-    #                         self.freerider_start_round,
-    #                     )
-    #                 ))
-    #                 new_state_dict = manipulate(copy.deepcopy(user.model))
-    #             else:
-    #                 new_state_dict = self._freerider_submit_with_noise(user)
-    #
-    #
-    #             user.model.load_state_dict(new_state_dict)
-    #             user.hashedModel = self.get_hash(user.model.state_dict())
-    #             loss, accuracy = test(user.model, self.test, DEVICE)
-    #             print("{:<17} {} |  Testing  | Accuracy {:>3.0f} % | Loss ∞\n".format("Account testing:   ",
-    #                                                                             user.address[0:16]+"...",
-    #                                                                             accuracy*100, loss))
-    #             # TODO: Why is loss not used here?
 
 
     def _freerider_submit_with_noise(self, user):
