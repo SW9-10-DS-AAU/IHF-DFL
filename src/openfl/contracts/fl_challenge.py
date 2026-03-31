@@ -1152,7 +1152,10 @@ class FLChallenge(FLManager):
             obj_global_loss=self.pytorch_model.loss[-1]    if self.pytorch_model.loss     else None,
             reward_pool=self._reward_balance[-1],
             punishment_pool=0,
-            aggregation_func_used=self.pytorch_model.aggregation_func_used
+            agg_func_1=self.pytorch_model.agg_func_1,
+            agg_weight_1=self.pytorch_model.agg_weight_1,
+            agg_func_2=self.pytorch_model.agg_func_2,
+            agg_weight_2=self.pytorch_model.agg_weight_2
         )
         all_users = self.pytorch_model.participants + self.pytorch_model.disqualified
         for _user in all_users:
@@ -1184,7 +1187,10 @@ class FLChallenge(FLManager):
             obj_global_loss=self.pytorch_model.loss[-1] if self.pytorch_model.loss else 0,
             reward_pool=self._reward_balance[-1],
             punishment_pool=punishment_pool,
-            aggregation_func_used=self.pytorch_model.aggregation_func_used
+            agg_func_1=self.pytorch_model.agg_func_1,
+            agg_weight_1=self.pytorch_model.agg_weight_1,
+            agg_func_2=self.pytorch_model.agg_func_2,
+            agg_weight_2=self.pytorch_model.agg_weight_2
         )
 
     def _log_round(self, current_round, round_time,

@@ -183,7 +183,10 @@ class PytorchModel:
         self.force_merge_all = force_merge_all
         self.use_nobody_is_kicked = use_nobody_is_kicked
         self.has_switched = False
-        self.aggregation_func_used = None
+        self.agg_func_1 = None
+        self.agg_weight_1 = None
+        self.agg_func_2 = None
+        self.agg_weight_2 = None
 
 
         if freerider_noise_scale < 0:
@@ -585,22 +588,37 @@ class PytorchModel:
 
         if aggregation_rule == "FedAVG":
             users_merge_weights = {u.address: 1.0 / n_clients for u in _users}
-            self.aggregation_func_used = "FedAVG"
+            self.agg_func_1 = "FedAVG"
+            self.agg_weight_1 = 1.0
+            self.agg_func_2 = None
+            self.agg_weight_2 = None
 
         elif aggregation_rule == "positives_only":
             users_merge_weights = positives_only(users_contribution_scores)
-            self.aggregation_func_used = "positives_only"
+            self.agg_func_1 = "positives_only"
+            self.agg_weight_1 = 1.0
+            self.agg_func_2 = None
+            self.agg_weight_2 = None
 
         elif aggregation_rule == "plus_one_normalize":
             users_merge_weights = plus_one_normalize(users_contribution_scores)
-            self.aggregation_func_used = "plus_one_normalize"
+            self.agg_func_1 = "plus_one_normalize"
+            self.agg_weight_1 = 1.0
+            self.agg_func_2 = None
+            self.agg_weight_2 = None
 
         elif aggregation_rule == "plus_more_than_one_normalize":
             users_merge_weights = plus_more_than_one_normalize(users_contribution_scores)
-            self.aggregation_func_used = "plus_more_than_one_normalize"
+            self.agg_func_1 = "plus_more_than_one_normalize"
+            self.agg_weight_1 = 1.0
+            self.agg_func_2 = None
+            self.agg_weight_2 = None
 
         elif aggregation_rule == "binary_switch":
             users_merge_weights = self.binary_switch(users_contribution_scores, positives_only, plus_one_normalize)
+
+        elif aggregation_rule == "partial_switch_accuracy":
+            users_merge_weights = self.partial_switch_accuracy(users_contribution_scores, positives_only, plus_one_normalize)
 
         else:
             raise ValueError(f"Unknown merge strategy: {aggregation_rule}")
@@ -826,12 +844,18 @@ class PytorchModel:
     def binary_switch(self, users_contrib_scores, func_1, func_2):
         if self.has_switched:
             print(f"  [binary_switch] At round {self.round}: Using {func_2.__name__}")
-            self.aggregation_func_used = f"binary_switch/{func_2.__name__}"
+            self.agg_func_1 = f"binary_switch/{func_1.__name__}"
+            self.agg_weight_1 = 0.0
+            self.agg_func_2 = f"binary_switch/{func_2.__name__}"
+            self.agg_weight_2 = 1.0
             return func_2(users_contrib_scores)
 
         if self.round <= 1 or self.two_previous_global_model is None:
             print(f"  [binary_switch] At round {self.round}: Using {func_1.__name__}")
-            self.aggregation_func_used = f"binary_switch/{func_1.__name__}"
+            self.agg_func_1 = f"binary_switch/{func_1.__name__}"
+            self.agg_weight_1 = 1.0
+            self.agg_func_2 = f"binary_switch/{func_2.__name__}"
+            self.agg_weight_2 = 0.0
             return func_1(users_contrib_scores)
 
         converged = self.models_are_equal(self.previous_global_model, self.two_previous_global_model)
@@ -839,14 +863,47 @@ class PytorchModel:
         if converged:
             self.has_switched = True
             print(f"  [binary_switch] Convergens detected at round {self.round}: Switching from {func_1.__name__} to {func_2.__name__}")
-            self.aggregation_func_used = f"binary_switch/{func_2.__name__}"
+            self.agg_func_1 = f"binary_switch/{func_1.__name__}"
+            self.agg_weight_1 = 0.0
+            self.agg_func_2 = f"binary_switch/{func_2.__name__}"
+            self.agg_weight_2 = 1.0
             return func_2(users_contrib_scores)
 
 
         print(f"  [binary_switch] At round {self.round}: Using {func_1.__name__}")
-        self.aggregation_func_used = f"binary_switch/{func_1.__name__}"
+        self.agg_func_1 = f"binary_switch/{func_1.__name__}"
+        self.agg_weight_1 = 1.0
+        self.agg_func_2 = f"binary_switch/{func_2.__name__}"
+        self.agg_weight_2 = 0.0
         return func_1(users_contrib_scores)
 
+    def partial_switch_accuracy(self, users_contrib_scores, func_1, func_2):
+
+        current_accuracy = self.accuracy[-1] # latest accuracy
+
+        accuracy_measure = current_accuracy  # How much % to use func_2 (0,47 -> 47% func_2)
+
+        weights_1 = func_1(users_contrib_scores) # Generate weights using the primary/early-stage aggregator
+        weights_2 = func_2(users_contrib_scores) # Generate weights using the secondary/late-stage aggregator
+
+        mixed_weights = {
+            key: (1 - accuracy_measure) * weights_1[key] + accuracy_measure * weights_2[key]
+            for key in users_contrib_scores
+        }
+
+        # Normalizing
+        total = sum(mixed_weights.values())
+        mixed_weights = {key: value / total for key, value in mixed_weights.items()}
+
+        self.agg_func_1 = f"partial_switch_accuracy/{func_1.__name__}"
+        self.agg_weight_1 = 1 - accuracy_measure
+        self.agg_func_2 = f"partial_switch_accuracy/{func_2.__name__}"
+        self.agg_weight_2 = accuracy_measure
+
+        print(
+            f"  [partial_switch_accuracy] Round {self.round}: accuracy={current_accuracy:.3f} → {(1 - accuracy_measure) * 100:.0f}% {func_1.__name__} / {accuracy_measure * 100:.0f}% {func_2.__name__}")
+
+        return mixed_weights
 
     
 # PYTORCH FUNCTIONS
