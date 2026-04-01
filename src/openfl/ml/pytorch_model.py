@@ -651,6 +651,9 @@ class PytorchModel:
         elif aggregation_rule == "binary_switch":
             users_merge_weights = self.binary_switch(users_contribution_scores, positives_only, plus_one_normalize)
 
+        elif aggregation_rule == "GRS_aggregation":
+            users_merge_weights = self.GRS_aggregation(_users)
+
         else:
             raise ValueError(f"Unknown merge strategy: {aggregation_rule}")
 
@@ -886,7 +889,14 @@ class PytorchModel:
 
         return func_1(users_contrib_scores)
 
-    
+    def GRS_aggregation(self, users):
+        total_grs = sum(user._globalrep[-1] for user in users)
+
+        aggregation_scores = {user.address: user._globalrep[-1] / total_grs for user in users}
+        return aggregation_scores
+
+
+
 # PYTORCH FUNCTIONS
 def train(
     net,
@@ -1283,6 +1293,8 @@ def plus_more_than_one_normalize(users_contrib_scores: dict, more_than_one=1.1):
      sum_ = sum(normalized_scores.values())
      aggregation_scores = {user_id: score / sum_ for user_id, score in normalized_scores.items()}
      return aggregation_scores
+
+
 
 
 def print_label_distribution(loader, name="Dataset"):

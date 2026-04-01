@@ -1274,8 +1274,7 @@ class FLChallenge(FLManager):
         At the end, all users exit the system.
         """
 
-        #TODO remove this shit
-        self.pytorch_model.print_client_data_distributions()
+        # self.pytorch_model.print_client_data_distributions()
 
 
         print(self.modelAddress)
@@ -1341,16 +1340,20 @@ class FLChallenge(FLManager):
             print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
             self.contribution_score(contributors)
 
-            # If not dotproduct, we calculate contribution score before the merge
-            if not self.experiment_config.contribution_score_strategy == "dotproduct":
-                self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule, collector=users_weight_collector)
             receipt = self.close_round()
 
-            print(b(f"Round {self.pytorch_model.round - 1} actually completed:"))
+            print(b(f"Round {self.pytorch_model.round - 1} almost completed:"))
             for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
                 user._globalrep.append(self.get_global_reputation_of_user(user.address))
                 i, j = user._globalrep[-2:]
                 print(b("{}  {:>25,.0f} -> {:>25,.0f}".format(user.address[0:16] + "...", i, j)))
+
+            # If not dotproduct, we calculate contribution score before the merge
+            if not self.experiment_config.contribution_score_strategy == "dotproduct":
+                self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule, collector=users_weight_collector)
+
+
+
 
             # self.print_round_summary(receipt)
             if receipt is not None:
