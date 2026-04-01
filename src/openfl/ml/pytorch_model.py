@@ -900,9 +900,6 @@ class PytorchModel:
         self.agg_func_2 = func_2.__name__
         self.agg_weight_2 = accuracy_measure
 
-        print(
-            f"  [partial_switch_accuracy] Round {self.round}: accuracy={current_accuracy:.3f} → {(1 - accuracy_measure) * 100:.0f}% {func_1.__name__} / {accuracy_measure * 100:.0f}% {func_2.__name__}")
-
         return mixed_weights
 
     
