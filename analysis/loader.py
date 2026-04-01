@@ -37,20 +37,9 @@ def load_run(path: Path) -> RunData:
     )
 
 
-def load_runs(directory: Path) -> list[RunData]:
-    """Load all .pkl files in a flat directory."""
-    directory = Path(directory)
-    runs = []
-    for pkl_file in sorted(directory.glob("*.pkl")):
-        try:
-            runs.append(load_run(pkl_file))
-        except Exception as e:
-            print(f"Warning: could not load {pkl_file}: {e}")
-    return runs
-
-
-def load_runs_recursive(
+def load_runs(
     root: Path,
+    recursive: bool = True,
     prefix: str | None = None,
     experiment_ids: list[str] | None = None,
     aggregation_rule: str | None = None,
@@ -81,7 +70,8 @@ def load_runs_recursive(
     """
     root = Path(root)
     runs = []
-    for pkl_file in sorted(root.rglob("*.pkl")):
+    glob_fn = root.rglob if recursive else root.glob
+    for pkl_file in sorted(glob_fn("*.pkl")):
         if prefix is not None and not pkl_file.parent.name.startswith(prefix):
             continue
         if experiment_ids is not None and not any(guid in pkl_file.stem for guid in experiment_ids):
