@@ -1273,6 +1273,11 @@ class FLChallenge(FLManager):
           9) Close round, print summary
         At the end, all users exit the system.
         """
+
+        #TODO remove this shit
+        self.pytorch_model.print_client_data_distributions()
+
+
         print(self.modelAddress)
         self.register_all_users()
         
@@ -1470,7 +1475,7 @@ class FLChallenge(FLManager):
         axs[0].text(0, 0.1, f'dataset={self.pytorch_model.DATASET}\n'\
                                  + f'epochs={self.pytorch_model.EPOCHS}\n' \
                                  + f'rounds={self.pytorch_model.round-1}\n' \
-                                 + f'users={self.pytorch_model.NUMBER_OF_CONTRIBUTERS}\n' \
+                                 + f'users={self.pytorch_model.NUMBER_OF_CONTRIBUTORS}\n' \
                                  + f'malicious={self.pytorch_model.NUMBER_OF_BAD_CONTRIBUTORS}\n'\
                                  + f'copycat={self.pytorch_model.NUMBER_OF_FREERIDER_CONTRIBUTORS}', fontsize=15)
         axs[0].set_axis_off()

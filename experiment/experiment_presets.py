@@ -32,6 +32,8 @@ class ExperimentPreset:
     malicious_noise_scale: list[float] | None
     malicious_start_round: list[int] | None
     aggregation_rule: list[str]
+    data_distribution: list[str]
+    dirichlet_alpha: list[float] | None
 
 
 # Full preset (used when use_defaults=False)
@@ -69,6 +71,8 @@ PRESETS = {
         malicious_noise_scale=[1.0],
         malicious_start_round=[3],
         aggregation_rule=["FedAVG"],
+        data_distribution= ["random_split_42"],
+        dirichlet_alpha= None,
     ),
 
     "mnist_openfl_w_outlier": ExperimentPreset(
@@ -85,6 +89,8 @@ PRESETS = {
         malicious_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         malicious_start_round=[1, 3, 5],
         aggregation_rule= ["FedAVG"],
+        data_distribution= ["random_split_42"],
+        dirichlet_alpha= None,
     ),
 
     "mnist_openfl_w/o_outlier": ExperimentPreset(
@@ -101,6 +107,8 @@ PRESETS = {
         malicious_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         malicious_start_round=[1, 3, 5],
         aggregation_rule= ["FedAVG"],
+        data_distribution= ["random_split_42"],
+        dirichlet_alpha= None,
     ),
 
     "cifar_openfl_w_outlier": ExperimentPreset(
@@ -117,6 +125,8 @@ PRESETS = {
         malicious_noise_scale=None,
         malicious_start_round=None,
         aggregation_rule= ["FedAVG"],
+        data_distribution= ["random_split_42"],
+        dirichlet_alpha= None,
     ),
 
     "cifar_openfl_w/o_outlier": ExperimentPreset(
@@ -133,6 +143,8 @@ PRESETS = {
         malicious_noise_scale=None,
         malicious_start_round=None,
         aggregation_rule= ["FedAVG"],
+        data_distribution= ["random_split_42"],
+        dirichlet_alpha= None,
     ),
 
     "aggregation_rules_test_model_performance_mnist": FullPreset(
@@ -160,6 +172,8 @@ PRESETS = {
         malicious_noise_scale=None,
         malicious_start_round=None,
         aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize"],
+        data_distribution= ["random_split_42"],
+        dirichlet_alpha= None,
     ),
 
     "aggregation_rules_test_model_performance_people_get_kicked_now_mnist": FullPreset(
@@ -171,7 +185,7 @@ PRESETS = {
         first_round_fee=50,
         punish_factor=3,
         punish_factor_contrib=3,
-        force_merge_all=False,
+        force_merge_all=True,
         use_nobody_is_kicked=True,
         number_of_inactive_contributors=0,
         number_of_good_contributors=4,
@@ -186,7 +200,9 @@ PRESETS = {
         freerider_start_round=[1], # 1
         malicious_noise_scale=[0.1],
         malicious_start_round=None,
-        aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize"], # 3
+        aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize", "binary_switch"], # 3
+        data_distribution= ["random_split_42"], # 1
+        dirichlet_alpha= None
     ),
     "aggregation_rules_test_model_performance_people_get_kicked_now_cifar": FullPreset(
         fork=True,
@@ -213,7 +229,37 @@ PRESETS = {
         malicious_noise_scale=[0.1],
         malicious_start_round=None,
         aggregation_rule=["binary_switch","positives_only", "FedAVG", "plus_one_normalize"], # 4
-    )
+        data_distribution= ["random_split_42"], # 1
+        dirichlet_alpha= None,
+    ),
+"data_distribution_mnist": FullPreset(
+        fork=True,
+        reward=int(1e18),
+        standard_buy_in=int(1e18),
+        min_buy_in=int(1e18),
+        max_buy_in=int(1e18),
+        first_round_fee=50,
+        punish_factor=3,
+        punish_factor_contrib=3,
+        force_merge_all=True,
+        use_nobody_is_kicked=True,
+        number_of_inactive_contributors=0,
+        number_of_good_contributors=4,
+        number_of_bad_contributors=1,
+        number_of_freerider_contributors=1,
+        minimum_rounds=50,
+        epochs=1,
+        batch_size=32,
+        use_outlier_detection=[True],
+        contribution_score_strategy=["loss_only"], #loss_only is the only loss'os
+        freerider_noise_scale=[0.0], # 0.0
+        freerider_start_round=[1], # 1
+        malicious_noise_scale=[0.1],
+        malicious_start_round=None,
+        aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize"], # 3
+        data_distribution= ["random_split_42", "stratified_split_42", "dirichlet_split_42"], # 3
+        dirichlet_alpha= [0.5, 5.0],
+    ),
 }
 
 

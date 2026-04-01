@@ -45,6 +45,8 @@ class ExperimentConfiguration:
             self.aggregation_rule = _unwrap_first(p.aggregation_rule)
             self.malicious_noise_scale = _unwrap_first(p.malicious_noise_scale) if _unwrap_first(p.malicious_noise_scale) is not None else self.freerider_noise_scale
             self.malicious_start_round = _unwrap_first(p.malicious_start_round) if _unwrap_first(p.malicious_start_round) is not None else self.freerider_start_round
+            self.data_distribution = _unwrap_first(p.data_distribution)
+            self.dirichlet_alpha = _unwrap_first(p.dirichlet_alpha) if _unwrap_first(p.dirichlet_alpha) is not None else None
 
         else:
 
@@ -54,7 +56,7 @@ class ExperimentConfiguration:
                 )
 
             for k, v in p.__dict__.items():
-                setattr(self, k, v)
+                setattr(self, k, _unwrap_first(v))
 
     @property
     def number_of_contributors(self):

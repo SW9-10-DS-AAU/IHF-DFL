@@ -56,6 +56,8 @@ def load_runs_recursive(
     aggregation_rule: str | None = None,
     contribution_score: str | None = None,
     dataset: str | None = None,
+    data_distribution: str | None = None,
+    dirichlet_alpha: str | None = None,
 ) -> list[RunData]:
     """Recursively walk subdirectories and load all .pkl files.
 
@@ -72,6 +74,10 @@ def load_runs_recursive(
                             Matched as a substring of the .pkl filename stem. Pass None (default) to load everything.
         dataset:            Optional dataset to filter by (e.g. "mnist", "cifar.10").
                             Matched as a substring of the .pkl filename stem. Pass None (default) to load everything.
+        data_distribution:  Optional data distribution to filter by (e.g. "random_split", "dirichlet_split").
+                               Matched as a substring of the .pkl filename stem. Pass None (default) to load everything.
+        dirichlet_alpha:       Optional dirichlet alpha value to filter by (e.g. "0.5").
+                               Matched as a substring of the .pkl filename stem. Pass None (default) to load everything.
     """
     root = Path(root)
     runs = []
@@ -85,6 +91,10 @@ def load_runs_recursive(
         if contribution_score is not None and contribution_score not in pkl_file.stem:
             continue
         if dataset is not None and dataset not in pkl_file.stem:
+            continue
+        if data_distribution is not None and data_distribution not in pkl_file.stem:
+            continue
+        if dirichlet_alpha is not None and dirichlet_alpha not in pkl_file.stem:
             continue
         try:
             runs.append(load_run(pkl_file))

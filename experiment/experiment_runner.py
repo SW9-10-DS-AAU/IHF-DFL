@@ -41,11 +41,12 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
   else:
     PRIVKEYS = None
 
-  pytorch_model = PM.PytorchModel(dataset_name, 
+
+
+  pytorch_model = PM.PytorchModel(dataset_name,
                               experiment_config.number_of_good_contributors,
                               experiment_config.number_of_bad_contributors,
                               experiment_config.number_of_freerider_contributors,
-                              experiment_config.number_of_contributors,
                               experiment_config.epochs, 
                               experiment_config.batch_size, 
                               experiment_config.standard_buy_in,
@@ -55,7 +56,9 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
                               experiment_config.malicious_start_round,
                               experiment_config.malicious_noise_scale,
                               experiment_config.force_merge_all,
-                              experiment_config.use_nobody_is_kicked)
+                              experiment_config.use_nobody_is_kicked,
+                              experiment_config.data_distribution,
+                              experiment_config.dirichlet_alpha)
 
 
   manager = Manager.FLManager(pytorch_model, True).init(
