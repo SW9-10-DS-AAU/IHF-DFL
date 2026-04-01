@@ -3,6 +3,7 @@ import datetime
 import os
 import time
 import warnings
+import math
 
 import torch
 import numpy as np
@@ -759,6 +760,7 @@ class FLChallenge(FLManager):
         calculator = self._get_contribution_score_calculator()
         self.scores = calculator(_users)
 
+        # contribution scoring reward
         txs = []
         for u, score in zip(_users, self.scores):
             u.contribution_score = score
@@ -787,6 +789,36 @@ class FLChallenge(FLManager):
 
         for i, txHash in enumerate(txs):
             self.track_transaction(i, txHash, len(txs), "contrib")
+
+        # evaluation voting rewards
+        if True:    # Todo: tilføj til eksperiment_config, så vi kan gøre det her:  self.experiment_config.use_voting_evaluation:
+            txs = []
+            for u in _users:
+                if self.fork:
+                    tx = super().build_tx(u.address, self.modelAddress)
+                    tx_hash = self.model.functions.submitVotingEvaluation(
+                        int(Decimal(u.evaluation_reward) * Decimal('1e18'))
+                    ).transact(tx)
+                else:  # TODO: Dobbeltjek at logic er rigtig her.
+                    nonce = self.w3.eth.get_transaction_count(u.address)
+                    cl = super().build_non_fork_tx(
+                        u.address,
+                        nonce,
+                    )
+                    cl = self.model.functions.submitVotingEvaluation(
+                        int(Decimal(u.evaluation_reward) * Decimal('1e18')),
+                    ).build_transaction(cl)
+                    pk = u.privateKey
+                    signed = self.w3.eth.account.sign_transaction(cl, private_key=pk)
+                    tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
+                txs.append(tx_hash)
+
+                print(green(f"\nUSER @ {u.id}"))
+                print(green(f"{'EVALUATION REWARD:':25}{u.evaluation_reward}"))
+
+            for i, txHash in enumerate(txs):
+                self.track_transaction(i, txHash, len(txs), "eval")
+
 
         print("-----------------------------------------------------------------------------------\n")
 
@@ -962,6 +994,7 @@ class FLChallenge(FLManager):
         """
         Loss-based scoring: use loss directly as contribution score.
         """
+
         # losses: 1d array
         # prev_loss: int
 
@@ -975,9 +1008,12 @@ class FLChallenge(FLManager):
         avg_losses = [] # after loop: [60, 70, 50, 80]
         per_user_outlier_info = []
 
+        user_map = {u.address: u for u in users}
+        for u in users: u.evaluation_reward = 0
+
         for u in users: # For loop to extract losses.
             # All loses per user
-            _, losses = self.model.functions.getAllLossesAbout(u.address).call()
+            voters, losses = self.model.functions.getAllLossesAbout(u.address).call()
 
             try:
                 # Multiple accuracies and losses per user
@@ -992,6 +1028,18 @@ class FLChallenge(FLManager):
             except Exception as e:
                 per_user_outlier_info.append({})
                 raise type(e)(f"Failed while processing user data: {e}") from e
+
+
+            rewards = softmax_rewards(losses, avg_loss, 1, 0.01)
+            for voter, reward in zip(voters, rewards):
+                if voter in user_map:
+                    user_map[voter].evaluation_reward += reward
+                else:
+                    warnings.warn("Voter {} not found among merging users".format(voter))
+
+
+
+
 
 
 
@@ -1745,3 +1793,9 @@ def remove_outliers_mad(arr, threshold=0.70, return_mask=False, collector=None, 
 runtime_warnings = []
 
 
+def softmax_rewards(values, true_value, total_reward, alpha):
+    distances = [abs(v - true_value) for v in values]
+    weights = [math.exp(-alpha * d) for d in distances]
+    total_weight = sum(weights)
+    rewards = [total_reward * w / total_weight for w in weights]
+    return rewards

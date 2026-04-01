@@ -59,7 +59,9 @@ contract OpenFLModel {
     mapping(address => mapping(uint8 => bytes32)) public secretOf;
     mapping(address => mapping(uint8 => bytes32)) public weightsOf;
     mapping(uint8 => mapping(address => int256)) public contributionScore; // round => user => score
-    mapping(uint8 => uint256) public nrOfContributionScores; // round => number of submissions
+    mapping(uint8 => mapping(address => uint256)) public evaluationScore; // round => user => score
+    mapping(uint8 => uint16) public nrOfContributionScores; // round => number of submissions
+    mapping(uint8 => uint16) public nrOfEvaluationScores; // round => number of submissions
 
     struct AccuracyLossSubmission {
         address[] adrs;
@@ -160,6 +162,11 @@ contract OpenFLModel {
         int256 contributionScore
     );
 
+    event EvaluationScoreSubmitted(
+        address indexed user,
+        uint256 evaluationScore
+    );
+
     event EndRound(
         uint8 round,
         uint8 validVotes,
@@ -189,6 +196,7 @@ contract OpenFLModel {
     );
 
     event Reward(address user, int256 roundScore, uint win, uint newReputation, bool is_reward);
+    event EvaluationVotingReward(address user, uint rewarded, uint staked, uint newReputation);
 
     constructor(
         bytes32 _modelHash,
@@ -328,13 +336,26 @@ contract OpenFLModel {
         require(users[msg.sender].isRegistered, "User not registered");
         require(
             contributionScore[round][msg.sender] == 0,
-            "Score already submitted"
+            "Contribution Score already submitted"
         );
 
         contributionScore[round][msg.sender] = score;
         nrOfContributionScores[round] += 1;
 
         emit ContributionScoreSubmitted(msg.sender, score);
+    }
+
+    function submitVotingEvaluation(uint256 score) external {
+        require(users[msg.sender].isRegistered, "User not registered");
+        require(
+            evaluationScore[round][msg.sender] == 0,
+            "Evaluation score already submitted"
+        );
+
+        evaluationScore[round][msg.sender] = score;
+        nrOfEvaluationScores[round] += 1;
+
+        emit EvaluationScoreSubmitted(msg.sender, score);
     }
 
     function isFeedBackRoundDone() public view returns (bool roundClosed) {
@@ -365,6 +386,9 @@ contract OpenFLModel {
             }
         }
         if (nrOfContributionScores[round] < mergedUsers) {
+            return false;
+        }
+        if (nrOfEvaluationScores[round] < mergedUsers) {
             return false;
         }
 
@@ -479,6 +503,41 @@ contract OpenFLModel {
             }
         }
 
+
+        // Evaluation scores based on evaluation votes. TODO: We do we break in 2nd round? something about resetting contrib score, but not evaluation scores possibly?
+        uint evaluation_disqualification_pool = 0;
+
+        for (uint i = 0; i < participants.length; i++) {
+            User storage user = users[participants[i]];
+            if (user.isRegistered && !user.isDisqualified && _isEligibleForRewards(user)) {
+                uint staking_min_grs = min_collateral / punishfactorContrib;
+                uint evaluation_reward = (evaluationScore[round][user.addr] * staking_min_grs) / 1e18;
+                if (user.globalReputationScore - staking_min_grs + evaluation_reward <= staking_min_grs) {
+                        evaluation_disqualification_pool += user.globalReputationScore;
+                        emit Disqualification(
+                            participants[i],
+                            user.roundReputation,
+                            user.globalReputationScore,
+                            0
+                        );
+                        user.globalReputationScore = 0;
+                        nrOfActiveParticipants -= 1;
+                        user.isDisqualified = true;
+                } else {
+                    user.globalReputationScore = user.globalReputationScore - staking_min_grs + evaluation_reward;
+
+                    emit EvaluationVotingReward(
+                        user.addr,
+                        evaluation_reward,
+                        staking_min_grs,
+                        user.globalReputationScore
+                    );
+                }
+            }
+        }
+
+
+
         // Devide reward between every user who provided (non-malicious) feedback
         // Pay back freeriderLock funds to good users
         // First round users pay their anti-freerider fee
@@ -489,7 +548,7 @@ contract OpenFLModel {
 
             uint reward = rewardPerRound;
             reward += totalPunishment;
-
+            reward += evaluation_disqualification_pool;
 
             // Compute weights
             for (uint i = 0; i < participants.length; i++) {
