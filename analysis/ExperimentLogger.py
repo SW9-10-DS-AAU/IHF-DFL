@@ -22,7 +22,9 @@ class ExperimentLogger:
 
     def log_global_round(self, round=None, round_time=None,
                          obj_global_acc=None, obj_global_loss=None,
-                         reward_pool=None, punishment_pool=None):
+                         reward_pool=None, punishment_pool=None,
+                         agg_func_1=None, agg_weight_1=None,
+                         agg_func_2=None, agg_weight_2=None):
 
         self._global_rows.append({
             "experiment_id": self.experiment_id,
@@ -31,8 +33,11 @@ class ExperimentLogger:
             "objective_global_accuracy": obj_global_acc,
             "objective_global_loss": obj_global_loss,
             "reward_pool": reward_pool,
-            "punishment_pool": punishment_pool
-
+            "punishment_pool": punishment_pool,
+            "agg_func_1": agg_func_1,
+            "agg_weight_1": agg_weight_1,
+            "agg_func_2": agg_func_2,
+            "agg_weight_2": agg_weight_2
             # Add
         })
 

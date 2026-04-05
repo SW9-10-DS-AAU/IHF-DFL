@@ -83,13 +83,13 @@ contract OpenFLModel {
 
     // Mapping from sender to all their submissions
     mapping(uint16 => mapping(address => AccuracyLossSubmission[]))
-        private accuracyLossSubmissions;
+    private accuracyLossSubmissions;
 
     mapping(uint16 => mapping(address => AccuracySubmission[]))
-        private accuracySubmissions;
+    private accuracySubmissions;
 
     mapping(uint16 => mapping(address => LossSubmission[]))
-        private lossSubmissions;
+    private lossSubmissions;
 
 
     modifier onlyRegisteredUsers() {
@@ -100,7 +100,7 @@ contract OpenFLModel {
     modifier feedbackRoundOpened() {
         require(
             nrOfProvidedHashedWeights == nrOfActiveParticipants ||
-                roundStart + ONE_DAY < block.timestamp,
+            roundStart + ONE_DAY < block.timestamp,
             "FRC"
         );
         _;
@@ -109,7 +109,7 @@ contract OpenFLModel {
     modifier feedbackRoundClosed() {
         require(
             nrOfProvidedHashedWeights != nrOfActiveParticipants &&
-                roundStart + ONE_DAY > block.timestamp,
+            roundStart + ONE_DAY > block.timestamp,
             "NA"
         );
         require(weightsOf[msg.sender][round] == bytes32(0), "WFE");
@@ -280,7 +280,7 @@ contract OpenFLModel {
     ) public onlyRegisteredUsers hasNotYetProvidedWeights {
         require(
             secretOf[msg.sender][round] ==
-                keccak256(abi.encodePacked(hashedWeights, salt, msg.sender)),
+            keccak256(abi.encodePacked(hashedWeights, salt, msg.sender)),
             "NKS"
         );
         weightsOf[msg.sender][round] = hashedWeights;
@@ -291,11 +291,11 @@ contract OpenFLModel {
         address target,
         int256 score
     )
-        public
-        virtual
-        onlyRegisteredUsers
-        onlyValidTargets(target)
-        feedbackRoundOpened
+    public
+    virtual
+    onlyRegisteredUsers
+    onlyValidTargets(target)
+    feedbackRoundOpened
     {
         //(address target, int score) = abi.decode(data, (address, int));
         hasVoted[msg.sender][target] = true;
@@ -307,7 +307,7 @@ contract OpenFLModel {
                 1 *
                 int(users[msg.sender].globalReputationScore);
         }
-        if (score == -1) {
+        if (score == - 1) {
             votedPositiveFor[msg.sender][target] = false;
             users[target].roundReputation -=
                 1 *
@@ -446,7 +446,7 @@ contract OpenFLModel {
                         votedPositiveFor[participants[i]][punishedAddresses[j]]
                     ) {
                         votedPositiveFor[participants[i]][
-                            punishedAddresses[j]
+                        punishedAddresses[j]
                         ] = false;
                         votesPerRound -= user.nrOfVotesFromUser;
                         user.whitelistedForRewards = false;
@@ -489,7 +489,6 @@ contract OpenFLModel {
 
             uint reward = rewardPerRound;
             reward += totalPunishment;
-
 
             // Compute weights
             for (uint i = 0; i < participants.length; i++) {
@@ -643,14 +642,14 @@ contract OpenFLModel {
         );
         require(
             losses.length == ads.length, "INVALID_LENGTH OF LOSS ARRAY");
-            accuracyLossSubmissions[round][msg.sender].push(
+        accuracyLossSubmissions[round][msg.sender].push(
             AccuracyLossSubmission({adrs: ads, acc: accuracies, loss: losses})
         );
         require(
             prev_acc >= 0 && prev_acc <= 10000,
             "PREVIOUS ACCURACY NOT BETWEEN 0 AND 10000 in submitFeedbackBytesAndAccuraciesLosses"
         );
-        require (
+        require(
             prev_loss >= 0 && prev_loss <= 65535,
             "PREVIOUS LOSS NOT BETWEEN 0 AND 65535 in submitFeedbackBytesAndAccuraciesLosses"
         );
@@ -663,7 +662,7 @@ contract OpenFLModel {
     }
 
 
-     function submitFeedbackBytesAndAccuracies(
+    function submitFeedbackBytesAndAccuracies(
         bytes calldata raw,
         uint16[] calldata accuracies,
         uint16 prev_acc
@@ -671,14 +670,14 @@ contract OpenFLModel {
         address[] memory ads;
         int16[] memory ints;
 
-         (ads, ints) = parseRaw(raw);
+        (ads, ints) = parseRaw(raw);
 
         require(
             accuracies.length == ads.length,
             "INVALID_LENGTH OF ACCURACY ARRAY"
         );
 
-         accuracySubmissions[round][msg.sender].push(
+        accuracySubmissions[round][msg.sender].push(
             AccuracySubmission({adrs: ads, acc: accuracies})
         );
         require(
@@ -708,7 +707,7 @@ contract OpenFLModel {
 
         require(
             losses.length == ads.length, "INVALID_LENGTH OF LOSS ARRAY");
-            lossSubmissions[round][msg.sender].push(
+        lossSubmissions[round][msg.sender].push(
             LossSubmission({adrs: ads, loss: losses})
         );
 
@@ -728,9 +727,9 @@ contract OpenFLModel {
     }
 
     function parseRaw(bytes calldata raw)
-        internal
-        pure
-        returns (address[] memory ads, int16[] memory ints)
+    internal
+    pure
+    returns (address[] memory ads, int16[] memory ints)
     {
 
         assembly {
@@ -777,14 +776,86 @@ contract OpenFLModel {
         }
     }
 
+    function getAllPriorPriorAccuraciesAndLosses() // Two steps back compared to previous
+    external
+    view
+    returns (
+//      address[] memory addresses,
+        uint16[] memory previous_accuracies,
+        uint16[] memory previous_losses
+    )
+    {
+        require(round >= 2, "Need at least 2 completed rounds for prior-prior data");
 
-    function getAllPreviousAccuraciesAndLosses()
-        external
-        view
-        returns (
-            uint16[] memory previous_accuracies,
-            uint16[] memory previous_losses
-        )
+        uint8 count_merged_participants = 0;
+        for (uint i = 0; i < participants.length; i++) {
+            User storage u = users[participants[i]];
+            if (u.isRegistered && !u.isDisqualified && u.roundReputation >= 0) {
+                count_merged_participants += 1;
+            }
+        }
+
+//      addresses = new address[](count_merged_participants);
+        previous_accuracies = new uint16[](count_merged_participants);
+        previous_losses = new uint16[](count_merged_participants);
+        uint8 j = 0;
+        for (uint i = 0; i < participants.length; i++) {
+            User storage u = users[participants[i]];
+            if (u.isRegistered && !u.isDisqualified && u.roundReputation >= 0) {
+//              addresses[j] = participants[i];
+                previous_accuracies[j] = prev_accs[round - 2][participants[i]];
+                previous_losses[j] = prev_losses[round - 2][participants[i]];
+                j++;
+            }
+        }
+    }
+
+    function getAllPriorAccuraciesAndLosses() // One step back compared to previous
+    external
+    view
+    returns (
+//      address[] memory addresses,
+        uint16[] memory previous_accuracies,
+        uint16[] memory previous_losses
+    )
+    {
+        require(round >= 1, "No previous round data available");
+
+        uint8 count_merged_participants = 0;
+        for (uint i = 0; i < participants.length; i++) {
+            User storage u = users[participants[i]];
+            if (u.isRegistered && !u.isDisqualified && u.roundReputation >= 0) {
+                count_merged_participants += 1;
+            }
+        }
+
+//      addresses = new address[](count_merged_participants);
+        previous_accuracies = new uint16[](count_merged_participants);
+        previous_losses = new uint16[](count_merged_participants);
+        uint8 j = 0;
+        for (uint i = 0; i < participants.length; i++) {
+            User storage u = users[participants[i]];
+            if (u.isRegistered && !u.isDisqualified && u.roundReputation >= 0) {
+//              addresses[j] = participants[i];
+                previous_accuracies[j] = prev_accs[round - 1][participants[i]];
+                previous_losses[j] = prev_losses[round - 1][participants[i]];
+                j++;
+            }
+        }
+    }
+
+//    function getAllCurrentAccuraciesAndLosses()
+//    subjective_global_personal - the current one.
+//    we need to save more rounds back
+
+
+    function getAllPreviousAccuraciesAndLosses() // this is the newest values we have about accuracy/loss. Essentially the "current" values, but we call them previous, because they are from the perspective of the next round
+    external
+    view
+    returns (
+        uint16[] memory previous_accuracies,
+        uint16[] memory previous_losses
+    )
     {
         uint8 count_merged_participants = 0;
         for (uint i = 0; i < participants.length; i++) {
@@ -810,13 +881,13 @@ contract OpenFLModel {
     function getAllAccuraciesLossesAbout(
         address target
     )
-        external
-        view
-        returns (
-            address[] memory voters,
-            uint16[] memory accuracies,
-            uint16[] memory losses
-        )
+    external
+    view
+    returns (
+        address[] memory voters,
+        uint16[] memory accuracies,
+        uint16[] memory losses
+    )
     {
         uint totalCount = 0;
 
@@ -827,8 +898,8 @@ contract OpenFLModel {
 
             for (uint j = 0; j < subCount; j++) {
                 AccuracyLossSubmission storage sub = accuracyLossSubmissions[round][
-                    sender.addr
-                ][j];
+                                sender.addr
+                    ][j];
 
                 for (uint k = 0; k < sub.adrs.length; k++) {
                     if (sub.adrs[k] == target && _isEligibleVoter(sender)) { // TODO: GØR whitelisted eller lign. ACCESSIBLE OG CLEAR DEN EFTER ROUND END!
@@ -852,15 +923,15 @@ contract OpenFLModel {
 
             for (uint j = 0; j < subCount; j++) {
                 AccuracyLossSubmission storage sub = accuracyLossSubmissions[round][
-                    sender.addr
-                ][j];
+                                sender.addr
+                    ][j];
 
                 for (uint k = 0; k < sub.adrs.length; k++) {
                     if (sub.adrs[k] == target && _isEligibleVoter(sender)) {
-                            voters[idx] = sender.addr;
-                            accuracies[idx] = sub.acc[k];
-                            losses[idx] = sub.loss[k];
-                            idx++;
+                        voters[idx] = sender.addr;
+                        accuracies[idx] = sub.acc[k];
+                        losses[idx] = sub.loss[k];
+                        idx++;
                     }
                 }
             }
@@ -868,16 +939,15 @@ contract OpenFLModel {
     }
 
 
-
     function getAllAccuraciesAbout(
         address target
     )
-        external
-        view
-        returns (
-            address[] memory voters,
-            uint16[] memory accuracies
-        )
+    external
+    view
+    returns (
+        address[] memory voters,
+        uint16[] memory accuracies
+    )
     {
         uint totalCount = 0;
 
@@ -888,12 +958,12 @@ contract OpenFLModel {
 
             for (uint j = 0; j < subCount; j++) {
                 AccuracySubmission storage sub = accuracySubmissions[round][
-                    sender.addr
-                ][j];
+                                sender.addr
+                    ][j];
 
                 for (uint k = 0; k < sub.adrs.length; k++) {
                     if (sub.adrs[k] == target && _isEligibleVoter(sender)) {
-                            totalCount++;
+                        totalCount++;
                     }
                 }
             }
@@ -912,14 +982,14 @@ contract OpenFLModel {
 
             for (uint j = 0; j < subCount; j++) {
                 AccuracySubmission storage sub = accuracySubmissions[round][
-                    sender.addr
-                ][j];
+                                sender.addr
+                    ][j];
 
                 for (uint k = 0; k < sub.adrs.length; k++) {
                     if (sub.adrs[k] == target && _isEligibleVoter(sender)) {
-                            voters[idx] = sender.addr;
-                            accuracies[idx] = sub.acc[k];
-                            idx++;
+                        voters[idx] = sender.addr;
+                        accuracies[idx] = sub.acc[k];
+                        idx++;
                     }
                 }
             }
@@ -930,12 +1000,12 @@ contract OpenFLModel {
     function getAllLossesAbout(
         address target
     )
-        external
-        view
-        returns (
-            address[] memory voters,
-            uint16[] memory losses
-        )
+    external
+    view
+    returns (
+        address[] memory voters,
+        uint16[] memory losses
+    )
     {
         uint totalCount = 0;
 
@@ -946,12 +1016,12 @@ contract OpenFLModel {
 
             for (uint j = 0; j < subCount; j++) {
                 LossSubmission storage sub = lossSubmissions[round][
-                    sender.addr
-                ][j];
+                                sender.addr
+                    ][j];
 
                 for (uint k = 0; k < sub.adrs.length; k++) {
                     if (sub.adrs[k] == target && _isEligibleVoter(sender)) {
-                            totalCount++;
+                        totalCount++;
                     }
                 }
             }
@@ -970,14 +1040,14 @@ contract OpenFLModel {
 
             for (uint j = 0; j < subCount; j++) {
                 LossSubmission storage sub = lossSubmissions[round][
-                    sender.addr
-                ][j];
+                                sender.addr
+                    ][j];
 
                 for (uint k = 0; k < sub.adrs.length; k++) {
                     if (sub.adrs[k] == target && _isEligibleVoter(sender)) {
-                            voters[idx] = sender.addr;
-                            losses[idx] = sub.loss[k];
-                            idx++;
+                        voters[idx] = sender.addr;
+                        losses[idx] = sub.loss[k];
+                        idx++;
                     }
                 }
             }
@@ -989,9 +1059,9 @@ contract OpenFLModel {
     }
 
     function _isEligibleForRewards(User storage user)
-        internal
-        view
-        returns (bool)
+    internal
+    view
+    returns (bool)
     {
         return (
             user.isRegistered &&
@@ -1000,7 +1070,6 @@ contract OpenFLModel {
             !user.isDisqualified
         );
     }
-
 
     // Fallback function parses dynamic size feedback arrays
     // @dev This allows the contract to have an arbitrary number of participants
@@ -1075,20 +1144,20 @@ contract OpenFLModel {
     function getUser(
         address u
     )
-        external
-        view
-        returns (
-            address,
-            int256,
-            uint,
-            int,
-            uint8,
-            uint8,
-            bool,
-            bool,
-            bool,
-            bool
-        )
+    external
+    view
+    returns (
+        address,
+        int256,
+        uint,
+        int,
+        uint8,
+        uint8,
+        bool,
+        bool,
+        bool,
+        bool
+    )
     {
         User storage user = users[u];
         return (
@@ -1106,6 +1175,6 @@ contract OpenFLModel {
     }
 
     function absUint(int x) public pure returns (uint) {
-        return x >= 0 ? uint(x) : uint(-x);
+        return x >= 0 ? uint(x) : uint(- x);
     }
 }

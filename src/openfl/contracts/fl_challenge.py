@@ -842,7 +842,7 @@ class FLChallenge(FLManager):
         # prev_acc, prev_loss: int
 
         # Array of previous accuracies and losses from all users: A tuple of arrays
-        prev_accuracies, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses().call()
+        prev_accuracies, prev_losses = self.get_all_previous_accuracies_and_losses()
 
         # use mad on these and average them
 
@@ -909,8 +909,7 @@ class FLChallenge(FLManager):
 
 
         # Array of previous accuracies from all users: A tuple of arrays
-        prev_accuracies, _ = self.model.functions.getAllPreviousAccuraciesAndLosses().call()
-
+        prev_accuracies, _ = self.get_all_previous_accuracies_and_losses()
 
         # use mad on these and average them
         prev_info = {}
@@ -966,7 +965,7 @@ class FLChallenge(FLManager):
         # prev_loss: int
 
         # Array of previous losses from all users: A tuple of arrays
-        _, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses().call()
+        _, prev_losses = self.get_all_previous_accuracies_and_losses()
 
         # use mad on these and average them
         prev_info = {}
@@ -1173,7 +1172,7 @@ class FLChallenge(FLManager):
                 merge_weight=None
             )
 
-    def _log_global_round(self, round, round_time, punishment_pool):
+    def _log_global_round(self, round, round_time, punishment_pool, agg_switch_collector=None):
         if self._logger is None:
             return
         self._logger.log_global_round(
@@ -1183,11 +1182,15 @@ class FLChallenge(FLManager):
             obj_global_loss=self.pytorch_model.loss[-1] if self.pytorch_model.loss else 0,
             reward_pool=self._reward_balance[-1],
             punishment_pool=punishment_pool,
+            agg_func_1=agg_switch_collector.get("func_1")   if agg_switch_collector else None,
+            agg_weight_1=agg_switch_collector.get("weight_1") if agg_switch_collector else None,
+            agg_func_2=agg_switch_collector.get("func_2")   if agg_switch_collector else None,
+            agg_weight_2=agg_switch_collector.get("weight_2") if agg_switch_collector else None,
         )
 
     def _log_round(self, current_round, round_time,
                    accuracy_matrix, loss_matrix, prev_accs, prev_losses,
-                   contributors, receipt, users_weight_collector):
+                   contributors, receipt, users_weight_collector, agg_switch_collector=None):
         if self._logger is None:
             return
 
@@ -1254,8 +1257,45 @@ class FLChallenge(FLManager):
 
         # ---- global round ----
         _punishment_total = sum(p[1] for p in self._punishments if p[0] == current_round)
-        self._log_global_round(current_round, round_time, _punishment_total)
+        self._log_global_round(current_round, round_time, _punishment_total, agg_switch_collector)
 
+
+    def get_all_previous_accuracies_and_losses(self):
+        prev_accuracies, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses().call()
+        return prev_accuracies, prev_losses
+
+
+    def get_all_prior_prior_and_prior_average_accuracies_and_losses(self):
+        contract_round = self.model.functions.round().call()
+        prior_accuracies, prior_losses = self.get_all_prior_accuracies_and_losses()
+
+        mad_prior_accuracies = remove_outliers_mad(prior_accuracies)
+        mad_prior_losses = remove_outliers_mad(prior_losses)
+
+        avg_prior_acc = np.mean(mad_prior_accuracies)
+        avg_prior_loss = np.mean(mad_prior_losses)
+
+        if contract_round >= 2:
+            prior_prior_accuracies, prior_prior_losses = self.get_all_prior_prior_accuracies_and_losses()
+            mad_prior_prior_accuracies = remove_outliers_mad(prior_prior_accuracies)
+            mad_prior_prior_losses = remove_outliers_mad(prior_prior_losses)
+
+            avg_prior_prior_acc = np.mean(mad_prior_prior_accuracies)
+            avg_prior_prior_loss = np.mean(mad_prior_prior_losses)
+        else:
+            avg_prior_prior_acc = None
+            avg_prior_prior_loss = None
+
+        return avg_prior_prior_acc, avg_prior_prior_loss, avg_prior_acc, avg_prior_loss
+
+
+    def get_all_prior_prior_accuracies_and_losses(self):
+        prior_prior_accuracies, prior_prior_losses = self.model.functions.getAllPriorPriorAccuraciesAndLosses().call()
+        return prior_prior_accuracies, prior_prior_losses
+
+    def get_all_prior_accuracies_and_losses(self):
+        prior_accuracies, prior_losses = self.model.functions.getAllPriorAccuraciesAndLosses().call()
+        return prior_accuracies, prior_losses
 
 
     def simulate(self, rounds):
@@ -1332,10 +1372,11 @@ class FLChallenge(FLManager):
             contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0] # Keeps track of who will be merged in the_merge()
 
             users_weight_collector = {}
+            agg_switch_collector = {}
 
             # Ordering of the merge. If dotproduct we merge before contribution score
             if self.experiment_config.contribution_score_strategy == "dotproduct":
-                self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule, collector=users_weight_collector)
+                self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector)
 
             print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
             self.contribution_score(contributors)
@@ -1350,9 +1391,8 @@ class FLChallenge(FLManager):
 
             # If not dotproduct, we calculate contribution score before the merge
             if not self.experiment_config.contribution_score_strategy == "dotproduct":
-                self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule, collector=users_weight_collector)
-
-
+                avg_prior_prior_accs, avg_prior_prior_losses, avg_prior_accs, avg_prior_losses = self.get_all_prior_prior_and_prior_average_accuracies_and_losses() # Only used for non-dp version. when agg_rule==partial_switch
+                self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_prior_accs=avg_prior_prior_accs, avg_prior_prior_losses=avg_prior_prior_losses, avg_prior_accs=avg_prior_accs, avg_prior_losses=avg_prior_losses)
 
 
             # self.print_round_summary(receipt)
@@ -1365,7 +1405,7 @@ class FLChallenge(FLManager):
             self._log_round(
                 _current_round, _round_time,
                 accuracy_matrix, loss_matrix, prev_accs, prev_losses,
-                contributors, receipt, users_weight_collector
+                contributors, receipt, users_weight_collector, agg_switch_collector,
             )
 
             grs = [(user.address, user._globalrep[-1]) for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
@@ -1610,6 +1650,7 @@ def calc_contribution_scores_dotproduct(local_updates: torch.Tensor,
         int(Decimal(score.item()) * Decimal('1e18'))
         for score in scores
     ]
+
 
 
 def normalize_contribution_scores_old(arr, prev_val):
