@@ -1,7 +1,6 @@
 import copy
 import sys
 import warnings
-
 import torch
 import random
 import numpy as np
@@ -13,6 +12,7 @@ import torch.multiprocessing as mp
 import os
 import time
 import math
+import logging
 from web3 import Web3
 from termcolor import colored
 from typing import Tuple, Dict
@@ -20,18 +20,11 @@ from collections import OrderedDict
 from torchvision import transforms
 from torchvision.datasets import CIFAR10, MNIST
 from torch.utils.data import DataLoader, random_split, Subset
-torch._dynamo.config.cache_size_limit = 512
-import logging
 from collections import Counter
+torch._dynamo.config.cache_size_limit = 512
 debugging = sys.gettrace() is not None
 logging.getLogger("torch._inductor").setLevel(logging.ERROR)
 logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
-
-from collections import Counter
-
-
-
-
 RNG = np.random.default_rng()
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 USE_CUDA = (DEVICE.type == "cuda")
@@ -248,7 +241,7 @@ class PytorchModel:
             
     def add_participant(self, _attitude):
         _train, _val, _test = self.load_data(self.NUMBER_OF_CONTRIBUTORS)
-
+        
         if self.DATASET == "mnist":
             _model = Net_MNIST().to(DEVICE)
         else:
