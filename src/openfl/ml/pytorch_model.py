@@ -667,6 +667,15 @@ class PytorchModel:
         elif aggregation_rule == "partial_switch_accuracy":
             users_merge_weights = self.partial_switch_accuracy(users_contribution_scores, positives_only, plus_one_normalize)
 
+        elif aggregation_rule == "partial_switch_fixed_loss":
+            func1 = positives_only
+            func2 = plus_one_normalize
+            if avg_prior_losses is not None:
+                users_merge_weights = self.partial_switch_fixed_loss(users_contribution_scores, avg_prior_losses, func1, func2, agg_switch_collector)
+            else:
+                print(yellow("Warning: Missing prior losses for partial_switch_fixed_loss. Defaulting to plus_one_normalize."))
+                users_merge_weights = plus_one_normalize(users_contribution_scores)
+
         elif aggregation_rule == "partial_switch_retrospective":
             func1 = positives_only
             func2 = plus_one_normalize
@@ -961,6 +970,44 @@ class PytorchModel:
         self.agg_weight_2 = accuracy_measure
 
         return mixed_weights
+
+
+    def partial_switch_fixed_loss(self, users_contrib_scores, avg_prior_losses, func_1, func_2, threshold=100, agg_switch_collector=None):
+        if avg_prior_losses is None:
+            alpha = 0.0
+        elif avg_prior_losses >= threshold:
+            alpha = 0.0
+        else:
+            ratio = 1.0 - (avg_prior_losses / threshold)
+            alpha = math.sin(math.radians(ratio * 90.0))
+
+        beta = 1.0 - alpha
+
+        print(f"partial_switch_fixed_loss: prior_loss={avg_prior_losses}, threshold={threshold}, improvement_ratio={ratio}, "
+              f"alpha(func2)={alpha:.3f}, beta(func1)={beta:.3f}")
+
+        if agg_switch_collector is not None:
+            agg_switch_collector.update({
+                "func_1": func_1.__name__,
+                "weight_1": beta,
+                "func_2": func_2.__name__,
+                "weight_2": alpha,
+            })
+
+        res1 = func_1(users_contrib_scores)
+        res2 = func_2(users_contrib_scores)
+
+        combined = {
+            addr: beta * res1[addr] + alpha * res2[addr]
+            for addr in users_contrib_scores
+        }
+
+        total = sum(combined.values())
+        if total <= 0:
+            n = len(combined)
+            return {addr: 1.0 / n for addr in combined}
+
+        return {addr: w / total for addr, w in combined.items()}
 
 
     def GRS_aggregation(self, users):
