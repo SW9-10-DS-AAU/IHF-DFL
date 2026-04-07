@@ -776,6 +776,39 @@ contract OpenFLModel {
         }
     }
 
+
+    function getAllNPriorLosses(uint8 stepsBack) // n steps back compared to previous
+    external
+    view
+    returns (
+//      address[] memory addresses,
+        uint16[] memory previous_losses
+    )
+    {
+        require(round >= stepsBack, "Not enough completed rounds");
+
+        uint8 count_merged_participants = 0;
+        for (uint i = 0; i < participants.length; i++) {
+            User storage u = users[participants[i]];
+            if (u.isRegistered && !u.isDisqualified && u.roundReputation >= 0) {
+                count_merged_participants += 1;
+            }
+        }
+
+//      addresses = new address[](count_merged_participants);
+        previous_losses = new uint16[](count_merged_participants);
+        uint8 j = 0;
+        for (uint i = 0; i < participants.length; i++) {
+            User storage u = users[participants[i]];
+            if (u.isRegistered && !u.isDisqualified && u.roundReputation >= 0) {
+//              addresses[j] = participants[i];
+                previous_losses[j] = prev_losses[round - stepsBack][participants[i]];
+                j++;
+            }
+        }
+    }
+
+
     function getAllPriorPriorAccuraciesAndLosses() // Two steps back compared to previous
     external
     view

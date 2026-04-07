@@ -648,8 +648,9 @@ class PytorchModel:
             func1 = positives_only
             func2 = plus_one_normalize
 
-            if avg_prior_prior_losses is not None and avg_prior_losses is not None:
-                users_merge_weights = self.partial_switch(users_contribution_scores, avg_prior_prior_losses, avg_prior_losses, func1, func2, agg_switch_collector)
+            # if avg_prior_prior_losses is not None and avg_prior_losses is not None:
+            if avg_prior_losses is not None:
+                users_merge_weights = self.partial_switch(users_contribution_scores, avg_prior_losses, func1, func2, agg_switch_collector)
             else:
                 print(yellow("Warning: Missing prior losses for partial_switch_retrospective. Defaulting to plus_one_normalize."))
                 users_merge_weights = plus_one_normalize(users_contribution_scores)
@@ -899,62 +900,30 @@ class PytorchModel:
         return aggregation_scores
 
 
+    # def partial_switch(self, users_contrib_scores, avg_prior_prior_losses, avg_prior_losses, func_1, func_2, agg_switch_collector=None):
 
-    def partial_switch(self, users_contrib_scores, avg_prior_prior_losses, avg_prior_losses, func_1, func_2, agg_switch_collector=None):
-        # Look 1 round back - if no improvement, switch to func_2 with increasing probability as rounds go by
-        # Check if not improving (Convergence)
-        # calculate sinus/cosine.
-        # Look at loss. First loss is max (100%)
-        # Then consider a sinusoidal function that converts the diff loss'-loss into an angle between 0 and 90 degrees, where 0 degrees (func_1) corresponds to no improvement and 90 degrees (func_2) corresponds to max improvement.
-        # 100% positive top/bottom - 100% plus_one left/right
-
-        # I need access to a user's - loss. We need to only access what we can - not cheat by taking the global one.
-        # Return to aggregation score. That's partially made up of percentage-wise of the two provided functions
-        # Question is: how do we combine the output of two? Luckily, its a dict, so we can combine a users (address) agg. scores across two functions.
-        # Next question is: how do we calculate the percentage
-        # Find out if we are in convergence.
-
-
-        # ---
-        #   - Compare avg_prev_losses (last round) against avg_prior_losses (round before that)
-        #   - Map the improvement into an angle 0–90°, where 0° = no improvement → use func_1 fully, 90° = max improvement → use func_2
-        #   fully
-        #   - Use sine of that angle as the blend weight so the transition is smooth (not linear)
-        #
-        #   The implementation:
-        #
-        #   1. Improvement ratio = (prior - prev) / prior, clamped to [0, 1]. This normalises the loss drop relative to the starting
-        #   point so the scale doesn't matter.
-        #   2. Sinusoidal blend: alpha = sin(ratio × 90°). At ratio=0 → sin(0°)=0 (fully func_1). At ratio=1 → sin(90°)=1 (fully func_2).
-        #    The sine curve gives a slow start and fast finish — conservative early, more aggressive as improvement grows.
-        #   3. Combine: w[addr] = beta * res1[addr] + alpha * res2[addr], then renormalise to sum to 1 since both func outputs are
-        #   already normalised separately but their linear combination may not be.
-        #
-        #   Why func_1 = no improvement, func_2 = improvement?
-        #   positives_only (func_1) is strict — it zeroes out negative contributors, which is useful when loss isn't moving and you need
-        #   to filter noise. plus_one_normalize (func_2) is softer — it rewards improvement more broadly, which makes sense when the
-        #   model is actually converging.
-        # ---
-
-
-        # ---
-        # - alpha — weight for func_2 (plus_one_normalize). High when loss improved a lot. Soft/rewarding.
-        #   - beta — weight for func_1 (positives_only). High when loss barely improved. Strict/conservative.
-        #
-        #   They always sum to 1. The more the model improves round-over-round, the more alpha dominates and the softer the
-        #   aggregation becomes. When improvement stagnates, beta dominates and bad contributors get filtered out more
-        #   aggressively.
-        # ---
-
+    # takes an array of accuracy/losses. Only losses since we do not store accuracy.
+    def partial_switch(self, users_contrib_scores, avg_prior_losses_per_round, func_1, func_2, agg_switch_collector=None):
         res1 = func_1(users_contrib_scores)  # e.g. positives_only    — strict, filters noise
         res2 = func_2(users_contrib_scores)  # e.g. plus_one_normalize — soft, rewards broadly
 
         # How much did loss improve from the prior round to the previous round?
         # Normalise by prior loss so the ratio is scale-independent, clamp to [0, 1].
-        if avg_prior_losses <= 0:
-            improvement_ratio = 0.0
+
+        # if avg_prior_losses <= 0:
+        #     improvement_ratio = 0.0
+        # else:
+        #     improvement_ratio = max(0.0, min(1.0, (avg_prior_prior_losses - avg_prior_losses) / avg_prior_losses)) # 40.000-30.000/30.000 = 0.33
+
+        if len(avg_prior_losses_per_round) >= 2:
+            x = np.arange(len(avg_prior_losses_per_round))
+            slope, _ = np.polyfit(x, list(reversed(avg_prior_losses_per_round)), 1)  # now negative = improving
+            # normalize slope relative to mean loss so it's scale-independent
+            mean_loss = np.mean(avg_prior_losses_per_round)
+            improvement_ratio = max(0.0, min(1.0, -slope / mean_loss))
         else:
-            improvement_ratio = max(0.0, min(1.0, (avg_prior_prior_losses - avg_prior_losses) / avg_prior_losses)) # 40.000-30.000/30.000 = 0.33
+            improvement_ratio = 0.0  # not enough data, go strict
+
 
         # Map ratio → angle [0°, 90°] → sine blend weight.
         # sin(0°) = 0  → no improvement  → fully func_1 (strict/conservative)
@@ -963,7 +932,7 @@ class PytorchModel:
         alpha = math.sin(math.radians(improvement_ratio * 90.0))  # weight for func_2   0.33 → 30° → sin(30°)=0.5
         beta  = 1.0 - alpha                                        # weight for func_1  0.67 → 60° → sin(60°)=0.87
 
-        print(f"partial_switch: prior_loss={avg_prior_prior_losses:.4f}, prev_loss={avg_prior_losses:.4f}, "
+        print(f"partial_switch: losses={[f'{l:.2f}' for l in avg_prior_losses_per_round]}, "
               f"improvement={improvement_ratio:.3f}, alpha(func2)={alpha:.3f}, beta(func1)={beta:.3f}")
 
         if agg_switch_collector is not None:

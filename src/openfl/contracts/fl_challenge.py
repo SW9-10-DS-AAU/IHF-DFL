@@ -1260,11 +1260,36 @@ class FLChallenge(FLManager):
         self._log_global_round(current_round, round_time, _punishment_total, agg_switch_collector)
 
 
+    def get_all_n_prior_losses(self, n_rounds: int):
+        assert n_rounds >= 2, "n_rounds must be at least 2 to compute a trend"
+        contract_round = self.model.functions.round().call()
+        losses_per_round = []
+
+        for steps_back in range(1, n_rounds + 1):
+            if contract_round >= steps_back:
+                losses = self.model.functions.getAllNPriorLosses(steps_back).call()
+                mad_losses = remove_outliers_mad(losses)
+                losses_per_round.append(np.mean(mad_losses))
+        return losses_per_round  # [round-1, round-2, ..., round-n]
+
+    # returns whatever rounds are available, up to n_rounds. So:
+    #   - Round 0 or 1: returns empty list []
+    #   - Round 2: returns [round-1] — only one round back
+    #   - Round 3: returns [round-1, round-2]
+    #   - Round 5+: returns [round-1, round-2, round-3, round-4] (if n_rounds=4)
+    #
+    #   The caller checks the length and decides what to do — if fewer than 2 entries, not enough data to compute a trend, fall back to default
+    #   behavior.
+
+
+
+
+    # 'all' as in users
     def get_all_previous_accuracies_and_losses(self):
         prev_accuracies, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses().call()
         return prev_accuracies, prev_losses
 
-
+    # 'all' as in users
     def get_all_prior_prior_and_prior_average_accuracies_and_losses(self):
         contract_round = self.model.functions.round().call()
         prior_accuracies, prior_losses = self.get_all_prior_accuracies_and_losses()
@@ -1391,8 +1416,9 @@ class FLChallenge(FLManager):
 
             # If not dotproduct, we calculate contribution score before the merge
             if not self.experiment_config.contribution_score_strategy == "dotproduct":
-                avg_prior_prior_accs, avg_prior_prior_losses, avg_prior_accs, avg_prior_losses = self.get_all_prior_prior_and_prior_average_accuracies_and_losses() # Only used for non-dp version. when agg_rule==partial_switch
-                self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_prior_accs=avg_prior_prior_accs, avg_prior_prior_losses=avg_prior_prior_losses, avg_prior_accs=avg_prior_accs, avg_prior_losses=avg_prior_losses)
+                # avg_prior_prior_accs, avg_prior_prior_losses, avg_prior_accs, avg_prior_losses = self.get_all_prior_prior_and_prior_average_accuracies_and_losses() # Only used for non-dp version. when agg_rule==partial_switch
+                avg_losses = self.get_all_n_prior_losses(3)
+                self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_prior_accs=None, avg_prior_prior_losses=None, avg_prior_accs=None, avg_prior_losses=avg_losses)
 
 
             # self.print_round_summary(receipt)
