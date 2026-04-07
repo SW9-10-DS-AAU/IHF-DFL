@@ -961,6 +961,13 @@ class FLChallenge(FLManager):
         """
         Loss-based scoring: use loss directly as contribution score.
         """
+        if len(users) == 1:
+            return [1.0]
+        elif len(users) == 2:
+            return [0.5, 0.5]
+        elif len(users) == 3:
+            return [1 / 3, 1 / 3, 1 / 3] # TODO: research here
+
         # losses: 1d array
         # prev_loss: int
 
