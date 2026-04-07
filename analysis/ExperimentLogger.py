@@ -38,7 +38,6 @@ class ExperimentLogger:
             "agg_weight_1": agg_weight_1,
             "agg_func_2": agg_func_2,
             "agg_weight_2": agg_weight_2
-
             # Add
         })
 

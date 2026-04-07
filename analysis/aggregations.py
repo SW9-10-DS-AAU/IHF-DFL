@@ -481,3 +481,67 @@ def agg_round_kicked_by_strategy(
 
     return agg[["contribution_score_strategy", "role",
                 "mean_round_kicked", "low_err", "high_err"]]
+
+
+
+def agg_merge_weights_by_behavior(users: pd.DataFrame) -> pd.DataFrame:
+    """
+    Display merge weights for each round out of x axis and merge_weight out of y axis.
+    Average across values
+    If no merge weight. Then not merged show box with stats: Total round, number of rounds merged, percentage of these.
+    Show this for each behaviour (what they currently are.)
+    """
+
+    per_behavior = (
+        users.groupby(["experiment_id", "behavior", "round"])
+        .agg(merge_weight=("merge_weight", "mean"))
+        .reset_index()
+    )
+
+    agg = (
+        per_behavior
+        .groupby(["behavior", "round"])
+        .agg(
+            weight_mean=("merge_weight", "mean"),
+            weight_std= ("merge_weight", "std"),
+        )
+        .reset_index()
+    )
+
+    return agg
+
+
+def agg_merge_stats_by_behavior(users: pd.DataFrame) -> pd.DataFrame:
+    # Exclude round 0 (initialization round — no merging occurs)
+    training = users[users["round"] > 0]
+
+    # Count distinct rounds per (behavior, experiment) then sum across experiments
+    # so that rounds in different experiments are not collapsed into one.
+    total = (
+        training.groupby(["behavior", "experiment_id"])["round"]
+        .nunique()
+        .groupby("behavior")
+        .sum()
+        .reset_index(name="total_rounds")
+    )
+    rounds_merged = (
+        training[training["merged"] == False]
+        .groupby(["behavior", "experiment_id"])["round"]
+        .nunique()
+        .groupby("behavior")
+        .sum()
+        .reset_index(name="rounds_merged")
+    )
+    user_counts = (
+        training.groupby("behavior")["user_id"]
+        .nunique()
+        .reset_index(name="user_count")
+    )
+
+    total = total.merge(rounds_merged, on="behavior", how="left")
+    total = total.merge(user_counts, on="behavior", how="left")
+    total["rounds_merged"] = total["rounds_merged"].fillna(0).astype(int)
+    total["pct_merged"] = total["rounds_merged"] / total["total_rounds"] * 100
+    return total
+
+

@@ -1,5 +1,6 @@
 import copy
 import sys
+import warnings
 import torch
 import random
 import numpy as np
@@ -11,20 +12,19 @@ import torch.multiprocessing as mp
 import os
 import time
 import math
+import logging
 from web3 import Web3
 from termcolor import colored
 from typing import Tuple, Dict
 from collections import OrderedDict
 from torchvision import transforms
 from torchvision.datasets import CIFAR10, MNIST
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, random_split, Subset
+from collections import Counter
 torch._dynamo.config.cache_size_limit = 512
-import logging
 debugging = sys.gettrace() is not None
 logging.getLogger("torch._inductor").setLevel(logging.ERROR)
 logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
-
-
 RNG = np.random.default_rng()
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 USE_CUDA = (DEVICE.type == "cuda")
@@ -160,7 +160,7 @@ class Net_MNIST(nn.Module):
 
         
 class PytorchModel:
-    def __init__(self, DATASET, _good_participants, _bad_participants, _freerider_participants, _total_participants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, use_nobody_is_kicked: bool = False):
+    def __init__(self, DATASET, _good_participants, _bad_participants, _freerider_participants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, use_nobody_is_kicked: bool = False, data_distribution : str = None, dirichlet_alpha: float = None):
         self.DATASET = DATASET
         if self.DATASET == "mnist":
             self.global_model = Net_MNIST().to(DEVICE)
@@ -170,13 +170,24 @@ class PytorchModel:
         self.NUMBER_OF_GOOD_CONTRIBUTORS = _good_participants
         self.NUMBER_OF_BAD_CONTRIBUTORS = _bad_participants
         self.NUMBER_OF_FREERIDER_CONTRIBUTORS = _freerider_participants
-        self.NUMBER_OF_CONTRIBUTORS = _total_participants
         self.NUMBER_OF_INACTIVE_CONTRIBUTORS = 0
+        self.NUMBER_OF_CONTRIBUTORS = _good_participants + _bad_participants + _freerider_participants + self.NUMBER_OF_INACTIVE_CONTRIBUTORS
         self.DATA = None
         self.participants = []
         self.disqualified = []
         self.EPOCHS = epochs
         self.BATCHSIZE = batchsize
+
+        if data_distribution is None:
+            self.data_distribution = "random_split_42"
+        else:
+            self.data_distribution = data_distribution
+
+        if dirichlet_alpha is None:
+            self.dirichlet_alpha = 0.5
+        else:
+            self.dirichlet_alpha = dirichlet_alpha
+
         self.train, self.val, self.test = self.load_data(self.NUMBER_OF_CONTRIBUTORS, _print=True)
         self.default_collateral = default_collateral
         self.max_collateral = max_collateral
@@ -266,7 +277,7 @@ class PytorchModel:
                                              _val[length],
                                              _model, 
                                              optimizer, 
-                                             criterion,
+                                            criterion,
                                              _attitude,
                                              self.default_collateral,
                                              self.max_collateral,
@@ -275,7 +286,67 @@ class PytorchModel:
                                             ))
         
         print("Participant added: {:<9} {}".format(rb(_attitude.upper()[0]+_attitude[1:]), rb("User")))
-        
+
+    def print_client_data_distributions(self):
+        """Prints the label distribution for every client's train/val sets and the global test set."""
+        if self.DATA is None:
+            self.load_data(self.NUMBER_OF_CONTRIBUTORS)
+
+        trainloaders, valloaders, testloader = self.DATA
+
+        print("\n--- CLIENT DATA DISTRIBUTIONS ---")
+        print("\nUSING DATA DISTRIBUTION:", self.data_distribution)
+        if "dirichlet" in self.data_distribution:
+            print(f"\nDirichlet alpha: {self.dirichlet_alpha}")
+
+        for i, (train_loader, val_loader) in enumerate(zip(trainloaders, valloaders)):
+            print(f"\nClient {i} Training Set:")
+            print_label_distribution(train_loader, name=f"Client {i} Train")
+
+            print(f"Client {i} Validation Set:")
+            print_label_distribution(val_loader, name=f"Client {i} Val")
+
+        print("\nGlobal Test Set:")
+        print_label_distribution(testloader, name="Test Set")
+
+
+    def get_client_data_distribution(self):
+        if self.DATA is None:
+            self.load_data(self.NUMBER_OF_CONTRIBUTORS)
+
+        trainloaders, valloaders, testloader = self.DATA
+
+        result = {
+            "clients": [],
+            "test": {}
+        }
+
+        for train_loader, val_loader in zip(trainloaders, valloaders):
+            train_dataset = train_loader.dataset
+            val_dataset = val_loader.dataset
+
+            client_info = {
+                "train": {
+                    "size": len(train_dataset),
+                    "label_counts": get_label_distribution(train_loader),
+                    "indices": train_dataset.indices if hasattr(train_dataset, "indices") else None
+                },
+                "val": {
+                    "size": len(val_dataset),
+                    "label_counts": get_label_distribution(val_loader),
+                    "indices": val_dataset.indices if hasattr(val_dataset, "indices") else None
+                }
+            }
+            result["clients"].append(client_info)
+
+        test_dataset = testloader.dataset
+        result["test"] = {
+            "size": len(test_dataset),
+            "label_counts": get_label_distribution(testloader),
+            "indices": test_dataset.indices if hasattr(test_dataset, "indices") else None
+        }
+
+        return result
 
     def load_data(self, NUM_CLIENTS, _print=False):
         if self.DATA:
@@ -311,17 +382,37 @@ class PytorchModel:
         images_needed = partition_size * NUM_CLIENTS
         if images_needed < len(trainset):
             trainset,_ = random_split(trainset, [images_needed, len(trainset)-images_needed])
-        
-        datasets = random_split(trainset, lengths, torch.Generator().manual_seed(42))
+
+        gen = torch.Generator().manual_seed(42) if "42" in str(self.data_distribution) else None
+
+        dist = self.data_distribution or "random_split"
+
+        if dist.startswith("random_split"):
+            datasets = random_split(trainset, lengths, generator=gen)
+
+        elif dist.startswith("stratified_split"):
+            datasets = stratified_split(trainset, NUM_CLIENTS, generator=gen)
+
+        elif dist.startswith("dirichlet_split"):
+            datasets = dirichlet_split(trainset, NUM_CLIENTS, alpha=self.dirichlet_alpha, generator=gen)
+
+        else:
+            raise ValueError(f"Data distribution {self.data_distribution} not recognized")
 
         # Split each partition into train/val and create DataLoader
         trainloaders = []
         valloaders = []
+
         for ds in datasets:
-            len_val = len(ds) // 10  # 10 % validation set
+            len_val = len(ds) // 10
             len_train = len(ds) - len_val
-            lengths = [len_train, len_val]
-            ds_train, ds_val = random_split(ds, lengths, torch.Generator().manual_seed(42))
+            tv_lengths = [len_train, len_val]
+
+            if "stratified" in str(self.data_distribution):
+                ds_train, ds_val = stratified_split(ds, tv_lengths, generator=gen)
+            else:
+                ds_train, ds_val = random_split(ds, tv_lengths, generator=gen)
+
             trainloaders.append(DataLoader(
                 ds_train,
                 batch_size=self.BATCHSIZE,
@@ -472,7 +563,6 @@ class PytorchModel:
                                                                                 accuracy*100, loss))
 
 
-
     def let_freerider_users_do_their_work(self):
         for i in range(len(self.participants)):
             if self.participants[i].attitude == "freerider":
@@ -491,54 +581,11 @@ class PytorchModel:
 
     def update_users_attitude(self):
         for user in self.participants:
-            if user.attitudeSwitch == self.round \
-                and user.attitude != user.futureAttitude:
+            if user.attitudeSwitch == self.round and user.attitude != user.futureAttitude:
                 print(rb("Address {} going to switch attitude to {}".format(user.address[0:16]+"...",
                                                                             user.futureAttitude)))
                 user.attitude = user.futureAttitude
                 user.color = get_color(None, user.attitude)
-    
-
-    # def let_freerider_users_do_their_work(self):
-    #     for user in self.participants:
-    #         if user.attitude == "freerider":
-    #
-    #             # # Freerider has no data and must therefore provide something random
-    #             # # After first round freerider can copy other participants
-    #             # if self.round == 1:
-    #             #     print(red("Account {} going to provide ".format(user.address[0:8]+"...") \
-    #             #                   + "random weights; starts copycat-ing " \
-    #             #                   + "next round"))
-    #             #
-    #             #     new_state_dict = manipulate(copy.deepcopy(user.model))
-    #             # else:
-    #             #     foreign_model = copy.deepcopy(self.participants[0].previousModel)
-    #             #     new_state_dict = foreign_model.state_dict()
-    #             #
-    #             # user.model.load_state_dict(new_state_dict)
-    #             #
-    #             # if self.round > 1:
-    #             #     print(red("Address {} going to add random noise to weights".format(user.address[0:16]+"...")))
-    #             #     user.model.load_state_dict(add_noise(copy.deepcopy(user.model)))
-    #             if self.round < self.freerider_start_round:
-    #                 print(yellow(
-    #                     "Address {} waiting until round {} to start freeriding".format(
-    #                         user.address[0:16] + "...",
-    #                         self.freerider_start_round,
-    #                     )
-    #                 ))
-    #                 new_state_dict = manipulate(copy.deepcopy(user.model))
-    #             else:
-    #                 new_state_dict = self._freerider_submit_with_noise(user)
-    #
-    #
-    #             user.model.load_state_dict(new_state_dict)
-    #             user.hashedModel = self.get_hash(user.model.state_dict())
-    #             loss, accuracy = test(user.model, self.test, DEVICE)
-    #             print("{:<17} {} |  Testing  | Accuracy {:>3.0f} % | Loss ∞\n".format("Account testing:   ",
-    #                                                                             user.address[0:16]+"...",
-    #                                                                             accuracy*100, loss))
-    #             # TODO: Why is loss not used here?
 
 
     def _freerider_submit_with_noise(self, user):
@@ -559,7 +606,7 @@ class PytorchModel:
         ))
         return manipulate(copy.deepcopy(user.model), scale=self.freerider_noise_scale)
 
-    def the_merge(self, _users, aggregation_rule: str, collector=None):
+    def the_merge(self, _users, aggregation_rule: str, merge_weight_collector=None, agg_switch_collector=None, avg_prior_prior_accs=None, avg_prior_prior_losses=None, avg_prior_accs=None, avg_prior_losses=None):
         # No qualified users → skip merge this round
         if not _users:
             print("-----------------------------------------------------------------------------------")
@@ -620,14 +667,27 @@ class PytorchModel:
         elif aggregation_rule == "partial_switch_accuracy":
             users_merge_weights = self.partial_switch_accuracy(users_contribution_scores, positives_only, plus_one_normalize)
 
+        elif aggregation_rule == "partial_switch_retrospective":
+            func1 = positives_only
+            func2 = plus_one_normalize
+
+            if avg_prior_prior_losses is not None and avg_prior_losses is not None:
+                users_merge_weights = self.partial_switch(users_contribution_scores, avg_prior_prior_losses, avg_prior_losses, func1, func2, agg_switch_collector)
+            else:
+                print(yellow("Warning: Missing prior losses for partial_switch_retrospective. Defaulting to plus_one_normalize."))
+                users_merge_weights = plus_one_normalize(users_contribution_scores)
+
+        elif aggregation_rule == "GRS_aggregation":
+            users_merge_weights = self.GRS_aggregation(_users)
+
         else:
             raise ValueError(f"Unknown merge strategy: {aggregation_rule}")
 
         for u in _users:
             u.merge_weight = users_merge_weights[u.address]
 
-        if collector is not None:
-            collector.update(users_merge_weights)
+        if merge_weight_collector is not None:
+            merge_weight_collector.update(users_merge_weights)
 
         assert abs(sum(users_merge_weights.values()) - 1.0) < 1e-6, "Aggregation weights must sum to 1"
 
@@ -902,7 +962,105 @@ class PytorchModel:
 
         return mixed_weights
 
-    
+
+    def GRS_aggregation(self, users):
+        total_grs = sum(user._globalrep[-1] for user in users)
+
+        aggregation_scores = {user.address: user._globalrep[-1] / total_grs for user in users}
+        return aggregation_scores
+
+
+
+    def partial_switch(self, users_contrib_scores, avg_prior_prior_losses, avg_prior_losses, func_1, func_2, agg_switch_collector=None):
+        # Look 1 round back - if no improvement, switch to func_2 with increasing probability as rounds go by
+        # Check if not improving (Convergence)
+        # calculate sinus/cosine.
+        # Look at loss. First loss is max (100%)
+        # Then consider a sinusoidal function that converts the diff loss'-loss into an angle between 0 and 90 degrees, where 0 degrees (func_1) corresponds to no improvement and 90 degrees (func_2) corresponds to max improvement.
+        # 100% positive top/bottom - 100% plus_one left/right
+
+        # I need access to a user's - loss. We need to only access what we can - not cheat by taking the global one.
+        # Return to aggregation score. That's partially made up of percentage-wise of the two provided functions
+        # Question is: how do we combine the output of two? Luckily, its a dict, so we can combine a users (address) agg. scores across two functions.
+        # Next question is: how do we calculate the percentage
+        # Find out if we are in convergence.
+
+
+        # ---
+        #   - Compare avg_prev_losses (last round) against avg_prior_losses (round before that)
+        #   - Map the improvement into an angle 0–90°, where 0° = no improvement → use func_1 fully, 90° = max improvement → use func_2
+        #   fully
+        #   - Use sine of that angle as the blend weight so the transition is smooth (not linear)
+        #
+        #   The implementation:
+        #
+        #   1. Improvement ratio = (prior - prev) / prior, clamped to [0, 1]. This normalises the loss drop relative to the starting
+        #   point so the scale doesn't matter.
+        #   2. Sinusoidal blend: alpha = sin(ratio × 90°). At ratio=0 → sin(0°)=0 (fully func_1). At ratio=1 → sin(90°)=1 (fully func_2).
+        #    The sine curve gives a slow start and fast finish — conservative early, more aggressive as improvement grows.
+        #   3. Combine: w[addr] = beta * res1[addr] + alpha * res2[addr], then renormalise to sum to 1 since both func outputs are
+        #   already normalised separately but their linear combination may not be.
+        #
+        #   Why func_1 = no improvement, func_2 = improvement?
+        #   positives_only (func_1) is strict — it zeroes out negative contributors, which is useful when loss isn't moving and you need
+        #   to filter noise. plus_one_normalize (func_2) is softer — it rewards improvement more broadly, which makes sense when the
+        #   model is actually converging.
+        # ---
+
+
+        # ---
+        # - alpha — weight for func_2 (plus_one_normalize). High when loss improved a lot. Soft/rewarding.
+        #   - beta — weight for func_1 (positives_only). High when loss barely improved. Strict/conservative.
+        #
+        #   They always sum to 1. The more the model improves round-over-round, the more alpha dominates and the softer the
+        #   aggregation becomes. When improvement stagnates, beta dominates and bad contributors get filtered out more
+        #   aggressively.
+        # ---
+
+        res1 = func_1(users_contrib_scores)  # e.g. positives_only    — strict, filters noise
+        res2 = func_2(users_contrib_scores)  # e.g. plus_one_normalize — soft, rewards broadly
+
+        # How much did loss improve from the prior round to the previous round?
+        # Normalise by prior loss so the ratio is scale-independent, clamp to [0, 1].
+        if avg_prior_losses <= 0:
+            improvement_ratio = 0.0
+        else:
+            improvement_ratio = max(0.0, min(1.0, (avg_prior_prior_losses - avg_prior_losses) / avg_prior_losses)) # 40.000-30.000/30.000 = 0.33
+
+        # Map ratio → angle [0°, 90°] → sine blend weight.
+        # sin(0°) = 0  → no improvement  → fully func_1 (strict/conservative)
+        # sin(90°) = 1 → max improvement → fully func_2 (soft/rewarding)
+        # Sine gives a slow start and fast finish: cautious early, more aggressive as convergence grows.
+        alpha = math.sin(math.radians(improvement_ratio * 90.0))  # weight for func_2   0.33 → 30° → sin(30°)=0.5
+        beta  = 1.0 - alpha                                        # weight for func_1  0.67 → 60° → sin(60°)=0.87
+
+        print(f"partial_switch: prior_loss={avg_prior_prior_losses:.4f}, prev_loss={avg_prior_losses:.4f}, "
+              f"improvement={improvement_ratio:.3f}, alpha(func2)={alpha:.3f}, beta(func1)={beta:.3f}")
+
+        if agg_switch_collector is not None:
+            agg_switch_collector.update({
+                "func_1": func_1.__name__,
+                "weight_1": beta,
+                "func_2": func_2.__name__,
+                "weight_2": alpha,
+            })
+
+        # Blend the two score dicts linearly by (beta, alpha)
+        combined = {
+            addr: beta * res1[addr] + alpha * res2[addr]
+            for addr in users_contrib_scores
+        }
+
+        # Re-normalise: each func's output sums to 1 individually, but their
+        # linear combination may not — especially if func_1 zeroed some users out.
+        total = sum(combined.values())
+        if total <= 0:
+            n = len(combined)
+            return {addr: 1.0 / n for addr in combined}
+
+        return {addr: w / total for addr, w in combined.items()}
+
+
 # PYTORCH FUNCTIONS
 def train(
     net,
@@ -1112,6 +1270,169 @@ def safe_scale(value, scalar, max_val):
     return min(round(scaled), max_val)
 
 
+def dirichlet_split(dataset, num_clients, alpha=0.5, generator=None):
+    """
+    Dirichlet split that ensures:
+    - All clients have exactly len(dataset)//num_clients samples
+    - Non-IID distribution controlled by alpha
+    - Optional reproducibility with generator
+    """
+    # Handle Subset
+    if isinstance(dataset, Subset):
+        actual_dataset = dataset.dataset
+        indices = dataset.indices
+    else:
+        actual_dataset = dataset
+        indices = list(range(len(dataset)))
+
+    # Get labels
+    if hasattr(actual_dataset, "targets"):
+        targets = torch.tensor(actual_dataset.targets)[indices]
+    elif hasattr(actual_dataset, "labels"):
+        targets = torch.tensor(actual_dataset.labels)[indices]
+    else:
+        raise AttributeError("Dataset must have targets or labels attribute")
+
+    num_classes = len(torch.unique(targets))
+    class_indices = {c: (targets == c).nonzero(as_tuple=True)[0].tolist() for c in range(num_classes)}
+
+    # Shuffle class indices
+    seed = 42 if generator is not None else None
+    rng = np.random.default_rng(seed)
+    for c in class_indices:
+        rng.shuffle(class_indices[c])
+
+    splits = [[] for _ in range(num_clients)]
+    total_per_client = len(dataset) // num_clients
+    client_counts = [0] * num_clients  # track total assigned per client
+
+    # Allocate samples per class
+    for c in range(num_classes):
+        cls_idx = class_indices[c]
+        n_cls = len(cls_idx)
+
+        # Sample Dirichlet proportions
+        proportions = rng.dirichlet([alpha] * num_clients)
+        counts = (proportions * n_cls).astype(int)
+
+        # Fix rounding to match class total
+        diff = n_cls - counts.sum()
+        if diff > 0:
+            topk = np.argsort(proportions)[-diff:]
+            counts[topk] += 1
+
+        # Assign to clients, but do not exceed total_per_client
+        start = 0
+        for i in range(num_clients):
+            # adjust count if client is almost full
+            remaining_space = total_per_client - client_counts[i]
+            assign_count = min(counts[i], remaining_space)
+            end = start + assign_count
+            splits[i].extend(cls_idx[start:end])
+            client_counts[i] += assign_count
+            start += assign_count
+
+    # At this point, all clients should have exactly total_per_client
+    # If any client still has less (due to rounding), fill from leftover pool
+    assigned = set(idx for client in splits for idx in client)
+    all_indices = set(idx for cls in class_indices.values() for idx in cls)
+    remaining = list(all_indices - assigned)
+    rng.shuffle(remaining)
+
+    for i in range(num_clients):
+        current_len = len(splits[i])
+        if current_len < total_per_client:
+            needed = total_per_client - current_len
+            splits[i].extend(remaining[:needed])
+            remaining = remaining[needed:]
+
+    return [Subset(actual_dataset, split) for split in splits]
+
+
+
+
+def stratified_split(dataset, lengths, generator=None):
+    from torch.utils.data import Subset
+    import torch
+
+    # Normalize input
+    if isinstance(lengths, int):
+        num_splits = lengths
+        lengths = [1] * num_splits  # equal split
+    else:
+        num_splits = len(lengths)
+
+    total_length = sum(lengths)
+
+    # Handle subset
+    if isinstance(dataset, Subset):
+        actual_dataset = dataset.dataset
+        base_indices = list(dataset.indices)
+    else:
+        actual_dataset = dataset
+        base_indices = list(range(len(dataset)))
+
+    # Get targets
+    if hasattr(actual_dataset, "targets"):
+        targets = actual_dataset.targets
+    elif hasattr(actual_dataset, "labels"):
+        targets = actual_dataset.labels
+    else:
+        raise AttributeError("Dataset must have targets or labels")
+
+    targets = torch.as_tensor(targets, dtype=torch.long)[base_indices]
+
+    # Group by class
+    classes = torch.unique(targets)
+    class_indices = {
+        int(c): (targets == c).nonzero(as_tuple=True)[0].tolist()
+        for c in classes
+    }
+
+    # Shuffle per class
+    for c in class_indices:
+        perm = torch.randperm(len(class_indices[c]), generator=generator).tolist()
+        class_indices[c] = [class_indices[c][i] for i in perm]
+
+    splits = [[] for _ in range(num_splits)]
+
+    # Split per class proportionally
+    for c in class_indices:
+        cls_idx = class_indices[c]
+        cls_len = len(cls_idx)
+
+        proportions = [l / total_length for l in lengths]
+        raw = [p * cls_len for p in proportions]
+        cls_lengths = [int(x) for x in raw]
+
+        # distribute remainder
+        remainder = cls_len - sum(cls_lengths)
+        for i in range(remainder):
+            cls_lengths[i % num_splits] += 1
+
+        start = 0
+        for i in range(num_splits):
+            selected_local = cls_idx[start:start + cls_lengths[i]]
+            selected_global = [base_indices[idx] for idx in selected_local]
+            splits[i].extend(selected_global)
+            start += cls_lengths[i]
+
+    # Final shuffle
+    for i in range(num_splits):
+        perm = torch.randperm(len(splits[i]), generator=generator).tolist()
+        splits[i] = [splits[i][j] for j in perm]
+
+    return [Subset(actual_dataset, split) for split in splits]
+
+
+def get_label_distribution(loader):
+    counter = Counter()
+    for _, labels in loader:
+        counter.update(labels.tolist())
+    return dict(counter)
+
+
+
 # OLD — BUG: division by zero when all scores <= 0
 def positives_only(users_contrib_scores: dict):
      positive_sum = sum(score for score in users_contrib_scores.values() if score > 0)
@@ -1136,3 +1457,21 @@ def plus_more_than_one_normalize(users_contrib_scores: dict, more_than_one=1.1):
      sum_ = sum(normalized_scores.values())
      aggregation_scores = {user_id: score / sum_ for user_id, score in normalized_scores.items()}
      return aggregation_scores
+
+
+
+
+def print_label_distribution(loader, name="Dataset"):
+    """
+    Prints the distribution of labels in a DataLoader.
+    """
+    label_counts = Counter()
+    for _, labels in loader:
+        label_counts.update(labels.numpy())  # Convert tensor to numpy for Counter
+
+    total = sum(label_counts.values())
+    print(f"{name} | Total samples: {total}")
+    for label in range(10):
+        count = label_counts[label]
+        print(f"  Label {label}: {count} ({count/total*100:.2f}%)")
+    print("-" * 50)

@@ -44,6 +44,7 @@ ci = [
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+pythonpath = ["tests"]
 
 [build-system]
 requires = ["setuptools>=69", "wheel"]
