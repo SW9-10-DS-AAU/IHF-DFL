@@ -629,44 +629,38 @@ class PytorchModel:
         # -------------------------
         n_clients = len(client_models)
 
-        if aggregation_rule == "FedAVG":
-            users_merge_weights = {u.address: 1.0 / n_clients for u in _users}
-            self.agg_func_1 = "FedAVG"
-            self.agg_weight_1 = 1.0
-            self.agg_func_2 = None
-            self.agg_weight_2 = None
+        # For binary/partial switch versions
+        func1 = positives_only
+        func2 = plus_one_normalize
 
-        elif aggregation_rule == "positives_only":
-            users_merge_weights = positives_only(users_contribution_scores)
-            self.agg_func_1 = "positives_only"
-            self.agg_weight_1 = 1.0
-            self.agg_func_2 = None
-            self.agg_weight_2 = None
+        # Agg. strategies not using users_contrib_scores are fixed with a lambda capturing the input each function need.
+        agg_rules = {
+            "FedAVG": lambda _: {u.address: 1.0 / n_clients for u in _users},
+            "positives_only": positives_only,
+            "plus_one_normalize": plus_one_normalize,
+            "plus_more_than_one_normalize": plus_more_than_one_normalize,
+            "GRS_aggregation": lambda _: GRS_aggregation(_users),
+        }
 
-        elif aggregation_rule == "plus_one_normalize":
-            users_merge_weights = plus_one_normalize(users_contribution_scores)
-            self.agg_func_1 = "plus_one_normalize"
-            self.agg_weight_1 = 1.0
-            self.agg_func_2 = None
-            self.agg_weight_2 = None
-
-        elif aggregation_rule == "plus_more_than_one_normalize":
-            users_merge_weights = plus_more_than_one_normalize(users_contribution_scores)
-            self.agg_func_1 = "plus_more_than_one_normalize"
-            self.agg_weight_1 = 1.0
-            self.agg_func_2 = None
-            self.agg_weight_2 = None
+        if aggregation_rule in agg_rules:
+            users_merge_weights = agg_rules[aggregation_rule](users_contribution_scores)
+            if agg_switch_collector is not None:
+                agg_switch_collector.update({
+                    "func_1": aggregation_rule,
+                    "weight_1": 1.0,
+                    "func_2": None,
+                    "weight_2": None,
+                })
 
         elif aggregation_rule == "binary_switch":
-            users_merge_weights = self.binary_switch(users_contribution_scores, positives_only, plus_one_normalize)
+            users_merge_weights = self.binary_switch(users_contribution_scores, func1, func2,
+                                                     agg_switch_collector)
 
         elif aggregation_rule == "partial_switch_accuracy":
-            users_merge_weights = self.partial_switch_accuracy(users_contribution_scores, positives_only,
-                                                               plus_one_normalize, agg_switch_collector)
+            users_merge_weights = self.partial_switch_accuracy(users_contribution_scores, func1,
+                                                               func2, agg_switch_collector)
 
         elif aggregation_rule == "partial_switch_fixed_loss":
-            func1 = positives_only
-            func2 = plus_one_normalize
             if avg_prior_losses is not None:
                 users_merge_weights = self.partial_switch_fixed_loss(users_contribution_scores, avg_prior_losses, func1,
                                                                      func2, agg_switch_collector)
@@ -674,20 +668,19 @@ class PytorchModel:
                 print(yellow(
                     "Warning: Missing prior losses for partial_switch_fixed_loss. Defaulting to plus_one_normalize."))
                 users_merge_weights = plus_one_normalize(users_contribution_scores)
+                if agg_switch_collector is not None:
+                    agg_switch_collector.update(
+                        {"func_1": func1.__name__, "weight_1": 1.0, "func_2": func2.__name__, "weight_2": 0.0})
 
         elif aggregation_rule == "partial_switch_retrospective":
-            func1 = positives_only
-            func2 = plus_one_normalize
-
-            # if avg_prior_prior_losses is not None and avg_prior_losses is not None:
             if avg_prior_losses is not None:
                 users_merge_weights = self.partial_switch_loss_retrospective(users_contribution_scores, avg_prior_losses, func1, func2, agg_switch_collector)
             else:
                 print(yellow("Warning: Missing prior losses for partial_switch_retrospective. Defaulting to plus_one_normalize."))
                 users_merge_weights = plus_one_normalize(users_contribution_scores)
-
-        elif aggregation_rule == "GRS_aggregation":
-            users_merge_weights = self.GRS_aggregation(_users)
+                if agg_switch_collector is not None:
+                    agg_switch_collector.update(
+                        {"func_1": func1.__name__, "weight_1": 1.0, "func_2": func2.__name__, "weight_2": 0.0})
 
         else:
             raise ValueError(f"Unknown merge strategy: {aggregation_rule}")
@@ -1108,14 +1101,6 @@ class PytorchModel:
         return {addr: w / total for addr, w in combined.items()}
 
 
-    def GRS_aggregation(self, users):
-        total_grs = sum(user._globalrep[-1] for user in users)
-
-        aggregation_scores = {user.address: user._globalrep[-1] / total_grs for user in users}
-        return aggregation_scores
-
-
-
 # PYTORCH FUNCTIONS
 def train(
     net,
@@ -1514,6 +1499,10 @@ def plus_more_than_one_normalize(users_contrib_scores: dict, more_than_one=1.1):
      return aggregation_scores
 
 
+def GRS_aggregation(users):
+    total_grs = sum(user._globalrep[-1] for user in users)
+    aggregation_scores = {user.address: user._globalrep[-1] / total_grs for user in users}
+    return aggregation_scores
 
 
 def print_label_distribution(loader, name="Dataset"):
