@@ -681,7 +681,7 @@ class PytorchModel:
 
             # if avg_prior_prior_losses is not None and avg_prior_losses is not None:
             if avg_prior_losses is not None:
-                users_merge_weights = self.partial_switch(users_contribution_scores, avg_prior_losses, func1, func2, agg_switch_collector)
+                users_merge_weights = self.partial_switch_loss_retrospective(users_contribution_scores, avg_prior_losses, func1, func2, agg_switch_collector)
             else:
                 print(yellow("Warning: Missing prior losses for partial_switch_retrospective. Defaulting to plus_one_normalize."))
                 users_merge_weights = plus_one_normalize(users_contribution_scores)
@@ -987,8 +987,8 @@ class PytorchModel:
         accuracy_measure = self.accuracy[-1]  # latest accuracy TODO Fix med rigtig accuracy
         # Weight for func_2 (e.g. 0.47 → 47% func_2, 53% func_1)
 
-        weights_1 = func_1(users_contrib_scores)  # Generate weights using the primary/early-stage aggregator
-        weights_2 = func_2(users_contrib_scores)  # Generate weights using the secondary/late-stage aggregator
+        weights_1 = func_1(users_contrib_scores)
+        weights_2 = func_2(users_contrib_scores)
 
         mixed_weights = {
             key: (1 - accuracy_measure) * weights_1[key] + accuracy_measure * weights_2[key]
@@ -1054,22 +1054,15 @@ class PytorchModel:
 
         return {addr: w / total for addr, w in combined.items()}
 
-        # def partial_switch(self, users_contrib_scores, avg_prior_prior_losses, avg_prior_losses, func_1, func_2, agg_switch_collector=None):
 
     # takes an array of accuracy/losses. Only losses since we do not store accuracy.
-    def partial_switch_loss(self, users_contrib_scores, avg_prior_losses_per_round, func_1, func_2,
+    def partial_switch_loss_retrospective(self, users_contrib_scores, avg_prior_losses_per_round, func_1, func_2,
                             agg_switch_collector=None):
         res1 = func_1(users_contrib_scores)  # e.g. positives_only    — strict, filters noise
         res2 = func_2(users_contrib_scores)  # e.g. plus_one_normalize — soft, rewards broadly
 
         # How much did loss improve from the prior round to the previous round?
         # Normalise by prior loss so the ratio is scale-independent, clamp to [0, 1].
-
-        # if avg_prior_losses <= 0:
-        #     improvement_ratio = 0.0
-        # else:
-        #     improvement_ratio = max(0.0, min(1.0, (avg_prior_prior_losses - avg_prior_losses) / avg_prior_losses)) # 40.000-30.000/30.000 = 0.33
-        # (50 - 20) / 20 = 1.5 -> 150% improvement → ratio=100 % after clamping
 
         if len(avg_prior_losses_per_round) >= 2:
             x = np.arange(len(avg_prior_losses_per_round))
@@ -1112,8 +1105,8 @@ class PytorchModel:
         if total <= 0:
             n = len(combined)
             return {addr: 1.0 / n for addr in combined}
-
         return {addr: w / total for addr, w in combined.items()}
+
 
     def GRS_aggregation(self, users):
         total_grs = sum(user._globalrep[-1] for user in users)
@@ -1121,66 +1114,6 @@ class PytorchModel:
         aggregation_scores = {user.address: user._globalrep[-1] / total_grs for user in users}
         return aggregation_scores
 
-
-    # def partial_switch(self, users_contrib_scores, avg_prior_prior_losses, avg_prior_losses, func_1, func_2, agg_switch_collector=None):
-
-    # takes an array of accuracy/losses. Only losses since we do not store accuracy.
-    def partial_switch(self, users_contrib_scores, avg_prior_losses_per_round, func_1, func_2, agg_switch_collector=None):
-        res1 = func_1(users_contrib_scores)  # e.g. positives_only    — strict, filters noise
-        res2 = func_2(users_contrib_scores)  # e.g. plus_one_normalize — soft, rewards broadly
-
-        # How much did loss improve from the prior round to the previous round?
-        # Normalise by prior loss so the ratio is scale-independent, clamp to [0, 1].
-
-        # if avg_prior_losses <= 0:
-        #     improvement_ratio = 0.0
-        # else:
-        #     improvement_ratio = max(0.0, min(1.0, (avg_prior_prior_losses - avg_prior_losses) / avg_prior_losses)) # 40.000-30.000/30.000 = 0.33
-        # (50 - 20) / 20 = 1.5 -> 150% improvement → ratio=100 % after clamping
-
-        if len(avg_prior_losses_per_round) >= 2:
-            x = np.arange(len(avg_prior_losses_per_round))
-            slope, _ = np.polyfit(x, list(reversed(avg_prior_losses_per_round)), 1)  # now negative = improving
-            # normalize slope relative to mean loss so it's scale-independent
-            mean_loss = np.mean(avg_prior_losses_per_round)
-            improvement_ratio = max(0.0, min(1.0, -slope / mean_loss))
-        else:
-            improvement_ratio = 1.0  # not enough data, go strict
-
-
-        # Map ratio → angle [0°, 90°] → sine blend weight.
-        # sin(0°) = 0  → no improvement  → fully func_1 (strict/conservative)
-        # sin(90°) = 1 → max improvement → fully func_2 (soft/rewarding)
-        # Sine gives a slow start and fast finish: cautious early, more aggressive as convergence grows.
-        alpha = math.sin(math.radians(improvement_ratio * 90.0))  # weight for func_2   0.33 → 30° → sin(30°)=0.5     # weight for func_1   1 - 0.5 -> 0.5
-        beta  = 1.0 - alpha                                        # weight for func_2  0.67 → 60° → sin(60°)=0.87   # weight for func_1   1 - 0.87 -> 0.13
-
-        print(f"partial_switch: losses={[f'{l:.2f}' for l in avg_prior_losses_per_round]}, "
-              f"improvement={improvement_ratio:.3f}, alpha(func2)={alpha:.3f}, beta(func1)={beta:.3f}")
-
-        if agg_switch_collector is not None:
-            agg_switch_collector.update({
-                "func_1": func_1.__name__,
-                "weight_1": beta,
-                "func_2": func_2.__name__,
-                "weight_2": alpha,
-            })
-
-        # Blend the two score dicts linearly by (beta, alpha)
-        combined = {
-            addr: alpha * res1[addr] + beta * res2[addr]
-            for addr in users_contrib_scores
-        }
-
-        # Re-normalise: each func's output sums to 1 individually, but their
-        # linear combination may not — especially if func_1 zeroed some users out.
-        # 0.5+0.87=1,37
-        total = sum(combined.values())
-        if total <= 0:
-            n = len(combined)
-            return {addr: 1.0 / n for addr in combined}
-
-        return {addr: w / total for addr, w in combined.items()}
 
 
 # PYTORCH FUNCTIONS
