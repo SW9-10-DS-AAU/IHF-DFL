@@ -631,18 +631,49 @@ class PytorchModel:
 
         if aggregation_rule == "FedAVG":
             users_merge_weights = {u.address: 1.0 / n_clients for u in _users}
+            self.agg_func_1 = "FedAVG"
+            self.agg_weight_1 = 1.0
+            self.agg_func_2 = None
+            self.agg_weight_2 = None
 
         elif aggregation_rule == "positives_only":
             users_merge_weights = positives_only(users_contribution_scores)
+            self.agg_func_1 = "positives_only"
+            self.agg_weight_1 = 1.0
+            self.agg_func_2 = None
+            self.agg_weight_2 = None
 
         elif aggregation_rule == "plus_one_normalize":
             users_merge_weights = plus_one_normalize(users_contribution_scores)
+            self.agg_func_1 = "plus_one_normalize"
+            self.agg_weight_1 = 1.0
+            self.agg_func_2 = None
+            self.agg_weight_2 = None
 
         elif aggregation_rule == "plus_more_than_one_normalize":
             users_merge_weights = plus_more_than_one_normalize(users_contribution_scores)
+            self.agg_func_1 = "plus_more_than_one_normalize"
+            self.agg_weight_1 = 1.0
+            self.agg_func_2 = None
+            self.agg_weight_2 = None
 
         elif aggregation_rule == "binary_switch":
             users_merge_weights = self.binary_switch(users_contribution_scores, positives_only, plus_one_normalize)
+
+        elif aggregation_rule == "partial_switch_accuracy":
+            users_merge_weights = self.partial_switch_accuracy(users_contribution_scores, positives_only,
+                                                               plus_one_normalize, agg_switch_collector)
+
+        elif aggregation_rule == "partial_switch_fixed_loss":
+            func1 = positives_only
+            func2 = plus_one_normalize
+            if avg_prior_losses is not None:
+                users_merge_weights = self.partial_switch_fixed_loss(users_contribution_scores, avg_prior_losses, func1,
+                                                                     func2, agg_switch_collector)
+            else:
+                print(yellow(
+                    "Warning: Missing prior losses for partial_switch_fixed_loss. Defaulting to plus_one_normalize."))
+                users_merge_weights = plus_one_normalize(users_contribution_scores)
 
         elif aggregation_rule == "partial_switch_retrospective":
             func1 = positives_only
@@ -879,19 +910,210 @@ class PytorchModel:
             for x in previous_model_params
         )
 
-    def binary_switch(self, users_contrib_scores, func_1, func_2):
-        if self.has_switched: return func_2(users_contrib_scores)
+    # def binary_switch(self, users_contrib_scores, func_1, func_2, agg_switch_collector):
+    #     if self.has_switched:
+    #         print(f"  [binary_switch] At round {self.round}: Using {func_2.__name__}")
+    #         if agg_switch_collector is not None:
+    #             agg_switch_collector.update({
+    #                 "func_1": func_1.__name__,
+    #                 "weight_1": 0.0,
+    #                 "func_2": func_2.__name__,
+    #                 "weight_2": 1.0,
+    #             })
+    #
+    #         return func_2(users_contrib_scores)
+    #
+    #     if self.round <= 1 or self.two_previous_global_model is None:
+    #         print(f"  [binary_switch] At round {self.round}: Using {func_1.__name__}")
+    #         if agg_switch_collector is not None:
+    #             agg_switch_collector.update({
+    #                 "func_1": func_1.__name__,
+    #                 "weight_1": 1.0,
+    #                 "func_2": func_2.__name__,
+    #                 "weight_2": 0.0,
+    #             })
+    #
+    #         return func_1(users_contrib_scores)
+    #
+    #     converged = self.models_are_equal(self.previous_global_model, self.two_previous_global_model)
+    #
+    #     if converged:
+    #         self.has_switched = True
+    #         print(f"  [binary_switch] Convergens detected at round {self.round}: Switching from {func_1.__name__} to {func_2.__name__}")
+    #         if agg_switch_collector is not None:
+    #             agg_switch_collector.update({
+    #                 "func_1": func_1.__name__,
+    #                 "weight_1": 0.0,
+    #                 "func_2": func_2.__name__,
+    #                 "weight_2": 1.0,
+    #             })
+    #
+    #         return func_2(users_contrib_scores)
+    #
+    #     print(f"  [binary_switch] At round {self.round}: Using {func_1.__name__}")
+    #     if agg_switch_collector is not None:
+    #         agg_switch_collector.update({
+    #             "func_1": func_1.__name__,
+    #             "weight_1": 1.0,
+    #             "func_2": func_2.__name__,
+    #             "weight_2": 0.0,
+    #         })
+    #     return func_1(users_contrib_scores)
 
-        if self.round <= 1 or self.two_previous_global_model is None:
-            return func_1(users_contrib_scores)
+    def binary_switch(self, users_contrib_scores, func_1, func_2, agg_switch_collector):
+        if not self.has_switched and self.round > 1 and self.two_previous_global_model is not None:
+            if self.models_are_equal(self.previous_global_model, self.two_previous_global_model):
+                self.has_switched = True
+                print(
+                    f"  [binary_switch] Convergence detected at round {self.round}: Switching from {func_1.__name__} to {func_2.__name__}")
 
-        converged = self.models_are_equal(self.previous_global_model, self.two_previous_global_model)
+        use_func_2 = self.has_switched
+        active_func = func_2 if use_func_2 else func_1
 
-        if converged:
-            self.has_switched = True
-            return func_2(users_contrib_scores)
+        print(f"  [binary_switch] At round {self.round}: Using {active_func.__name__}")
 
-        return func_1(users_contrib_scores)
+        if agg_switch_collector is not None:
+            agg_switch_collector.update({
+                "func_1": func_1.__name__,
+                "weight_1": 0.0 if use_func_2 else 1.0,
+                "func_2": func_2.__name__,
+                "weight_2": 1.0 if use_func_2 else 0.0,
+            })
+
+        return active_func(users_contrib_scores)
+
+    def partial_switch_accuracy(self, users_contrib_scores, func_1, func_2, agg_switch_collector):
+
+        accuracy_measure = self.accuracy[-1]  # latest accuracy TODO Fix med rigtig accuracy
+        # Weight for func_2 (e.g. 0.47 → 47% func_2, 53% func_1)
+
+        weights_1 = func_1(users_contrib_scores)  # Generate weights using the primary/early-stage aggregator
+        weights_2 = func_2(users_contrib_scores)  # Generate weights using the secondary/late-stage aggregator
+
+        mixed_weights = {
+            key: (1 - accuracy_measure) * weights_1[key] + accuracy_measure * weights_2[key]
+            for key in users_contrib_scores
+        }
+
+        # Normalizing
+        total = sum(mixed_weights.values())
+        mixed_weights = {key: value / total for key, value in mixed_weights.items()}
+
+        if agg_switch_collector is not None:
+            agg_switch_collector.update({
+                "func_1": func_1.__name__,
+                "weight_1": 1 - accuracy_measure,
+                "func_2": func_2.__name__,
+                "weight_2": accuracy_measure,
+            })
+
+        return mixed_weights
+
+    def partial_switch_fixed_loss(self, users_contrib_scores, avg_prior_losses, func_1, func_2, threshold=100,
+                                  agg_switch_collector=None):
+        # ratio = loss / threshold: high when loss is high (early training), low when loss is low (late training).
+        # alpha = sin(ratio * 90°): weight for func_1 (strict/conservative, e.g. positives_only).
+        #   sin(90°) = 1 → loss at or above threshold → fully func_1
+        #   sin(0°)  = 0 → loss near zero             → fully func_2
+        # Using ratio = loss/threshold (not 1 - loss/threshold) keeps func_1 dominant for longer —
+        # the sine curve stays high across most of the loss range and only drops sharply near zero.
+        # This matches the intent: use positives_only throughout training, switch to plus_one_normalize
+        # only once loss is genuinely low.
+        if avg_prior_losses is None or avg_prior_losses >= threshold:
+            ratio = 1.0
+            alpha = 1.0
+        else:
+            ratio = avg_prior_losses / threshold
+            alpha = math.sin(math.radians(ratio * 90.0))
+
+        beta = 1.0 - alpha  # weight for func_2 (soft/rewarding, e.g. plus_one_normalize)
+
+        print(f"partial_switch_fixed_loss: prior_loss={avg_prior_losses}, threshold={threshold}, ratio={ratio:.3f}, "
+              f"alpha(func1)={alpha:.3f}, beta(func2)={beta:.3f}")
+
+        if agg_switch_collector is not None:
+            agg_switch_collector.update({
+                "func_1": func_1.__name__,
+                "weight_1": alpha,
+                "func_2": func_2.__name__,
+                "weight_2": beta,
+            })
+
+        res1 = func_1(users_contrib_scores)
+        res2 = func_2(users_contrib_scores)
+
+        combined = {
+            addr: alpha * res1[addr] + beta * res2[addr]
+            for addr in users_contrib_scores
+        }
+
+        total = sum(combined.values())
+        if total <= 0:
+            n = len(combined)
+            return {addr: 1.0 / n for addr in combined}
+
+        return {addr: w / total for addr, w in combined.items()}
+
+        # def partial_switch(self, users_contrib_scores, avg_prior_prior_losses, avg_prior_losses, func_1, func_2, agg_switch_collector=None):
+
+    # takes an array of accuracy/losses. Only losses since we do not store accuracy.
+    def partial_switch_loss(self, users_contrib_scores, avg_prior_losses_per_round, func_1, func_2,
+                            agg_switch_collector=None):
+        res1 = func_1(users_contrib_scores)  # e.g. positives_only    — strict, filters noise
+        res2 = func_2(users_contrib_scores)  # e.g. plus_one_normalize — soft, rewards broadly
+
+        # How much did loss improve from the prior round to the previous round?
+        # Normalise by prior loss so the ratio is scale-independent, clamp to [0, 1].
+
+        # if avg_prior_losses <= 0:
+        #     improvement_ratio = 0.0
+        # else:
+        #     improvement_ratio = max(0.0, min(1.0, (avg_prior_prior_losses - avg_prior_losses) / avg_prior_losses)) # 40.000-30.000/30.000 = 0.33
+        # (50 - 20) / 20 = 1.5 -> 150% improvement → ratio=100 % after clamping
+
+        if len(avg_prior_losses_per_round) >= 2:
+            x = np.arange(len(avg_prior_losses_per_round))
+            slope, _ = np.polyfit(x, list(reversed(avg_prior_losses_per_round)), 1)  # now negative = improving
+            # normalize slope relative to mean loss so it's scale-independent
+            mean_loss = np.mean(avg_prior_losses_per_round)
+            improvement_ratio = max(0.0, min(1.0, -slope / mean_loss))
+        else:
+            improvement_ratio = 1.0  # not enough data, go strict
+
+        # Map ratio → angle [0°, 90°] → sine blend weight.
+        # sin(0°) = 0  → loss plateauing  → fully func_2 (soft/rewarding)
+        # sin(90°) = 1 → max improvement  → fully func_1 (strict/conservative)
+        # Sine gives a slow start and fast finish: cautious early, more aggressive as convergence grows.
+        alpha = math.sin(math.radians(
+            improvement_ratio * 90.0))  # weight for func_1   0.33 → 30° → sin(30°)=0.5
+        beta = 1.0 - alpha  # weight for func_2  1 - 0.5 = 0.5
+
+        print(f"partial_switch: losses={[f'{l:.2f}' for l in avg_prior_losses_per_round]}, "
+              f"improvement={improvement_ratio:.3f}, alpha(func1)={alpha:.3f}, beta(func2)={beta:.3f}")
+
+        if agg_switch_collector is not None:
+            agg_switch_collector.update({
+                "func_1": func_1.__name__,
+                "weight_1": alpha,
+                "func_2": func_2.__name__,
+                "weight_2": beta,
+            })
+
+        # Blend the two score dicts linearly by (alpha, beta)
+        combined = {
+            addr: alpha * res1[addr] + beta * res2[addr]
+            for addr in users_contrib_scores
+        }
+
+        # Re-normalise: each func's output sums to 1 individually, but their
+        # linear combination may not — especially if func_1 zeroed some users out.
+        # 0.5+0.87=1,37
+        total = sum(combined.values())
+        if total <= 0:
+            n = len(combined)
+            return {addr: 1.0 / n for addr in combined}
+
+        return {addr: w / total for addr, w in combined.items()}
 
     def GRS_aggregation(self, users):
         total_grs = sum(user._globalrep[-1] for user in users)
