@@ -281,7 +281,8 @@ class PytorchModel:
                                              length
                                             ))
         
-        print("Participant added: {:<9} {}".format(rb(_attitude.upper()[0]+_attitude[1:]), rb("User")))
+        color_fn = green if _attitude == "good" else (yellow if _attitude == "inactive" else red)
+        print("Participant added: {:<9} {}".format(color_fn(_attitude.upper()[0]+_attitude[1:]), color_fn("User")))
 
     def print_client_data_distributions(self):
         """Prints the label distribution for every client's train/val sets and the global test set."""
