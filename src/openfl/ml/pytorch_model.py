@@ -914,6 +914,7 @@ class PytorchModel:
         #     improvement_ratio = 0.0
         # else:
         #     improvement_ratio = max(0.0, min(1.0, (avg_prior_prior_losses - avg_prior_losses) / avg_prior_losses)) # 40.000-30.000/30.000 = 0.33
+        # (50 - 20) / 20 = 1.5 -> 150% improvement → ratio=100 % after clamping
 
         if len(avg_prior_losses_per_round) >= 2:
             x = np.arange(len(avg_prior_losses_per_round))
@@ -922,15 +923,15 @@ class PytorchModel:
             mean_loss = np.mean(avg_prior_losses_per_round)
             improvement_ratio = max(0.0, min(1.0, -slope / mean_loss))
         else:
-            improvement_ratio = 0.0  # not enough data, go strict
+            improvement_ratio = 1.0  # not enough data, go strict
 
 
         # Map ratio → angle [0°, 90°] → sine blend weight.
         # sin(0°) = 0  → no improvement  → fully func_1 (strict/conservative)
         # sin(90°) = 1 → max improvement → fully func_2 (soft/rewarding)
         # Sine gives a slow start and fast finish: cautious early, more aggressive as convergence grows.
-        alpha = math.sin(math.radians(improvement_ratio * 90.0))  # weight for func_2   0.33 → 30° → sin(30°)=0.5
-        beta  = 1.0 - alpha                                        # weight for func_1  0.67 → 60° → sin(60°)=0.87
+        alpha = math.sin(math.radians(improvement_ratio * 90.0))  # weight for func_2   0.33 → 30° → sin(30°)=0.5     # weight for func_1   1 - 0.5 -> 0.5
+        beta  = 1.0 - alpha                                        # weight for func_2  0.67 → 60° → sin(60°)=0.87   # weight for func_1   1 - 0.87 -> 0.13
 
         print(f"partial_switch: losses={[f'{l:.2f}' for l in avg_prior_losses_per_round]}, "
               f"improvement={improvement_ratio:.3f}, alpha(func2)={alpha:.3f}, beta(func1)={beta:.3f}")
@@ -945,12 +946,13 @@ class PytorchModel:
 
         # Blend the two score dicts linearly by (beta, alpha)
         combined = {
-            addr: beta * res1[addr] + alpha * res2[addr]
+            addr: alpha * res1[addr] + beta * res2[addr]
             for addr in users_contrib_scores
         }
 
         # Re-normalise: each func's output sums to 1 individually, but their
         # linear combination may not — especially if func_1 zeroed some users out.
+        # 0.5+0.87=1,37
         total = sum(combined.values())
         if total <= 0:
             n = len(combined)

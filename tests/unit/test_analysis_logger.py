@@ -190,12 +190,14 @@ def test_roundtrip_setup_preserved(tmp_path):
 def test_null_logger_all_methods_do_not_raise():
     null = NullExperimentLogger()
     null.log_global_round(round=1, round_time=1.0, obj_global_acc=0.9,
-                          obj_global_loss=50, reward_pool=0, punishment_pool=0)
+                          obj_global_loss=50, reward_pool=0, punishment_pool=0,
+                          agg_func_1="positives_only", agg_weight_1=0.7,
+                          agg_func_2="plus_one_normalize", agg_weight_2=0.3)
     null.log_user_round(round=1, user_id=0, state="active", behavior="good", role="good",
                         grs=0, sub_personal_acc=0, sub_personal_loss=0,
                         sub_global_acc=0, sub_global_loss=0,
                         round_reputation_assigned=0,
-                        reward_delta=0, is_reward=True, merged=True)
+                        reward_delta=0, is_reward=True, merged=True, merge_weight=0.25)
     null.log_vote(round=1, giver_id=0, receiver_id=1,
                   giver_address="0x0", receiver_address="0x1",
                   vote_feedback_score=1, vote_prev_accuracy=0,
