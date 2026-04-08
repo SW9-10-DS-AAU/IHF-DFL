@@ -1416,9 +1416,8 @@ class FLChallenge(FLManager):
 
             # If not dotproduct, we calculate contribution score before the merge
             if not self.experiment_config.contribution_score_strategy == "dotproduct":
-                # avg_prior_prior_accs, avg_prior_prior_losses, avg_prior_accs, avg_prior_losses = self.get_all_prior_prior_and_prior_average_accuracies_and_losses() # Only used for non-dp version. when agg_rule==partial_switch
                 avg_losses = self.get_all_n_prior_losses(3)
-                self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_prior_accs=None, avg_prior_prior_losses=None, avg_prior_accs=None, avg_prior_losses=avg_losses)
+                self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_losses=avg_losses)  # Only used for non-dp version. when agg_rule==partial_switch
 
 
             # self.print_round_summary(receipt)

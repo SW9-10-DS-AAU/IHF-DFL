@@ -602,7 +602,7 @@ class PytorchModel:
         ))
         return manipulate(copy.deepcopy(user.model), scale=self.freerider_noise_scale)
 
-    def the_merge(self, _users, aggregation_rule: str, merge_weight_collector=None, agg_switch_collector=None, avg_prior_prior_accs=None, avg_prior_prior_losses=None, avg_prior_accs=None, avg_prior_losses=None):
+    def the_merge(self, _users, aggregation_rule: str, merge_weight_collector=None, agg_switch_collector=None, avg_prior_losses=None):
         # No qualified users → skip merge this round
         if not _users:
             print("-----------------------------------------------------------------------------------")
