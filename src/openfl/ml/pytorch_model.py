@@ -664,11 +664,11 @@ class PytorchModel:
         elif aggregation_rule == "partial_switch_fixed_loss":
             if avg_prior_losses is not None:
                 users_merge_weights = self.partial_switch_fixed_loss(users_contribution_scores, avg_prior_losses, func1,
-                                                                     func2, agg_switch_collector)
+                                                                     func2, agg_switch_collector=agg_switch_collector)
             else:
                 print(yellow(
-                    "Warning: Missing prior losses for partial_switch_fixed_loss. Defaulting to plus_one_normalize."))
-                users_merge_weights = plus_one_normalize(users_contribution_scores)
+                    "Warning: Missing prior losses for partial_switch_fixed_loss. Defaulting to positives_only."))
+                users_merge_weights = func1(users_contribution_scores)
                 if agg_switch_collector is not None:
                     agg_switch_collector.update(
                         {"func_1": func1.__name__, "weight_1": 1.0, "func_2": func2.__name__, "weight_2": 0.0})
@@ -677,8 +677,8 @@ class PytorchModel:
             if avg_prior_losses is not None:
                 users_merge_weights = self.partial_switch_loss_retrospective(users_contribution_scores, avg_prior_losses, func1, func2, agg_switch_collector)
             else:
-                print(yellow("Warning: Missing prior losses for partial_switch_retrospective. Defaulting to plus_one_normalize."))
-                users_merge_weights = plus_one_normalize(users_contribution_scores)
+                print(yellow("Warning: Missing prior losses for partial_switch_retrospective. Defaulting to positives_only."))
+                users_merge_weights = func1(users_contribution_scores)
                 if agg_switch_collector is not None:
                     agg_switch_collector.update(
                         {"func_1": func1.__name__, "weight_1": 1.0, "func_2": func2.__name__, "weight_2": 0.0})
