@@ -1,19 +1,22 @@
 import numpy as np
 import pandas as pd
 from .loader import RunData
+from .aggregations import _require_consistent_rounds
 
-# Wei → ETH columns in the global table
+# Wei → ETH columns
 _GLOBAL_WEI_COLS  = ["reward_pool", "punishment_pool"]
-# Wei → ETH columns in the users table
-_USERS_WEI_COLS   = ["grs", "reward_delta", "contribution_score"]
+_USERS_WEI_COLS   = ["grs", "reward_delta", "round_reputation_assigned"]
+
 # ratio → % columns
-_GLOBAL_ACC_COLS  = ["global_accuracy"]
-_USERS_ACC_COLS   = ["accuracy"]
+_GLOBAL_ACC_COLS  = ["objective_global_accuracy"]
+_USERS_ACC_COLS   = ["subjective_personal_accuracy", "subjective_global_accuracy"]
 
-_GLOBAL_LOSS_COLS  = ["global_loss"]
-_USERS_LOSS_COLS   = ["loss"]
-
-
+# vote_accuracy/vote_prev_accuracy are stored as int 0..10000 (accuracy * 100 * scalar(100); divide by 100 → %
+# vote_loss/vote_prev_loss are stored as loss * scalar(100); divide by 100 → actual loss
+# NOTE: these must be converted AFTER the is_outlier merge, which compares vote_accuracy
+# against current_excluded_values (both in 0..10000 scale) — converting before would break it.
+_VOTES_ACC_COLS  = ["vote_accuracy", "vote_prev_accuracy"]
+_VOTES_LOSS_COLS = ["vote_loss", "vote_prev_loss"]
 
 
 # Metadata keys stored in the "metadata" lookup table returned by merge_runs.
@@ -33,15 +36,20 @@ MERGE_META_KEYS = [
     "number_of_freerider_contributors",
     "number_of_inactive_contributors",
     "minimum_rounds",
+    "data_distribution",
+    "dirichlet_alpha",
 ]
 
 
-def normalize_run(run: RunData) -> RunData:
+def normalize_run(run: RunData, make_readable: bool = True) -> RunData:
     """
     Return a new RunData with unit-converted DataFrames:
       - Wei columns divided by 1e18 (→ ETH)
       - accuracy columns multiplied by 100 (ratio → %)
       - 'is_baseline' boolean column added (True where round == 0)
+
+    make_readable: if False, skip all unit conversions and return raw values.
+                   The outlier/is_baseline/vote merge logic still runs regardless.
     """
     g = run.rounds_global.copy() if not run.rounds_global.empty else pd.DataFrame()
     u = run.rounds_users.copy()  if not run.rounds_users.empty  else pd.DataFrame()
@@ -50,38 +58,33 @@ def normalize_run(run: RunData) -> RunData:
     c = run.contributions.copy() if not run.contributions.empty else pd.DataFrame()
     w = run.warnings.copy()      if not run.warnings.empty      else pd.DataFrame()
 
-    # Global table
-    if not g.empty:
-        for col in _GLOBAL_WEI_COLS:
-            if col in g.columns:
-                g[col] = g[col] / 1e18
-        if "round" in g.columns:
-            g["is_baseline"] = g["round"] == 0
 
-    # Users table
-    if not u.empty:
-        for col in _USERS_WEI_COLS:
-            if col in u.columns:
-                u[col] = u[col] / 1e18 # TODO: Why not working for contribution_score?
+    wei_divisor      = 1e18  # Wei → ETH
+    acc_multiplier   = 100   # float 0..1 → %
+    vote_acc_divisor = 100   # int 0..10000 → % (= / 10000 * 100)
+    vote_loss_unscaler  = 100   # vote loss stored as actual_loss * 100; restore by dividing
 
-        for col in _USERS_ACC_COLS:
-            if col in u.columns:
-                u[col] = u[col] / 10000
+    if make_readable:
 
-        for col in _GLOBAL_ACC_COLS:
-            if col in g.columns:
-                g[col] = g[col] / 10000
+        # Global table
+        if not g.empty:
+                for col in _GLOBAL_WEI_COLS:
+                    if col in g.columns:
+                        g[col] = g[col] / wei_divisor
+                for col in _GLOBAL_ACC_COLS:
+                    if col in g.columns:
+                        g[col] = g[col] * acc_multiplier
 
-        for col in _USERS_LOSS_COLS:
-            if col in u.columns:
-                u[col] = u[col] / 100
+        # Users table
+        if not u.empty:
+            for col in _USERS_WEI_COLS:
+                if col in u.columns:
+                    u[col] = u[col] / wei_divisor
 
-        for col in _GLOBAL_LOSS_COLS:
-            if col in g.columns:
-                g[col] = g[col] / 100
+            for col in _USERS_ACC_COLS:
+                if col in u.columns:
+                    u[col] = u[col] * acc_multiplier
 
-        # if "round" in u.columns:
-        #     u["is_baseline"] = u["round"] == 0
 
     # Votes table — flag whether the voted accuracy was excluded as an outlier.
     # Only current_excluded_values is pulled from contributions; it's dropped after use.
@@ -101,14 +104,15 @@ def normalize_run(run: RunData) -> RunData:
 
         v = v.drop(columns=['current_excluded_values'])
 
-    #   - Dropped experiment_id from merge keys — it doesn't exist yet at this stage (it's added later in merge_runs).
-    #   - inner join — matches the original snippet; votes without a corresponding contribution row are dropped. If you
-    #   want to preserve all votes, switch to how='left' (then is_outlier will be NaN for unmatched rows).
-    #   - Column narrowing — vote_res/contrib_res select only the needed columns up front so v doesn't accumulate
-    #   duplicate columns from c.
-
-
-    # Receipts: gas_used stays as-is (integer gas units)
+    # Vote list conversions — must run after is_outlier merge (see note above)
+    if make_readable:
+        if not v.empty:
+            for col in _VOTES_ACC_COLS:
+                if col in v.columns:
+                    v[col] = v[col] / vote_acc_divisor
+            for col in _VOTES_LOSS_COLS:
+                if col in v.columns:
+                    v[col] = v[col] / vote_loss_unscaler
 
     return RunData(
         experiment_id=run.experiment_id,
@@ -123,8 +127,8 @@ def normalize_run(run: RunData) -> RunData:
     )
 
 
-def normalize_runs(runs: list[RunData]) -> list[RunData]:
-    return [normalize_run(r) for r in runs]
+def normalize_runs(runs: list[RunData], make_readable: bool = True) -> list[RunData]:
+    return [normalize_run(r, make_readable=make_readable) for r in runs]
 
 
 def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
@@ -183,7 +187,7 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
         # about dtype inference changing in a future pandas version.
         return pd.concat([f.dropna(axis=1, how="all") for f in frames], ignore_index=True)
 
-    return {
+    result = {
         "metadata": pd.DataFrame(metadata_rows),
         "global":   _concat(global_frames),
         "users":    _concat(users_frames),
