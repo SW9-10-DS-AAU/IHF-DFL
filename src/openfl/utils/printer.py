@@ -5,7 +5,6 @@ from openfl.utils.config import get_print_config
 
 config = get_print_config()
 
-print(config.ONLY_PRINT_ROUND_SUMMARY)
 def _print(string, end= ""):
     if config.ONLY_PRINT_ROUND_SUMMARY:
         try:

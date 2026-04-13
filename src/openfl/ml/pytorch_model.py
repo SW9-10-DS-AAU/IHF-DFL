@@ -15,12 +15,13 @@ import math
 import logging
 from web3 import Web3
 from termcolor import colored
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Callable
 from collections import OrderedDict
 from torchvision import transforms
 from torchvision.datasets import CIFAR10, MNIST
 from torch.utils.data import DataLoader, random_split, Subset
 from collections import Counter
+from src.openfl.utils import aggregration_strategy_parser
 torch._dynamo.config.cache_size_limit = 512
 debugging = sys.gettrace() is not None
 logging.getLogger("torch._inductor").setLevel(logging.ERROR)
@@ -630,10 +631,6 @@ class PytorchModel:
         # -------------------------
         n_clients = len(client_models)
 
-        # For binary/partial switch versions
-        func1 = positives_only
-        func2 = plus_one_normalize
-
         # Agg. strategies not using users_contrib_scores are fixed with a lambda capturing the input each function need.
         agg_rules = {
             "FedAVG": lambda _: {u.address: 1.0 / n_clients for u in _users},
@@ -653,38 +650,28 @@ class PytorchModel:
                     "weight_2": None,
                 })
 
-        elif aggregation_rule == "binary_switch":
-            users_merge_weights = self.binary_switch(users_contribution_scores, func1, func2,
-                                                     agg_switch_collector)
-
-        elif aggregation_rule == "partial_switch_accuracy":
-            users_merge_weights = self.partial_switch_accuracy(users_contribution_scores, func1,
-                                                               func2, agg_switch_collector)
-
-        elif aggregation_rule == "partial_switch_fixed_loss":
-            if avg_prior_losses is not None:
-                users_merge_weights = self.partial_switch_fixed_loss(users_contribution_scores, avg_prior_losses, func1,
-                                                                     func2, agg_switch_collector=agg_switch_collector)
-            else:
-                print(yellow(
-                    "Warning: Missing prior losses for partial_switch_fixed_loss. Defaulting to positives_only."))
-                users_merge_weights = func1(users_contribution_scores)
-                if agg_switch_collector is not None:
-                    agg_switch_collector.update(
-                        {"func_1": func1.__name__, "weight_1": 1.0, "func_2": func2.__name__, "weight_2": 0.0})
-
-        elif aggregation_rule == "partial_switch_retrospective":
-            if avg_prior_losses is not None:
-                users_merge_weights = self.partial_switch_loss_retrospective(users_contribution_scores, avg_prior_losses, func1, func2, agg_switch_collector)
-            else:
-                print(yellow("Warning: Missing prior losses for partial_switch_retrospective. Defaulting to positives_only."))
-                users_merge_weights = func1(users_contribution_scores)
-                if agg_switch_collector is not None:
-                    agg_switch_collector.update(
-                        {"func_1": func1.__name__, "weight_1": 1.0, "func_2": func2.__name__, "weight_2": 0.0})
-
         else:
-            raise ValueError(f"Unknown merge strategy: {aggregation_rule}")
+            parsed_agg_strategy_value = aggregration_strategy_parser.parse_values(aggregation_rule)
+            switch_type = parsed_agg_strategy_value[0]
+            # Resolve func name strings to callables using agg_rules
+            func1_name = parsed_agg_strategy_value[1]
+            func2_name = parsed_agg_strategy_value[2]
+            if func1_name not in agg_rules:
+                raise ValueError(f"Unknown aggregation function '{func1_name}' in switch rule: {aggregation_rule}")
+            if func2_name not in agg_rules:
+                raise ValueError(f"Unknown aggregation function '{func2_name}' in switch rule: {aggregation_rule}")
+            func1 = agg_rules[func1_name]
+            func2 = agg_rules[func2_name]
+
+            if switch_type == "binary_switch":
+                users_merge_weights = self.invoke_binary_switch(users_contribution_scores, func1, func2, agg_switch_collector)
+
+            elif switch_type.startswith("partial_switch"):
+                users_merge_weights = self.invoke_partial_switch(users_contribution_scores,
+                                                                          switch_type, func1, func2, avg_prior_losses,
+                                                                          agg_switch_collector)
+            else:
+                raise ValueError(f"Unknown merge strategy: {aggregation_rule}")
 
         for u in _users:
             u.merge_weight = users_merge_weights[u.address]
@@ -744,6 +731,7 @@ class PytorchModel:
             u.model.load_state_dict(self.global_model.state_dict())
 
         print("-----------------------------------------------------------------------------------\n")
+
 
     def exchange_models(self):
         print("Users exchanging models...")
@@ -904,55 +892,62 @@ class PytorchModel:
             for x in previous_model_params
         )
 
-    # def binary_switch(self, users_contrib_scores, func_1, func_2, agg_switch_collector):
-    #     if self.has_switched:
-    #         print(f"  [binary_switch] At round {self.round}: Using {func_2.__name__}")
-    #         if agg_switch_collector is not None:
-    #             agg_switch_collector.update({
-    #                 "func_1": func_1.__name__,
-    #                 "weight_1": 0.0,
-    #                 "func_2": func_2.__name__,
-    #                 "weight_2": 1.0,
-    #             })
+
+    def invoke_binary_switch(self, users_contrib_scores, func1: Callable, func2: Callable, agg_switch_collector=None):
+        users_merge_weights = self.binary_switch(users_contrib_scores, func1, func2,
+                                                 agg_switch_collector)
+        return users_merge_weights
+
+    def invoke_partial_switch(self, users_contrib_scores, switch_type: str, func1: Callable, func2: Callable, avg_prior_losses=None, agg_switch_collector=None):
+        loss_based = {
+            "partial_switch_fixed_loss": self.partial_switch_fixed_loss,
+            "partial_switch_retrospective": self.partial_switch_loss_retrospective,
+        }
+
+        if switch_type == "partial_switch_accuracy":
+            return self.partial_switch_accuracy(users_contrib_scores, func1, func2, agg_switch_collector)
+
+        if switch_type in loss_based:
+            if not avg_prior_losses:  # None or empty list (early rounds)
+                print(yellow(f"Warning: Missing prior losses for {switch_type}. Defaulting to func1."))
+                if agg_switch_collector is not None:
+                    agg_switch_collector.update({"func_1": func1.__name__, "weight_1": 1.0, "func_2": func2.__name__, "weight_2": 0.0})
+                return func1(users_contrib_scores)
+            if switch_type == "partial_switch_fixed_loss":
+                return self.partial_switch_fixed_loss(users_contrib_scores, avg_prior_losses[0], func1, func2, agg_switch_collector)
+            return self.partial_switch_loss_retrospective(users_contrib_scores, avg_prior_losses, func1, func2, agg_switch_collector)
+
+        raise ValueError(f"Unknown partial switch type: {switch_type}")
+
+    # def invoke_partial_switch(self, users_contrib_scores, switch_type: str, func1: Callable, func2: Callable, avg_prior_losses=None, agg_switch_collector=None):
+    #     if switch_type == "partial_switch_accuracy":
+    #         users_merge_weights = self.partial_switch_accuracy(users_contrib_scores, func1,
+    #                                                            func2, agg_switch_collector)
     #
-    #         return func_2(users_contrib_scores)
+    #     elif switch_type == "partial_switch_fixed_loss":
+    #         if avg_prior_losses is not None:
+    #             users_merge_weights = self.partial_switch_fixed_loss(users_contrib_scores, avg_prior_losses, func1,
+    #                                                                  func2, agg_switch_collector=agg_switch_collector)
+    #         else:
+    #             print(yellow(
+    #                 "Warning: Missing prior losses for partial_switch_fixed_loss. Defaulting to positives_only."))
+    #             users_merge_weights = func1(users_contrib_scores)
+    #             if agg_switch_collector is not None:
+    #                 agg_switch_collector.update(
+    #                     {"func_1": func1.__name__, "weight_1": 1.0, "func_2": func2.__name__, "weight_2": 0.0})
     #
-    #     if self.round <= 1 or self.two_previous_global_model is None:
-    #         print(f"  [binary_switch] At round {self.round}: Using {func_1.__name__}")
-    #         if agg_switch_collector is not None:
-    #             agg_switch_collector.update({
-    #                 "func_1": func_1.__name__,
-    #                 "weight_1": 1.0,
-    #                 "func_2": func_2.__name__,
-    #                 "weight_2": 0.0,
-    #             })
+    #     elif switch_type == "partial_switch_retrospective":
+    #         if avg_prior_losses is not None:
+    #             users_merge_weights = self.partial_switch_loss_retrospective(users_contrib_scores, avg_prior_losses, func1, func2, agg_switch_collector)
+    #         else:
+    #             print(yellow("Warning: Missing prior losses for partial_switch_retrospective. Defaulting to positives_only."))
+    #             users_merge_weights = func1(users_contrib_scores)
+    #             if agg_switch_collector is not None:
+    #                 agg_switch_collector.update(
+    #                     {"func_1": func1.__name__, "weight_1": 1.0, "func_2": func2.__name__, "weight_2": 0.0})
     #
-    #         return func_1(users_contrib_scores)
-    #
-    #     converged = self.models_are_equal(self.previous_global_model, self.two_previous_global_model)
-    #
-    #     if converged:
-    #         self.has_switched = True
-    #         print(f"  [binary_switch] Convergens detected at round {self.round}: Switching from {func_1.__name__} to {func_2.__name__}")
-    #         if agg_switch_collector is not None:
-    #             agg_switch_collector.update({
-    #                 "func_1": func_1.__name__,
-    #                 "weight_1": 0.0,
-    #                 "func_2": func_2.__name__,
-    #                 "weight_2": 1.0,
-    #             })
-    #
-    #         return func_2(users_contrib_scores)
-    #
-    #     print(f"  [binary_switch] At round {self.round}: Using {func_1.__name__}")
-    #     if agg_switch_collector is not None:
-    #         agg_switch_collector.update({
-    #             "func_1": func_1.__name__,
-    #             "weight_1": 1.0,
-    #             "func_2": func_2.__name__,
-    #             "weight_2": 0.0,
-    #         })
-    #     return func_1(users_contrib_scores)
+    #     return users_merge_weights
+
 
     def binary_switch(self, users_contrib_scores, func_1, func_2, agg_switch_collector):
         if not self.has_switched and self.round > 1 and self.two_previous_global_model is not None:
@@ -1050,7 +1045,7 @@ class PytorchModel:
 
 
     # takes an array of accuracy/losses. Only losses since we do not store accuracy.
-    def partial_switch_loss_retrospective(self, users_contrib_scores, avg_prior_losses_per_round, func_1, func_2,
+    def partial_switch_loss_retrospective(self, users_contrib_scores, avg_prior_losses, func_1, func_2,
                             agg_switch_collector=None):
         res1 = func_1(users_contrib_scores)  # e.g. positives_only    — strict, filters noise
         res2 = func_2(users_contrib_scores)  # e.g. plus_one_normalize — soft, rewards broadly
@@ -1058,11 +1053,11 @@ class PytorchModel:
         # How much did loss improve from the prior round to the previous round?
         # Normalise by prior loss so the ratio is scale-independent, clamp to [0, 1].
 
-        if len(avg_prior_losses_per_round) >= 2:
-            x = np.arange(len(avg_prior_losses_per_round))
-            slope, _ = np.polyfit(x, list(reversed(avg_prior_losses_per_round)), 1)  # now negative = improving
+        if len(avg_prior_losses) >= 2:
+            x = np.arange(len(avg_prior_losses))
+            slope, _ = np.polyfit(x, list(reversed(avg_prior_losses)), 1)  # now negative = improving
             # normalize slope relative to mean loss so it's scale-independent
-            mean_loss = np.mean(avg_prior_losses_per_round)
+            mean_loss = np.mean(avg_prior_losses)
             improvement_ratio = max(0.0, min(1.0, -slope / mean_loss))
         else:
             improvement_ratio = 1.0  # not enough data, go strict
@@ -1075,7 +1070,7 @@ class PytorchModel:
             improvement_ratio * 90.0))  # weight for func_1   0.33 → 30° → sin(30°)=0.5
         beta = 1.0 - alpha  # weight for func_2  1 - 0.5 = 0.5
 
-        print(f"partial_switch: losses={[f'{l:.2f}' for l in avg_prior_losses_per_round]}, "
+        print(f"partial_switch: losses={[f'{l:.2f}' for l in avg_prior_losses]}, "
               f"improvement={improvement_ratio:.3f}, alpha(func1)={alpha:.3f}, beta(func2)={beta:.3f}")
 
         if agg_switch_collector is not None:
