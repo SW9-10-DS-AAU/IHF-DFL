@@ -186,7 +186,7 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
         # about dtype inference changing in a future pandas version.
         return pd.concat([f.dropna(axis=1, how="all") for f in frames], ignore_index=True)
 
-    result = {
+    return {
         "metadata": pd.DataFrame(metadata_rows),
         "global":   _concat(global_frames),
         "users":    _concat(users_frames),
