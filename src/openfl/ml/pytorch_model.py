@@ -21,7 +21,7 @@ from torchvision import transforms
 from torchvision.datasets import CIFAR10, MNIST
 from torch.utils.data import DataLoader, random_split, Subset
 from collections import Counter
-from src.openfl.utils import aggregration_strategy_parser
+from src.openfl.utils import aggregation_strategy_parser
 torch._dynamo.config.cache_size_limit = 512
 debugging = sys.gettrace() is not None
 logging.getLogger("torch._inductor").setLevel(logging.ERROR)
@@ -651,7 +651,7 @@ class PytorchModel:
                 })
 
         else:
-            parsed_agg_strategy_value = aggregration_strategy_parser.parse_values(aggregation_rule)
+            parsed_agg_strategy_value = aggregation_strategy_parser.parse_values(aggregation_rule)
             switch_type = parsed_agg_strategy_value[0]
             # Resolve func name strings to callables using agg_rules
             func1_name = parsed_agg_strategy_value[1]
@@ -664,7 +664,7 @@ class PytorchModel:
             func2 = agg_rules[func2_name]
 
             if switch_type == "binary_switch":
-                users_merge_weights = self.invoke_binary_switch(users_contribution_scores, func1, func2, agg_switch_collector)
+                users_merge_weights = self.binary_switch(users_contribution_scores, func1, func2, agg_switch_collector)
 
             elif switch_type.startswith("partial_switch"):
                 users_merge_weights = self.invoke_partial_switch(users_contribution_scores,
@@ -893,10 +893,10 @@ class PytorchModel:
         )
 
 
-    def invoke_binary_switch(self, users_contrib_scores, func1: Callable, func2: Callable, agg_switch_collector=None):
-        users_merge_weights = self.binary_switch(users_contrib_scores, func1, func2,
-                                                 agg_switch_collector)
-        return users_merge_weights
+    # def invoke_binary_switch(self, users_contrib_scores, func1: Callable, func2: Callable, agg_switch_collector=None):
+    #     users_merge_weights = self.binary_switch(users_contrib_scores, func1, func2,
+    #                                              agg_switch_collector)
+    #     return users_merge_weights
 
     def invoke_partial_switch(self, users_contrib_scores, switch_type: str, func1: Callable, func2: Callable, avg_prior_losses=None, agg_switch_collector=None):
         loss_based = {
