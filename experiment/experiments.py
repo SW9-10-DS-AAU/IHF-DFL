@@ -66,6 +66,8 @@ class Skip:
     free_rider_noise: float
     malicious_activation_round: int | None
     malicious_noise: float | None
+    malicious_attack_type: str
+    freerider_attack_type: str
     aggregation_rule: str
     data_distribution: str
     dirichlet_alpha: float | None
@@ -96,13 +98,27 @@ def main(author): # single preset
         else [None]
     )
 
+    malicious_attack_types = (
+        preset_config.malicious_attack_type
+        if preset_config.malicious_attack_type is not None
+        else [None]
+    )
+
+    freerider_attack_types = (
+        preset_config.freerider_attack_type
+        if preset_config.freerider_attack_type is not None
+        else [None]
+    )
+
     for (
             strategy,
             outlier_detection,
             freerider_round,
             freerider_noise,
+            freerider_attack_type,
             malicious_activation_round,
             malicious_noise,
+            malicious_attack_type,
             dataset,
             aggregation_rule,
             data_distribution,
@@ -111,8 +127,10 @@ def main(author): # single preset
         preset_config.use_outlier_detection,
         preset_config.freerider_start_round,
         preset_config.freerider_noise_scale,
+        freerider_attack_types,
         malicious_rounds,
         malicious_noises,
+        malicious_attack_types,
         datasets,
         preset_config.aggregation_rule,
         preset_config.data_distribution,
@@ -123,6 +141,11 @@ def main(author): # single preset
             malicious_activation_round = freerider_round
         if malicious_noise is None:
             malicious_noise = freerider_noise
+        if malicious_attack_type is None:
+            malicious_attack_type = "noise"
+
+        if freerider_attack_type is None:
+            freerider_attack_type = "noise"
 
         # only add dirichlet alpha to the product if the data distribution is dirichlet, otherwise set it to None
         if data_distribution in {"dirichlet_split", "dirichlet_split_42"}:
@@ -132,8 +155,10 @@ def main(author): # single preset
                     outlier_detection,
                     freerider_round,
                     freerider_noise,
+                    freerider_attack_type,
                     malicious_activation_round,
                     malicious_noise,
+                    malicious_attack_type,
                     dataset,
                     aggregation_rule,
                     data_distribution,
@@ -145,8 +170,10 @@ def main(author): # single preset
                 outlier_detection,
                 freerider_round,
                 freerider_noise,
+                freerider_attack_type,
                 malicious_activation_round,
                 malicious_noise,
+                malicious_attack_type,
                 dataset,
                 aggregation_rule,
                 data_distribution,
@@ -163,8 +190,10 @@ def main(author): # single preset
         outlier_detection,
         freerider_round,
         freerider_noise,
+        freerider_attack_type,
         malicious_activation_round,
         malicious_noise,
+        malicious_attack_type,
         dataset,
         aggregation_rule,
         data_distribution,
@@ -184,8 +213,10 @@ def main(author): # single preset
             outlier_detection=outlier_detection,
             free_rider_activation_round=freerider_round,
             free_rider_noise=freerider_noise,
+            freerider_attack_type=freerider_attack_type,
             malicious_activation_round=malicious_activation_round,
             malicious_noise=malicious_noise,
+            malicious_attack_type=malicious_attack_type,
             aggregation_rule=aggregation_rule,
             data_distribution=data_distribution,
             dirichlet_alpha=dirichlet_alpha
@@ -201,8 +232,10 @@ def main(author): # single preset
         config.use_outlier_detection = outlier_detection
         config.freerider_start_round = freerider_round
         config.freerider_noise_scale = freerider_noise
+        config.freerider_attack_type = freerider_attack_type
         config.malicious_start_round = malicious_activation_round if malicious_activation_round is not None else freerider_round
         config.malicious_noise_scale = malicious_noise if malicious_noise is not None else freerider_noise
+        config.malicious_attack_type = malicious_attack_type
         config.aggregation_rule = aggregation_rule
         config.data_distribution = data_distribution
         config.dirichlet_alpha = dirichlet_alpha
@@ -274,8 +307,10 @@ def parseSkips():
             r"(?P<strategy>[^-]+)-"
             r"(?P<activationRound>[^-]+)-"
             r"(?P<noise>[^-]+)-"
+            r"(?P<freeriderAttackType>[^-]+)-"
             r"(?P<maliciousRound>[^-]+)-"
             r"(?P<maliciousNoise>[^-]+)-"
+            r"(?P<maliciousAttackType>[^-]+)-"
             r"(?P<outlierDetection>[^-]+)-"
             r"(?P<aggregationRule>[^-]+)"
             r"-(?P<dataDistribution>[^-]+)"
@@ -303,8 +338,10 @@ def parseSkips():
                 outlier_detection=m.group("outlierDetection") == "True",
                 free_rider_activation_round=int(m.group("activationRound")),
                 free_rider_noise=float(m.group("noise")),
+                freerider_attack_type=m.group("freeriderAttackType"),
                 malicious_activation_round=int(mal_round) if mal_round != "None" else None,
                 malicious_noise=float(mal_noise) if mal_noise != "None" else None,
+                malicious_attack_type=m.group("maliciousAttackType"),
                 aggregation_rule=m.group("aggregationRule"),
                 data_distribution=m.group("dataDistribution"),
                 dirichlet_alpha=float(alpha) if alpha != "None" else None,
@@ -345,16 +382,18 @@ def normalize_skip(skip: Skip):
         outlier_detection=skip.outlier_detection,
         free_rider_activation_round=skip.free_rider_activation_round,
         free_rider_noise=skip.free_rider_noise,
+        freerider_attack_type=skip.freerider_attack_type,
         malicious_activation_round=(
-            skip.malicious_activation_round 
-            if skip.malicious_activation_round is not None 
+            skip.malicious_activation_round
+            if skip.malicious_activation_round is not None
             else skip.free_rider_activation_round
         ),
         malicious_noise=(
-            skip.malicious_noise 
-            if skip.malicious_noise is not None 
+            skip.malicious_noise
+            if skip.malicious_noise is not None
             else skip.free_rider_noise
         ),
+        malicious_attack_type=skip.malicious_attack_type,
         aggregation_rule=skip.aggregation_rule,
         data_distribution=skip.data_distribution,
         dirichlet_alpha=skip.dirichlet_alpha if skip.data_distribution in {"dirichlet_split", "dirichlet_split_42"} else None
