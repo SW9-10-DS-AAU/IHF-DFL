@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 from .loader import RunData
-from .aggregations import _require_consistent_rounds
 
 # Wei → ETH columns
 _GLOBAL_WEI_COLS  = ["reward_pool", "punishment_pool"]
