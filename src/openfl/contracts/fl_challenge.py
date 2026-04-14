@@ -904,9 +904,16 @@ class FLChallenge(FLManager):
         """
         Accuracy-based scoring: use accuracy directly as contribution score.
         """
+
+        # Account for when the count of users is so low that MAD-based outlier removal becomes unreliable.
+        # Users here is only those deemed 'contributors' - (user._roundrep[-1] >= 0)
+        if len(users) <= 3:
+            scores = [1.0 / len(users)] * len(users)
+            self._log_contribution_scores(users, scores, None, None, None)
+            return scores
+
         # accuracies: 1d array
         # prev_acc: int
-
 
         # Array of previous accuracies from all users: A tuple of arrays
         prev_accuracies, _ = self.get_all_previous_accuracies_and_losses()
@@ -961,12 +968,13 @@ class FLChallenge(FLManager):
         """
         Loss-based scoring: use loss directly as contribution score.
         """
-        if len(users) == 1:
-            return [1.0]
-        elif len(users) == 2:
-            return [0.5, 0.5]
-        elif len(users) == 3:
-            return [1 / 3, 1 / 3, 1 / 3] # TODO: research here
+
+        # Account for when the count of users is so low that MAD-based outlier removal becomes unreliable.
+        # Users here is only those deemed 'contributors' - (user._roundrep[-1] >= 0)
+        if len(users) <= 3:
+            scores = [1.0 / len(users)] * len(users)
+            self._log_contribution_scores(users, scores, None, None, None)
+            return scores
 
         # losses: 1d array
         # prev_loss: int
