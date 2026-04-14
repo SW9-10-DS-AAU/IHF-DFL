@@ -1289,45 +1289,10 @@ class FLChallenge(FLManager):
     #   behavior.
 
 
-
-
     # 'all' as in users
     def get_all_previous_accuracies_and_losses(self):
         prev_accuracies, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses().call()
         return prev_accuracies, prev_losses
-
-    # 'all' as in users
-    def get_all_prior_prior_and_prior_average_accuracies_and_losses(self):
-        contract_round = self.model.functions.round().call()
-        prior_accuracies, prior_losses = self.get_all_prior_accuracies_and_losses()
-
-        mad_prior_accuracies = remove_outliers_mad(prior_accuracies)
-        mad_prior_losses = remove_outliers_mad(prior_losses)
-
-        avg_prior_acc = np.mean(mad_prior_accuracies)
-        avg_prior_loss = np.mean(mad_prior_losses)
-
-        if contract_round >= 2:
-            prior_prior_accuracies, prior_prior_losses = self.get_all_prior_prior_accuracies_and_losses()
-            mad_prior_prior_accuracies = remove_outliers_mad(prior_prior_accuracies)
-            mad_prior_prior_losses = remove_outliers_mad(prior_prior_losses)
-
-            avg_prior_prior_acc = np.mean(mad_prior_prior_accuracies)
-            avg_prior_prior_loss = np.mean(mad_prior_prior_losses)
-        else:
-            avg_prior_prior_acc = None
-            avg_prior_prior_loss = None
-
-        return avg_prior_prior_acc, avg_prior_prior_loss, avg_prior_acc, avg_prior_loss
-
-
-    def get_all_prior_prior_accuracies_and_losses(self):
-        prior_prior_accuracies, prior_prior_losses = self.model.functions.getAllPriorPriorAccuraciesAndLosses().call()
-        return prior_prior_accuracies, prior_prior_losses
-
-    def get_all_prior_accuracies_and_losses(self):
-        prior_accuracies, prior_losses = self.model.functions.getAllPriorAccuraciesAndLosses().call()
-        return prior_accuracies, prior_losses
 
 
     def simulate(self, rounds):
