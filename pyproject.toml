@@ -19,7 +19,7 @@ dependencies = [
   "py-solc-x >= 2.0.5",
   "python-dotenv==1.2.1",
   "pytest==9.0.1",
-  "psutil== 6.1.0",
+  "psutil==6.1.0",
   "jsonpickle"
 ]
 
@@ -34,6 +34,7 @@ dev = [
   "mypy",
   "pytest",
   "pytest-cov",
+  "nbstripout"
 ]
 
 ci = [
