@@ -664,7 +664,8 @@ class FLChallenge(FLManager):
         reward_events = events["Reward"]
         punish_events = events["Punishment"]
         disqualify_events = events["Disqualification"]
-        eval_reward_events = events["EvaluationVotingReward"]
+        # eval_reward_events = events["EvaluationVotingReward"]
+        eval_reward_events = None
 
         # End of round summary
         if end_events:
