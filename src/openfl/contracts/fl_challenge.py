@@ -400,12 +400,8 @@ class FLChallenge(FLManager):
             self.track_transaction(i, txHash, len(txs), "feedback")
 
         for user in self.pytorch_model.participants:
-            if len(user._roundrep) == 0:
-                print(f"model participant: {user.address} had no roundrep")
-            else:
-                print(f"model participant: {user.address} had {user._roundrep[-1]} round reputation")
             user._roundrep.append(self.get_round_reputation_of_user(user.address))
-            print(f"model participant: {user.address} now gets {user._roundrep[-1]} round reputation")
+            print(f"model participant: {user.address} gets {user._roundrep[-1]} round reputation")
 
         for user in self.pytorch_model.disqualified:
             print(f"disqualified model participant: {user.address} has no roundrep. he is disqualified, you dummy")
@@ -654,6 +650,8 @@ class FLChallenge(FLManager):
         return results
     
     def print_round_summary(self, receipt):
+        for user in self.pytorch_model.participants:
+            user.temporary_grs_evaluation = None
 
         events = self.get_events(
             w3=self.w3,
@@ -666,6 +664,8 @@ class FLChallenge(FLManager):
         reward_events = events["Reward"]
         punish_events = events["Punishment"]
         disqualify_events = events["Disqualification"]
+        # eval_reward_events = events["EvaluationVotingReward"]
+        eval_reward_events = None
 
         # End of round summary
         if end_events:
@@ -675,6 +675,23 @@ class FLChallenge(FLManager):
                 print(b(f"VALID VOTES:      {args['validVotes']}"))
                 print(b(f"SUM OF WEIGHTS:  {args['sumOfWeightedContribScore']:,}"))
                 print(b(f"TOTAL PUNISHMENT: {args['totalPunishment']:,}\n"))
+            print("-----------------------------------------------------------------------------------\n")
+
+        if eval_reward_events:
+            print(b("EVLUATION VOTING REWARDS DISTRIBUTION"))
+
+            contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0]
+            user_map = {u.address: u for u in contributors}
+
+            for ev in eval_reward_events:
+                args = ev["args"]
+                print(green(f"USER @          {args['user']}"))
+                print(green(f"STAKED:         {args['staked']:,}"))
+                print(green(f"REWARDED:       {args['rewarded']:,}"))
+                print(green(f"NEW REPUTATION: {args['newReputation']:,}\n"))
+
+                user_map[args['user']].temporary_grs_evaluation = args['newReputation']
+
             print("-----------------------------------------------------------------------------------\n")
 
         # Rewarded users
@@ -734,7 +751,20 @@ class FLChallenge(FLManager):
                 print(red(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
             print("-----------------------------------------------------------------------------------\n")
 
-        print()
+        print(b(f"Round {self.pytorch_model.round - 1} completed:"))
+        print(b("Round Rewards (per user):"))
+        print(b("{:>20}  {:>25} -> {:>25} -> {:>25}".format("address" + "...", "previous grs",
+                                                            "evaluation votes grs",
+                                                            "final grs")))
+        for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
+            user._globalrep.append(self.get_global_reputation_of_user(user.address))
+            eval_grs = user.temporary_grs_evaluation
+            if eval_grs is None:
+                j = "NO EVAL GRS (NOT MERGED)"
+            else:
+                j = f"{eval_grs:,.0f}"
+            i, k = user._globalrep[-2:]
+            print(b("{:>20}  {:>25,.0f} -> {:>25} -> {:>25,.0f}".format(user.address[0:16] + "...", i, j, k)))
 
 
     def contribution_score(self, _users):
@@ -904,9 +934,16 @@ class FLChallenge(FLManager):
         """
         Accuracy-based scoring: use accuracy directly as contribution score.
         """
+
+        # Account for when the count of users is so low that MAD-based outlier removal becomes unreliable.
+        # Users here is only those deemed 'contributors' - (user._roundrep[-1] >= 0)
+        if len(users) <= 3:
+            scores = [1.0 / len(users)] * len(users)
+            self._log_contribution_scores(users, scores, None, None, None)
+            return scores
+
         # accuracies: 1d array
         # prev_acc: int
-
 
         # Array of previous accuracies from all users: A tuple of arrays
         prev_accuracies, _ = self.get_all_previous_accuracies_and_losses()
@@ -961,12 +998,13 @@ class FLChallenge(FLManager):
         """
         Loss-based scoring: use loss directly as contribution score.
         """
-        if len(users) == 1:
-            return [1.0]
-        elif len(users) == 2:
-            return [0.5, 0.5]
-        elif len(users) == 3:
-            return [1 / 3, 1 / 3, 1 / 3] # TODO: research here
+
+        # Account for when the count of users is so low that MAD-based outlier removal becomes unreliable.
+        # Users here is only those deemed 'contributors' - (user._roundrep[-1] >= 0)
+        if len(users) <= 3:
+            scores = [1.0 / len(users)] * len(users)
+            self._log_contribution_scores(users, scores, None, None, None)
+            return scores
 
         # losses: 1d array
         # prev_loss: int
@@ -1289,45 +1327,10 @@ class FLChallenge(FLManager):
     #   behavior.
 
 
-
-
     # 'all' as in users
     def get_all_previous_accuracies_and_losses(self):
         prev_accuracies, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses().call()
         return prev_accuracies, prev_losses
-
-    # 'all' as in users
-    def get_all_prior_prior_and_prior_average_accuracies_and_losses(self):
-        contract_round = self.model.functions.round().call()
-        prior_accuracies, prior_losses = self.get_all_prior_accuracies_and_losses()
-
-        mad_prior_accuracies = remove_outliers_mad(prior_accuracies)
-        mad_prior_losses = remove_outliers_mad(prior_losses)
-
-        avg_prior_acc = np.mean(mad_prior_accuracies)
-        avg_prior_loss = np.mean(mad_prior_losses)
-
-        if contract_round >= 2:
-            prior_prior_accuracies, prior_prior_losses = self.get_all_prior_prior_accuracies_and_losses()
-            mad_prior_prior_accuracies = remove_outliers_mad(prior_prior_accuracies)
-            mad_prior_prior_losses = remove_outliers_mad(prior_prior_losses)
-
-            avg_prior_prior_acc = np.mean(mad_prior_prior_accuracies)
-            avg_prior_prior_loss = np.mean(mad_prior_prior_losses)
-        else:
-            avg_prior_prior_acc = None
-            avg_prior_prior_loss = None
-
-        return avg_prior_prior_acc, avg_prior_prior_loss, avg_prior_acc, avg_prior_loss
-
-
-    def get_all_prior_prior_accuracies_and_losses(self):
-        prior_prior_accuracies, prior_prior_losses = self.model.functions.getAllPriorPriorAccuraciesAndLosses().call()
-        return prior_prior_accuracies, prior_prior_losses
-
-    def get_all_prior_accuracies_and_losses(self):
-        prior_accuracies, prior_losses = self.model.functions.getAllPriorAccuraciesAndLosses().call()
-        return prior_accuracies, prior_losses
 
 
     def simulate(self, rounds):
@@ -1377,7 +1380,7 @@ class FLChallenge(FLManager):
         self._log_round_zero()
 
         for i in range(rounds):
-            print(b(f"Round {self.pytorch_model.round} starts..."))
+            print(b(f"\n\nRound {self.pytorch_model.round} starts..."))
             _round_start = time.perf_counter()
 
             self.pytorch_model.update_users_attitude()
@@ -1415,11 +1418,6 @@ class FLChallenge(FLManager):
 
             receipt = self.close_round()
 
-            print(b(f"Round {self.pytorch_model.round - 1} almost completed:"))
-            for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
-                user._globalrep.append(self.get_global_reputation_of_user(user.address))
-                i, j = user._globalrep[-2:]
-                print(b("{}  {:>25,.0f} -> {:>25,.0f}".format(user.address[0:16] + "...", i, j)))
 
             # If not dotproduct, we calculate contribution score before the merge
             if not self.experiment_config.contribution_score_strategy == "dotproduct":

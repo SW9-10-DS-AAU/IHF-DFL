@@ -17,6 +17,32 @@ _USERS_ACC_COLS   = ["subjective_personal_accuracy", "subjective_global_accuracy
 _VOTES_ACC_COLS  = ["vote_accuracy", "vote_prev_accuracy"]
 _VOTES_LOSS_COLS = ["vote_loss", "vote_prev_loss"]
 
+# Contributions table — scalar columns stored in raw scale (accuracy_only: 0..10000; loss_only: loss*100).
+# Divide by contrib_divisor (100) to get % or actual loss.
+# Dotproduct strategy is excluded — its values are weight-space with no fixed scale,
+# and current_mad_max_deviation is the literal threshold parameter, not a computed boundary.
+# Convert before the is_outlier merge (scalar cols are not used in that comparison).
+_CONTRIB_SCALAR_COLS = [
+    "user_mad_avg",
+    "current_mad_median",
+    "current_mad_value",
+    "current_mad_max_deviation",
+    "prev_avg_round_val_after_mad",
+    "previous_mad_median",
+    "previous_mad_value",
+    "previous_mad_max_deviation",
+]
+
+# Contributions table — list columns in raw scale.
+# MUST convert AFTER the is_outlier merge: current_excluded_values is read from `c`
+# in raw scale and compared against raw vote_accuracy via np.isclose.
+_CONTRIB_LIST_COLS = [
+    "current_excluded_values",
+    "current_accepted_values",
+    "previous_excluded_values",
+    "previous_accepted_values",
+]
+
 
 # Metadata keys stored in the "metadata" lookup table returned by merge_runs.
 # Data tables only carry experiment_id; join on it when you need config values.
@@ -58,10 +84,14 @@ def normalize_run(run: RunData, make_readable: bool = True) -> RunData:
     w = run.warnings.copy()      if not run.warnings.empty      else pd.DataFrame()
 
 
-    wei_divisor      = 1e18  # Wei → ETH
-    acc_multiplier   = 100   # float 0..1 → %
-    vote_acc_divisor = 100   # int 0..10000 → % (= / 10000 * 100)
+    wei_divisor         = 1e18  # Wei → ETH
+    acc_multiplier      = 100   # float 0..1 → %
+    vote_acc_divisor    = 100   # int 0..10000 → % (= / 10000 * 100)
     vote_loss_unscaler  = 100   # vote loss stored as actual_loss * 100; restore by dividing
+    contrib_divisor     = 100   # accuracy_only: 0..10000 → %; loss_only: loss*100 → loss
+
+    strategy = run.metadata.get("contribution_score_strategy")
+    contrib_convertible = strategy in ("accuracy_only", "loss_only", "naive", "accuracy_loss")
 
     if make_readable:
 
@@ -84,6 +114,11 @@ def normalize_run(run: RunData, make_readable: bool = True) -> RunData:
                 if col in u.columns:
                     u[col] = u[col] * acc_multiplier
 
+        # Contributions table — scalar columns
+        if contrib_convertible and not c.empty:
+            for col in _CONTRIB_SCALAR_COLS:
+                if col in c.columns:
+                    c[col] = c[col] / contrib_divisor
 
     # Votes table — flag whether the voted accuracy was excluded as an outlier.
     # Only current_excluded_values is pulled from contributions; it's dropped after use.
@@ -112,6 +147,15 @@ def normalize_run(run: RunData, make_readable: bool = True) -> RunData:
             for col in _VOTES_LOSS_COLS:
                 if col in v.columns:
                     v[col] = v[col] / vote_loss_unscaler
+
+        # Contributions list columns — must run after is_outlier merge (see note above)
+        if contrib_convertible and not c.empty:
+            for col in _CONTRIB_LIST_COLS:
+                if col in c.columns:
+                    c[col] = c[col].apply(
+                        lambda lst: [x / contrib_divisor for x in lst]
+                        if isinstance(lst, list) else lst
+                    )
 
     return RunData(
         experiment_id=run.experiment_id,

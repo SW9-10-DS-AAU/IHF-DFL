@@ -4,7 +4,7 @@ import pickle
 import pandas as pd
 import pytest
 
-from analysis.loader import RunData, load_run, load_runs, load_runs_recursive
+from analysis.loader import RunData, load_run, load_runs
 
 
 # ---------------------------------------------------------------------------
@@ -126,52 +126,57 @@ def test_load_runs_skips_corrupt_files(tmp_path, capsys):
 
 
 # ---------------------------------------------------------------------------
-# load_runs_recursive — filter logic
+# load_runs nested (recursive=True default) — filter logic
 # ---------------------------------------------------------------------------
 
-def test_load_runs_recursive_no_filter_loads_all(tmp_path):
+def test_load_runs_nested_no_filter_loads_all(tmp_path):
     _nested_tree(tmp_path)
-    assert len(load_runs_recursive(tmp_path)) == 3
+    assert len(load_runs(tmp_path)) == 3
 
 
-def test_load_runs_recursive_prefix_filter(tmp_path):
+def test_load_runs_nested_prefix_filter(tmp_path):
     _nested_tree(tmp_path)
-    runs = load_runs_recursive(tmp_path, prefix="26-03-15")
-    assert len(runs) == 2
-    assert all("26-03-15" in str(r.experiment_id) or True for r in runs)
-
-
-def test_load_runs_recursive_dataset_filter(tmp_path):
-    _nested_tree(tmp_path)
-    runs = load_runs_recursive(tmp_path, dataset="mnist")
+    runs = load_runs(tmp_path, prefix="26-03-15")
     assert len(runs) == 2
 
 
-def test_load_runs_recursive_aggregation_rule_filter(tmp_path):
+def test_load_runs_nested_dataset_filter(tmp_path):
     _nested_tree(tmp_path)
-    runs = load_runs_recursive(tmp_path, aggregation_rule="FedAVG")
+    runs = load_runs(tmp_path, dataset="mnist")
     assert len(runs) == 2
 
 
-def test_load_runs_recursive_contribution_score_filter(tmp_path):
+def test_load_runs_nested_aggregation_rule_filter(tmp_path):
     _nested_tree(tmp_path)
-    runs = load_runs_recursive(tmp_path, contribution_score="dotproduct")
+    runs = load_runs(tmp_path, aggregation_rule="FedAVG")
     assert len(runs) == 2
 
 
-def test_load_runs_recursive_combined_filters_narrow(tmp_path):
+def test_load_runs_nested_contribution_score_filter(tmp_path):
+    _nested_tree(tmp_path)
+    runs = load_runs(tmp_path, contribution_score="dotproduct")
+    assert len(runs) == 2
+
+
+def test_load_runs_nested_combined_filters_narrow(tmp_path):
     _nested_tree(tmp_path)
     # Only cifar-dotproduct-binary_switch matches cifar + binary_switch
-    runs = load_runs_recursive(tmp_path, dataset="cifar", aggregation_rule="binary_switch")
+    runs = load_runs(tmp_path, dataset="cifar", aggregation_rule="binary_switch")
     assert len(runs) == 1
 
 
-def test_load_runs_recursive_no_match_returns_empty(tmp_path):
+def test_load_runs_nested_no_match_returns_empty(tmp_path):
     _nested_tree(tmp_path)
-    assert load_runs_recursive(tmp_path, dataset="imagenet") == []
+    assert load_runs(tmp_path, dataset="imagenet") == []
 
 
-def test_load_runs_recursive_prefix_excludes_other_dirs(tmp_path):
+def test_load_runs_nested_prefix_excludes_other_dirs(tmp_path):
     _nested_tree(tmp_path)
-    runs = load_runs_recursive(tmp_path, prefix="26-04-01")
+    runs = load_runs(tmp_path, prefix="26-04-01")
     assert len(runs) == 1
+
+
+def test_load_runs_non_recursive_ignores_subdirs(tmp_path):
+    _nested_tree(tmp_path)  # all files are inside subdirectories
+    runs = load_runs(tmp_path, recursive=False)
+    assert runs == []

@@ -11,8 +11,8 @@ from openfl.utils.async_writer import AsyncWriter
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from analysis import ExperimentLogger
 
-preset = "data_distribution_mnist"
-_use_defaults = False
+preset = "test"
+_use_defaults = True
 # preset = "test"
 
 config = ExperimentConfiguration(preset=preset, use_defaults=_use_defaults)
