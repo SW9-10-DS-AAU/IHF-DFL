@@ -632,12 +632,16 @@ class PytorchModel:
         n_clients = len(client_models)
 
         # Agg. strategies not using users_contrib_scores are fixed with a lambda capturing the input each function need.
+        _fedavg_fn = lambda _: {u.address: 1.0 / n_clients for u in _users}
+        _fedavg_fn.__name__ = "FedAVG"
+        _grs_fn = lambda _: GRS_aggregation(_users)
+        _grs_fn.__name__ = "GRS_aggregation"
         agg_rules = {
-            "FedAVG": lambda _: {u.address: 1.0 / n_clients for u in _users},
+            "FedAVG": _fedavg_fn,
             "positives_only": positives_only,
             "plus_one_normalize": plus_one_normalize,
             "plus_more_than_one_normalize": plus_more_than_one_normalize,
-            "GRS_aggregation": lambda _: GRS_aggregation(_users),
+            "GRS_aggregation": _grs_fn,
         }
 
         if aggregation_rule in agg_rules:
@@ -909,8 +913,8 @@ class PytorchModel:
                     agg_switch_collector.update({"func_1": func1.__name__, "weight_1": 1.0, "func_2": func2.__name__, "weight_2": 0.0})
                 return func1(users_contrib_scores)
             if switch_type == "partial_switch_fixed_loss":
-                return self.partial_switch_fixed_loss(users_contrib_scores, avg_prior_losses[0], func1, func2, agg_switch_collector)
-            return self.partial_switch_loss_retrospective(users_contrib_scores, avg_prior_losses, func1, func2, agg_switch_collector)
+                return self.partial_switch_fixed_loss(users_contrib_scores, avg_prior_losses[0], func1, func2, agg_switch_collector=agg_switch_collector)
+            return self.partial_switch_loss_retrospective(users_contrib_scores, avg_prior_losses, func1, func2, agg_switch_collector=agg_switch_collector)
 
         raise ValueError(f"Unknown partial switch type: {switch_type}")
 
