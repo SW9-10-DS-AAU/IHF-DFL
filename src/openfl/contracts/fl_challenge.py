@@ -400,12 +400,8 @@ class FLChallenge(FLManager):
             self.track_transaction(i, txHash, len(txs), "feedback")
 
         for user in self.pytorch_model.participants:
-            if len(user._roundrep) == 0:
-                print(f"model participant: {user.address} had no roundrep")
-            else:
-                print(f"model participant: {user.address} had {user._roundrep[-1]} round reputation")
             user._roundrep.append(self.get_round_reputation_of_user(user.address))
-            print(f"model participant: {user.address} now gets {user._roundrep[-1]} round reputation")
+            print(f"model participant: {user.address} gets {user._roundrep[-1]} round reputation")
 
         for user in self.pytorch_model.disqualified:
             print(f"disqualified model participant: {user.address} has no roundrep. he is disqualified, you dummy")
@@ -654,6 +650,8 @@ class FLChallenge(FLManager):
         return results
     
     def print_round_summary(self, receipt):
+        for user in self.pytorch_model.participants:
+            user.temporary_grs_evaluation = None
 
         events = self.get_events(
             w3=self.w3,
@@ -666,6 +664,7 @@ class FLChallenge(FLManager):
         reward_events = events["Reward"]
         punish_events = events["Punishment"]
         disqualify_events = events["Disqualification"]
+        eval_reward_events = events["EvaluationVotingReward"]
 
         # End of round summary
         if end_events:
@@ -675,6 +674,23 @@ class FLChallenge(FLManager):
                 print(b(f"VALID VOTES:      {args['validVotes']}"))
                 print(b(f"SUM OF WEIGHTS:  {args['sumOfWeightedContribScore']:,}"))
                 print(b(f"TOTAL PUNISHMENT: {args['totalPunishment']:,}\n"))
+            print("-----------------------------------------------------------------------------------\n")
+
+        if eval_reward_events:
+            print(b("EVLUATION VOTING REWARDS DISTRIBUTION"))
+
+            contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0]
+            user_map = {u.address: u for u in contributors}
+
+            for ev in eval_reward_events:
+                args = ev["args"]
+                print(green(f"USER @          {args['user']}"))
+                print(green(f"STAKED:         {args['staked']:,}"))
+                print(green(f"REWARDED:       {args['rewarded']:,}"))
+                print(green(f"NEW REPUTATION: {args['newReputation']:,}\n"))
+
+                user_map[args['user']].temporary_grs_evaluation = args['newReputation']
+
             print("-----------------------------------------------------------------------------------\n")
 
         # Rewarded users
@@ -734,7 +750,20 @@ class FLChallenge(FLManager):
                 print(red(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
             print("-----------------------------------------------------------------------------------\n")
 
-        print()
+        print(b(f"Round {self.pytorch_model.round - 1} completed:"))
+        print(b("Round Rewards (per user):"))
+        print(b("{:>20}  {:>25} -> {:>25} -> {:>25}".format("address" + "...", "previous grs",
+                                                            "evaluation votes grs",
+                                                            "final grs")))
+        for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
+            user._globalrep.append(self.get_global_reputation_of_user(user.address))
+            eval_grs = user.temporary_grs_evaluation
+            if eval_grs is None:
+                j = "NO EVAL GRS (NOT MERGED)"
+            else:
+                j = f"{eval_grs:,.0f}"
+            i, k = user._globalrep[-2:]
+            print(b("{:>20}  {:>25,.0f} -> {:>25} -> {:>25,.0f}".format(user.address[0:16] + "...", i, j, k)))
 
 
     def contribution_score(self, _users):
@@ -967,7 +996,7 @@ class FLChallenge(FLManager):
         elif len(users) == 2:
             return [0.5, 0.5]
         elif len(users) == 3:
-            return [1 / 3, 1 / 3, 1 / 3] # TODO: research here
+            return [1 / 3, 1 / 3, 1 / 3]
 
         # losses: 1d array
         # prev_loss: int
@@ -1312,7 +1341,7 @@ class FLChallenge(FLManager):
         self._log_round_zero()
 
         for i in range(rounds):
-            print(b(f"Round {self.pytorch_model.round} starts..."))
+            print(b(f"\n\nRound {self.pytorch_model.round} starts..."))
             _round_start = time.perf_counter()
 
             self.pytorch_model.update_users_attitude()
@@ -1349,18 +1378,10 @@ class FLChallenge(FLManager):
 
             receipt = self.close_round()
 
-            print(b(f"Round {self.pytorch_model.round - 1} almost completed:"))
-            for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
-                user._globalrep.append(self.get_global_reputation_of_user(user.address))
-                i, j = user._globalrep[-2:]
-                print(b("{}  {:>25,.0f} -> {:>25,.0f}".format(user.address[0:16] + "...", i, j)))
 
             # If not dotproduct, we calculate contribution score before the merge
             if not self.experiment_config.contribution_score_strategy == "dotproduct":
                 self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule, collector=users_weight_collector)
-
-
-
 
             # self.print_round_summary(receipt)
             if receipt is not None:
