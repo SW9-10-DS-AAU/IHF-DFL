@@ -785,9 +785,18 @@ class FLChallenge(FLManager):
 
         print("START CONTRIBUTION SCORE\n")
 
-        # Choose scoring algorithm based on configured strategy
-        calculator = self._get_contribution_score_calculator()
-        self.scores = calculator(_users)
+        if len(_users) <= 3:
+            share = 1.0 / len(_users)
+            msg = f"[Round {self.pytorch_model.round}] Too few contributors ({len(_users)}) for contribution scoring – using equal shares({share: .4f} each)"
+            print(colored(msg, "yellow"))
+            self._log_warning(msg)
+            scores = [share] * len(_users)
+            self._log_contribution_scores(_users, scores, None, None, None)
+        else:
+            calculator = self._get_contribution_score_calculator() # Choose scoring algorithm based on configured strategy
+            scores = calculator(_users)
+
+        self.scores = scores
 
         txs = []
         for u, score in zip(_users, self.scores):
@@ -867,6 +876,7 @@ class FLChallenge(FLManager):
         """
         Accuracy-Loss-based scoring: use accuracy and loss directly as contribution score.
         """
+
         # accuracies: 1d array
         # losses: 1d array
         # prev_acc, prev_loss: int
@@ -935,13 +945,6 @@ class FLChallenge(FLManager):
         Accuracy-based scoring: use accuracy directly as contribution score.
         """
 
-        # Account for when the count of users is so low that MAD-based outlier removal becomes unreliable.
-        # Users here is only those deemed 'contributors' - (user._roundrep[-1] >= 0)
-        if len(users) <= 3:
-            scores = [1.0 / len(users)] * len(users)
-            self._log_contribution_scores(users, scores, None, None, None)
-            return scores
-
         # accuracies: 1d array
         # prev_acc: int
 
@@ -998,13 +1001,6 @@ class FLChallenge(FLManager):
         """
         Loss-based scoring: use loss directly as contribution score.
         """
-
-        # Account for when the count of users is so low that MAD-based outlier removal becomes unreliable.
-        # Users here is only those deemed 'contributors' - (user._roundrep[-1] >= 0)
-        if len(users) <= 3:
-            scores = [1.0 / len(users)] * len(users)
-            self._log_contribution_scores(users, scores, None, None, None)
-            return scores
 
         # losses: 1d array
         # prev_loss: int

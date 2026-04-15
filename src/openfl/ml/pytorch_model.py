@@ -242,7 +242,7 @@ class PytorchModel:
             
     def add_participant(self, _attitude):
         _train, _val, _test = self.load_data(self.NUMBER_OF_CONTRIBUTORS)
-        
+
         if self.DATASET == "mnist":
             _model = Net_MNIST().to(DEVICE)
         else:
@@ -643,6 +643,12 @@ class PytorchModel:
             "plus_more_than_one_normalize": plus_more_than_one_normalize,
             "GRS_aggregation": _grs_fn,
         }
+
+        _low_contributor_fallback = len(_users) <= 3 and aggregation_rule != "FedAVG"
+        if _low_contributor_fallback:
+            print("Too few users for complex aggregation rules, defaulting to GRS")
+            aggregation_rule = "GRS_aggregation"
+            # Note: We include FedAVG here so in case of partial/binary_switch paired with GRS_agg. don't become 2xGRS_agg.
 
         if aggregation_rule in agg_rules:
             users_merge_weights = agg_rules[aggregation_rule](users_contribution_scores)
