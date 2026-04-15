@@ -22,7 +22,9 @@ class ExperimentLogger:
 
     def log_global_round(self, round=None, round_time=None,
                          obj_global_acc=None, obj_global_loss=None,
-                         reward_pool=None, punishment_pool=None):
+                         reward_pool=None, punishment_pool=None,
+                         agg_func_1=None, agg_weight_1=None,
+                         agg_func_2=None, agg_weight_2=None):
 
         self._global_rows.append({
             "experiment_id": self.experiment_id,
@@ -31,8 +33,11 @@ class ExperimentLogger:
             "objective_global_accuracy": obj_global_acc,
             "objective_global_loss": obj_global_loss,
             "reward_pool": reward_pool,
-            "punishment_pool": punishment_pool
-
+            "punishment_pool": punishment_pool,
+            "agg_func_1": agg_func_1,
+            "agg_weight_1": agg_weight_1,
+            "agg_func_2": agg_func_2,
+            "agg_weight_2": agg_weight_2
             # Add
         })
 
@@ -185,8 +190,8 @@ class ExperimentLogger:
 class NullExperimentLogger:
     """No-op logger used when no ExperimentLogger is provided."""
 
-    def log_global_round(self, round=None, round_time=None, obj_global_acc=None, obj_global_loss=None, reward_pool=None, punishment_pool=None): pass
-    def log_user_round(self, round=None, user_id=None, state=None, behavior=None, role=None, grs=None, sub_personal_acc=None, sub_personal_loss=None, sub_global_acc=None, sub_global_loss=None, contribution_score=None, round_reputation_assigned=None, reward_delta=None, is_reward=None, merged=None): pass
+    def log_global_round(self, round=None, round_time=None, obj_global_acc=None, obj_global_loss=None, reward_pool=None, punishment_pool=None, agg_func_1=None, agg_weight_1=None, agg_func_2=None, agg_weight_2=None): pass
+    def log_user_round(self, round=None, user_id=None, state=None, behavior=None, role=None, grs=None, sub_personal_acc=None, sub_personal_loss=None, sub_global_acc=None, sub_global_loss=None, contribution_score=None, round_reputation_assigned=None, reward_delta=None, is_reward=None, merged=None, merge_weight=None): pass
     def log_vote(self, round=None, giver_id=None, receiver_id=None, giver_address=None, receiver_address=None, vote_feedback_score=None, vote_prev_accuracy=None, vote_prev_loss=None, vote_accuracy=None, vote_loss=None): pass
     def log_contribution_scores(self, round=None, user_ids=None, user_addresses=None, scores=None, raw_values=None, outlier_info=None, previous_avg=None): pass
     def log_receipt(self, round=None, tx_type=None, tx_hash=None, gas_used=None): pass
