@@ -787,7 +787,7 @@ class FLChallenge(FLManager):
 
         if len(_users) <= 3:
             share = 1.0 / len(_users)
-            msg = f"[Round {self.pytorch_model.round}] Too few contributors ({len(_users)}) for contribution scoring – using equal shares({share: .4f} each)"
+            msg = f"[Round {self.pytorch_model.round-1}] Too few contributors ({len(_users)}) for contribution scoring – using equal shares({share: .4f} each)"
             print(colored(msg, "yellow"))
             self._log_warning(msg)
             scores = [share] * len(_users)
