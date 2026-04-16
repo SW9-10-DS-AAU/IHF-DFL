@@ -1282,7 +1282,8 @@ class FLChallenge(FLManager):
                 reward_delta=_addr_to_reward.get(_user.address, None),
                 is_reward=_addr_to_ir.get(_user.address, None),
                 merged=any(u.id == _user.id for u in contributors),
-                merge_weight=users_weight_collector.get(_user.address, None)
+                merge_weight=users_weight_collector.get(_user.address, None),
+                attack_type=_user.last_attack_type,
             )
         for _user in self.pytorch_model.disqualified:
             self._logger.log_user_round(

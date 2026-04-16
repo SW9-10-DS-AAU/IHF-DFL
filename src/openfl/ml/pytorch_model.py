@@ -111,6 +111,7 @@ class Participant:
         self._loss = [] # User's loss on the global model. The actual loss evaluated on test set - is set in: finalize_user_evaluation().
         self._globalrep = [self.collateral]
         self._roundrep = []
+        self.last_attack_type = None  # Actual attack used this round (may differ from config due to fallbacks)
     
     def getStatus(self):
         user = f"$user${self.id}, {self.currentAcc}, {self.attitude}, {self.futureAttitude}, {self.attitudeSwitch}, {self.address}"
@@ -218,7 +219,7 @@ class PytorchModel:
             raise ValueError(f"malicious_attack_type must be one of {valid_malicious_attack_types}, got '{malicious_attack_type}'")
         self.malicious_attack_type = malicious_attack_type
 
-        valid_freerider_attack_types = {"noise", "delta_weights"}
+        valid_freerider_attack_types = {"noise", "delta_weight"}
         if freerider_attack_type not in valid_freerider_attack_types:
             raise ValueError(f"freerider_attack_type must be one of {valid_freerider_attack_types}, got '{freerider_attack_type}'")
         self.freerider_attack_type = freerider_attack_type
@@ -560,9 +561,12 @@ class PytorchModel:
                 if self.malicious_attack_type == "byzantine":
                     print(red("Address {} executing Byzantine Attack".format(self.participants[i].address[0:16]+"...")))
                     manipulated_state_dict = self.byzantine_attack(self.participants[i])
+                    fallback = self.two_previous_global_model is None or self.previous_global_model is None
+                    self.participants[i].last_attack_type = "noise" if fallback else "byzantine"
                 else:
                     print(red("Address {} going to provide random weights".format(self.participants[i].address[0:16]+"...")))
                     manipulated_state_dict = manipulate(self.participants[i].model, scale=self.malicious_noise_scale)
+                    self.participants[i].last_attack_type = "noise"
                 self.participants[i].model.load_state_dict(manipulated_state_dict)
                 self.participants[i].hashedModel = self.get_hash(self.participants[i].model.state_dict())
                 loss, accuracy = test(self.participants[i].model, self.test, DEVICE)
@@ -578,12 +582,15 @@ class PytorchModel:
     def let_freerider_users_do_their_work(self):
         for i in range(len(self.participants)):
             if self.participants[i].attitude == "freerider":
-                if self.freerider_attack_type == "delta_weights":
+                if self.freerider_attack_type == "delta_weight":
                     print(red("Address {} executing Delta Weights Attack".format(self.participants[i].address[0:16]+"...")))
-                    manipulated_state_dict = self.delta_weights_attack(self.participants[i])
+                    manipulated_state_dict = self.delta_weight_attack(self.participants[i])
+                    fallback = self.previous_global_model is None
+                    self.participants[i].last_attack_type = "noise" if fallback else "delta_weight"
                 else:
                     print(red("Address {} going to provide random weights".format(self.participants[i].address[0:16]+"...")))
                     manipulated_state_dict = manipulate(self.participants[i].model, scale=self.freerider_noise_scale)
+                    self.participants[i].last_attack_type = "noise"
                 self.participants[i].model.load_state_dict(manipulated_state_dict)
                 self.participants[i].hashedModel = self.get_hash(self.participants[i].model.state_dict())
                 loss, accuracy = test(self.participants[i].model, self.test, DEVICE)
@@ -654,7 +661,7 @@ class PytorchModel:
 
         return crafted_sd
 
-    def delta_weights_attack(self, user) -> OrderedDict:
+    def delta_weight_attack(self, user) -> OrderedDict:
         """Delta Weights Attack
 
         A free-rider constructs fake gradient updates by subtracting two
@@ -663,7 +670,7 @@ class PytorchModel:
         Falls back to noise in round 1 when no previous global model exists.
         """
         if self.previous_global_model is None:
-            print(red("  [DeltaWeights] Not enough history yet – falling back to noise attack"))
+            print(red("  [DeltaWeight] Not enough history yet – falling back to noise attack"))
             return manipulate(copy.deepcopy(user.model), scale=self.freerider_noise_scale)
 
         crafted_sd = OrderedDict()
