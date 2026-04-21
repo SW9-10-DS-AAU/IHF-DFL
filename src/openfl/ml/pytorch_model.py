@@ -561,7 +561,7 @@ class PytorchModel:
                 if self.malicious_attack_type == "byzantine":
                     print(red("Address {} executing Byzantine Attack".format(self.participants[i].address[0:16]+"...")))
                     manipulated_state_dict = self.byzantine_attack(self.participants[i])
-                    fallback = self.two_previous_global_model is None or self.previous_global_model is None
+                    fallback = self.previous_global_model is None
                     self.participants[i].last_attack_type = "noise" if fallback else "byzantine"
                 else:
                     print(red("Address {} going to provide random weights".format(self.participants[i].address[0:16]+"...")))
@@ -629,39 +629,38 @@ class PytorchModel:
         ))
         return manipulate(copy.deepcopy(user.model), scale=self.freerider_noise_scale)
 
-    def byzantine_attack(self, user) -> OrderedDict:
+    def byzantine_attack(self, user):
         """Byzantine Attack.
 
-        Computes the global model's recent trajectory (delta between the last two
-        global checkpoints) and crafts an update that pushes the global model in
-        the opposite direction of learning, actively harming training.
+        Computes the global model's recent trajectory (delta between the current
+        and previous global checkpoint) and crafts an update that pushes the
+        global model in the opposite direction of learning, actively harming training.
 
-        Falls back to noise in the first two rounds when there is not yet enough
-        history to estimate the trajectory.
+        Falls back to noise in round 1 when there is not yet enough history to
+        estimate the trajectory.
         """
-        if self.two_previous_global_model is None or self.previous_global_model is None:
+        if self.previous_global_model is None:
             print(red("  [Byzantine] Not enough history yet – falling back to noise attack"))
             return manipulate(copy.deepcopy(user.model), scale=self.malicious_noise_scale)
 
         crafted_sd = OrderedDict()
         with torch.no_grad():
-            prev_sd     = self.previous_global_model.state_dict()
-            two_prev_sd = self.two_previous_global_model.state_dict()
-            current_sd  = self.global_model.state_dict()
+            prev_sd    = self.previous_global_model.state_dict()
+            current_sd = self.global_model.state_dict()
 
-            for k in current_sd.keys():
-                v = current_sd[k]
-                if v.is_floating_point():
+            for key in current_sd.keys():
+                value = current_sd[key]
+                if value.is_floating_point():
                     # Trajectory: direction the global model has been moving
-                    delta = prev_sd[k] - two_prev_sd[k]
+                    delta = current_sd[key] - prev_sd[key]
                     # Push against the trajectory to reverse learning
-                    crafted_sd[k] = v - self.malicious_noise_scale * delta
+                    crafted_sd[key] = value - self.malicious_noise_scale * delta
                 else:
-                    crafted_sd[k] = v.clone()
+                    crafted_sd[key] = value.clone()
 
         return crafted_sd
 
-    def delta_weight_attack(self, user) -> OrderedDict:
+    def delta_weight_attack(self, user):
         """Delta Weights Attack
 
         A free-rider constructs fake gradient updates by subtracting two
@@ -678,13 +677,13 @@ class PytorchModel:
             prev_sd    = self.previous_global_model.state_dict()
             current_sd = self.global_model.state_dict()
 
-            for k in current_sd.keys():
-                v = current_sd[k]
-                if v.is_floating_point():
-                    fake_gradient = prev_sd[k] - v
-                    crafted_sd[k] = v + self.freerider_noise_scale * fake_gradient
+            for key in current_sd.keys():
+                value = current_sd[key]
+                if value.is_floating_point():
+                    fake_gradient = prev_sd[key] - value
+                    crafted_sd[key] = value + self.freerider_noise_scale * fake_gradient
                 else:
-                    crafted_sd[k] = v.clone()
+                    crafted_sd[key] = value.clone()
 
         return crafted_sd
 
