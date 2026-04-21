@@ -643,22 +643,22 @@ class PytorchModel:
             print(red("  [Byzantine] Not enough history yet – falling back to noise attack"))
             return manipulate(copy.deepcopy(user.model), scale=self.malicious_noise_scale)
 
-        crafted_sd = OrderedDict()
+        crafted_weights = OrderedDict()
         with torch.no_grad():
-            prev_sd    = self.previous_global_model.state_dict()
-            current_sd = self.global_model.state_dict()
+            prev_weights    = self.previous_global_model.state_dict()
+            current_weights = self.global_model.state_dict()
 
-            for key in current_sd.keys():
-                value = current_sd[key]
+            for key in current_weights.keys():
+                value = current_weights[key]
                 if value.is_floating_point():
                     # Trajectory: direction the global model has been moving
-                    delta = current_sd[key] - prev_sd[key]
+                    learning_direction = current_weights[key] - prev_weights[key]
                     # Push against the trajectory to reverse learning
-                    crafted_sd[key] = value - self.malicious_noise_scale * delta
+                    crafted_weights[key] = value - self.malicious_noise_scale * learning_direction
                 else:
-                    crafted_sd[key] = value.clone()
+                    crafted_weights[key] = value.clone()
 
-        return crafted_sd
+        return crafted_weights
 
     def delta_weight_attack(self, user):
         """Delta Weights Attack
@@ -672,20 +672,20 @@ class PytorchModel:
             print(red("  [DeltaWeight] Not enough history yet – falling back to noise attack"))
             return manipulate(copy.deepcopy(user.model), scale=self.freerider_noise_scale)
 
-        crafted_sd = OrderedDict()
+        crafted_weights = OrderedDict()
         with torch.no_grad():
-            prev_sd    = self.previous_global_model.state_dict()
-            current_sd = self.global_model.state_dict()
+            prev_weights    = self.previous_global_model.state_dict()
+            current_weights = self.global_model.state_dict()
 
-            for key in current_sd.keys():
-                value = current_sd[key]
+            for key in current_weights.keys():
+                value = current_weights[key]
                 if value.is_floating_point():
-                    fake_gradient = prev_sd[key] - value
-                    crafted_sd[key] = value + self.freerider_noise_scale * fake_gradient
+                    fake_gradient = prev_weights[key] - value
+                    crafted_weights[key] = value + self.freerider_noise_scale * fake_gradient
                 else:
-                    crafted_sd[key] = value.clone()
+                    crafted_weights[key] = value.clone()
 
-        return crafted_sd
+        return crafted_weights
 
     def the_merge(self, _users, aggregation_rule: str, merge_weight_collector=None, agg_switch_collector=None, avg_prior_losses=None):
         # No qualified users → skip merge this round
