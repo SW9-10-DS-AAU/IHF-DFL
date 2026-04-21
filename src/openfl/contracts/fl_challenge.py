@@ -1298,7 +1298,8 @@ class FLChallenge(FLManager):
                 reward_delta=_addr_to_reward.get(_user.address, None),
                 is_reward=_addr_to_ir.get(_user.address, None),
                 merged=False,
-                merge_weight=None
+                merge_weight=None,
+                attack_type=_user.last_attack_type,
             )
 
         # ---- global round ----
