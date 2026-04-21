@@ -1,12 +1,24 @@
+import os
+import platform
 from solcx import install_solc, set_solc_version, compile_standard, get_installed_solc_versions
 from pathlib import Path
 import json
 
 print(get_installed_solc_versions())
 
-# 1) Ensure exact compiler
-install_solc("0.8.9")
-set_solc_version("0.8.9")
+SOLC_VERSION = "0.8.9"
+IS_ARM = platform.machine() in ("aarch64", "arm64")
+
+compile_kwargs = {}
+if IS_ARM:
+    # solcx has no prebuilt ARM binary; use a system-installed solc.
+    # Override via SOLC_BINARY env var if installed outside ~/.local/bin.
+    compile_kwargs["solc_binary"] = os.environ.get(
+        "SOLC_BINARY", str(Path.home() / ".local/bin/solc")
+    )
+else:
+    install_solc(SOLC_VERSION)
+    set_solc_version(SOLC_VERSION)
 
 # 2) Load sources
 root = Path(__file__).parents[1]
@@ -27,7 +39,7 @@ compiled = compile_standard({
         "optimizer": {"enabled": True, "runs": 200},
         "outputSelection": {"*": {"*": ["abi","evm.bytecode.object"]}}
     }
-})
+}, **compile_kwargs)
 
 bytecode = compiled["contracts"]["OpenFLModel.sol"]["OpenFLModel"]["evm"]["bytecode"]["object"]
 
