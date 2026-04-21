@@ -232,6 +232,7 @@ yarn-error.log*
 yarn-debug.log*
 .pnp.*
 .pnpm-debug.log*
+.npmrc
 
 # Hardhat
 artifacts/
