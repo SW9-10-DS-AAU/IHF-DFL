@@ -252,8 +252,6 @@ hh-debug.log
 coverage/
 .solcover.js
 
-# remove jupyter notebooks for graphs that we have never used anyway
-notebooks/
 ignition/
 
 # agents.md
