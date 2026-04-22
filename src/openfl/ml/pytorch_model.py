@@ -21,7 +21,7 @@ from torchvision import transforms
 from torchvision.datasets import CIFAR10, MNIST
 from torch.utils.data import DataLoader, random_split, Subset
 from collections import Counter
-from openfl.utils import aggregation_strategy_parser
+from openfl.utils import aggregation_strategy_parser, repo_root
 torch._dynamo.config.cache_size_limit = 512
 debugging = sys.gettrace() is not None
 logging.getLogger("torch._inductor").setLevel(logging.ERROR)
@@ -34,7 +34,7 @@ NON_BLOCKING = USE_CUDA
 NUM_WORKERS = min(4, os.cpu_count() // 2) if torch.cuda.is_available() else 0
 PERSISTENT_WORKERS = USE_CUDA and NUM_WORKERS > 0
 AMP = USE_CUDA # Optional: mixed precision on CUDA
-
+DATASET_ROOT = repo_root() / "data" / "datasets"
 # cuDNN autotune for fixed-size inputs (both MNIST 28x28 and CIFAR-10 32x32)
 torch.backends.cudnn.benchmark = USE_CUDA
 if DEVICE.type == "cuda":
@@ -349,7 +349,7 @@ class PytorchModel:
     def load_data(self, NUM_CLIENTS, _print=False):
         if self.DATA:
             return self.DATA
-        
+
         if self.DATASET == "cifar-10":
             transform = transforms.Compose([
                 transforms.RandomCrop(32, padding=4),
@@ -361,11 +361,11 @@ class PytorchModel:
                 transforms.ToTensor(),
                 transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
             ])
-            trainset = CIFAR10("./data", train=True, download=True, transform=transform)
-            testset = CIFAR10("./data", train=False, download=True, transform=transform_test)
+            trainset = CIFAR10(DATASET_ROOT / "CIFAR", train=True, download=True, transform=transform) # Since CIFAR does not makes its own subfolder, we make it.
+            testset = CIFAR10(DATASET_ROOT / "CIFAR", train=False, download=True, transform=transform_test)
         else:
-            trainset = MNIST("./data", train=True, download=True, transform=transforms.ToTensor())
-            testset = MNIST("./data", train=False, download=True, transform=transforms.ToTensor())
+            trainset = MNIST(DATASET_ROOT, train=True, download=True, transform=transforms.ToTensor())
+            testset = MNIST(DATASET_ROOT, train=False, download=True, transform=transforms.ToTensor())
             
         
         if _print:

@@ -1,15 +1,17 @@
 from datetime import datetime
 import sys
 import multiprocessing as mp
-from pathlib import Path
 import experiment_runner as ExperimentRunner
 from experiment_configuration import ExperimentConfiguration
 from helper import getPath
+from openfl.utils import repo_root
 from openfl.utils.async_writer import AsyncWriter
 
 # Add the repo root to sys.path so `analysis` package is importable from here
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(repo_root()))
 from analysis import ExperimentLogger
+
+DATA_ROOT = repo_root() / "data"
 
 preset = "test"
 _use_defaults = True
@@ -19,7 +21,7 @@ config = ExperimentConfiguration(preset=preset, use_defaults=_use_defaults)
 
 DATASETSLOW = "cifar.10"
 DATASETFAST = "mnist"
-RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/sample")
+RESULTDATAFOLDER = repo_root() / "data" / "runs" / "sample"
 
 DATASET = DATASETFAST
 
@@ -61,7 +63,7 @@ def main():
     writer.finish()
     logger.save(path.with_suffix(".pkl"))
 
-    experiment.model.visualize_simulation("figures")
+    experiment.model.visualize_simulation(DATA_ROOT / "figures")
     ExperimentRunner.print_transactions(experiment)
     # except Exception as e:
     #     print(f"An error occurred during the experiment: {e}")

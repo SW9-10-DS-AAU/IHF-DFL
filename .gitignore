@@ -157,10 +157,13 @@ venv.bak/
 artifacts/bytecode/**
 
 #Data
-data/**
+data/datasets/**
+data/runs/**
 experiment/data/**
 experiment/figures/**
 experiment/experiment/figures/**
+figures/**
+
 
 # Spyder project settings
 .spyderproject
