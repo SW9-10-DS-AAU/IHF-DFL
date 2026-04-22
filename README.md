@@ -39,6 +39,9 @@ Only tested with Python3.10
 Build the abi and bytecode files from the smart contracts
 ``python3 scripts/compile_contracts.py``
 
+Strip notebook outputs before committing (run once per clone):
+``nbstripout --install``
+
 Install ROCM(AMD) or CUDA(NVIDIA):
 ROCM:
 ``pip3 install torch torchvision --index-url https://download.pytorch.org/whl/rocm7.1``

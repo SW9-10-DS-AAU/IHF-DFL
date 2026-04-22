@@ -157,6 +157,13 @@ def normalize_run(run: RunData, make_readable: bool = True) -> RunData:
                         if isinstance(lst, list) else lst
                     )
 
+    # Derive per-round contributor and kicked counts from the users table
+    if not u.empty and not g.empty:
+        n_contrib = u[u["merged"] == True].groupby("round").size().rename("n_contributors")
+        g = g.merge(n_contrib, on="round", how="left")
+        g["n_contributors"] = g["n_contributors"].fillna(0).astype(int)
+
+
     return RunData(
         experiment_id=run.experiment_id,
         metadata=run.metadata,
