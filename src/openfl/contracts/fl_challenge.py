@@ -3,6 +3,7 @@ import datetime
 import os
 import time
 import warnings
+import math
 
 import torch
 import numpy as np
@@ -650,35 +651,44 @@ class FLChallenge(FLManager):
         return results
     
     def print_round_summary(self, receipt):
-        for user in self.pytorch_model.participants:
+        for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
             user.temporary_grs_evaluation = None
 
         events = self.get_events(
             w3=self.w3,
             contract=self.model,
             receipt=receipt,
-            event_names=["EndRound", "Reward", "Punishment", "Disqualification"]
+            event_names=["EndRound", "Reward", "Punishment", "ContributionPunishment", "PassivePunishment", "Disqualification", "EvaluationVotingReward"]
         )
 
         end_events = events["EndRound"]
         reward_events = events["Reward"]
         punish_events = events["Punishment"]
+        contrib_punish_events = events["ContributionPunishment"]
+        passive_punish_events = events["PassivePunishment"]
         disqualify_events = events["Disqualification"]
-        # eval_reward_events = events["EvaluationVotingReward"]
-        eval_reward_events = None
+        eval_reward_events = events["EvaluationVotingReward"]
 
         # End of round summary
         if end_events:
             for ev in end_events:
                 args = ev["args"]
-                print(b(f"\nEND OF ROUND {args['round'] + 1}"))
+                print(b(f"\nEND OF ROUND      {args['round'] + 1}"))
                 print(b(f"VALID VOTES:      {args['validVotes']}"))
-                print(b(f"SUM OF WEIGHTS:  {args['sumOfWeightedContribScore']:,}"))
+                print(b(f"SUM OF WEIGHTS:   {args['sumOfWeightedContribScore']:,}"))
                 print(b(f"TOTAL PUNISHMENT: {args['totalPunishment']:,}\n"))
             print("-----------------------------------------------------------------------------------\n")
 
+        if passive_punish_events:
+            print(b("PASSIVE PUNISHMENTS"))
+            for ev in passive_punish_events:
+                args = ev["args"]
+                print(green(f"USER/VICTIM @    {args['victim']}"))
+                print(green(f"ROUND SCORE:     {args['roundScore']:,}"))
+                print(green(f"PUNISHED TARGET: {args['punishedTarget']}\n"))
+
         if eval_reward_events:
-            print(b("EVLUATION VOTING REWARDS DISTRIBUTION"))
+            print(b("EVALUATION VOTING REWARDS DISTRIBUTION"))
 
             contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0]
             user_map = {u.address: u for u in contributors}
@@ -699,31 +709,43 @@ class FLChallenge(FLManager):
             print(b("REWARDED USERS"))
             for ev in reward_events:
                 args = ev["args"]
-                if args["roundScore"] > 0:
-                        print(green(f"USER @ {args['user']}"))
+                if args["roundScore"] >= 0:
+                        print(green(f"USER @            {args['user']}"))
                         print(green(f"ROUND SCORE:      {args['roundScore']:,}"))
-                        total_reward = args['win']
-                        if not args.get('is_reward', True):  # default True if key missing
-                            total_reward = -total_reward
                         print(green(f"TOTAL REWARD:     {args['win']:,}"))
                         print(green(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
+                else: warnings.warn(f"User {args['user']} had negative round score but was rewarded? Score: {args['roundScore']}, Reward: {args['win']}")
             print("-----------------------------------------------------------------------------------\n")
 
         # Punished users
         if punish_events:
-            print(b("PUNISHED USERS"))
+            print(b("RRS < 0 PUNISHED USERS FOR NOT GETTING MERGED"))
             for ev in punish_events:
-                print("Punishing a user")
                 args = ev["args"]
                 self._punishments.append((
                     self.pytorch_model.round - 1, 
                     args["loss"],
                     next((i + 1 for i, x in enumerate(self.pytorch_model.participants) if x.address == args["victim"]), 0),
                     ))
-                print(red(f"USER @ {args['victim']}"))
+                print(red(f"USER @            {args['victim']}"))
                 print(red(f"ROUND SCORE:      {args['roundScore']:,}"))
                 print(red(f"TOTAL LOSS:       {args['loss']:,}"))
                 print(red(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
+            print("-----------------------------------------------------------------------------------\n")
+
+        if contrib_punish_events:
+            print(b("CONTRIBUTION-PUNISHED USERS"))
+            for ev in contrib_punish_events:
+                print("Punishing a user for bad contribution")
+                args = ev["args"]
+                if args["roundScore"] >= 0:
+                    print(green(f"USER @ {args['user']}"))
+                    print(green(f"ROUND SCORE:      {args['roundScore']:,}"))
+                    print(green(f"LOSS:             {args['loss']:,}"))
+                    print(green(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
+                else:
+                    warnings.warn(
+                        f"User {args['user']} had negative round score but was rewarded? Score: {args['roundScore']}, Reward: {args['win']}")
             print("-----------------------------------------------------------------------------------\n")
 
         # Disqualified users
@@ -751,6 +773,8 @@ class FLChallenge(FLManager):
                 print(red(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
             print("-----------------------------------------------------------------------------------\n")
 
+
+        # round grs summary print
         print(b(f"Round {self.pytorch_model.round - 1} completed:"))
         print(b("Round Rewards (per user):"))
         print(b("{:>20}  {:>25} -> {:>25} -> {:>25}".format("address" + "...", "previous grs",
@@ -804,29 +828,31 @@ class FLChallenge(FLManager):
 
             if self.fork:
                 tx = super().build_tx(u.address, self.modelAddress)
-                tx_hash = self.model.functions.submitContributionScore(
-                    int(Decimal(score) * Decimal('1e18'))
+                tx_hash = self.model.functions.submitContributionScoreAndVotingEvaluation(
+                    int(Decimal(score) * Decimal('1e18')), int(Decimal(u.evaluation_reward) * Decimal('1e18'))
                 ).transact(tx)
-            else:  # TODO: Dobbeltjek at logic er rigtig her.
+            else:
                 nonce = self.w3.eth.get_transaction_count(u.address)
                 cl = super().build_non_fork_tx(
                     u.address,
                     nonce,
                 )
                 cl = self.model.functions.submitContributionScore(
-                    int(Decimal(score) * Decimal('1e18')),
+                    int(Decimal(score) * Decimal('1e18')),int(Decimal(u.evaluation_reward) * Decimal('1e18'))
                 ).build_transaction(cl)
                 pk = u.privateKey
                 signed = self.w3.eth.account.sign_transaction(cl, private_key=pk)
                 tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
             txs.append(tx_hash)
 
-            print(green(f"\nUSER @ {u.id}"))
-            print(green(f"{'CONTRIBUTION SCORE:':25}{u.contribution_score}"))
-
         for i, txHash in enumerate(txs):
             self.track_transaction(i, txHash, len(txs), "contrib")
 
+
+        for u in _users:
+            print(green(f"\nUSER @ {u.address}"))
+            print(green(f"{'CONTRIBUTION SCORE:':25}{u.contribution_score}"))
+            print(green(f"{'EVALUATION REWARD:':25}{u.evaluation_reward}")) if u.evaluation_reward is not None else None
         print("-----------------------------------------------------------------------------------\n")
 
 
@@ -1014,10 +1040,12 @@ class FLChallenge(FLManager):
         avg_prev_loss = np.mean(mad_prev_losses)
         avg_losses = [] # after loop: [60, 70, 50, 80]
         per_user_outlier_info = []
+        user_map = {u.address: u for u in users}
+        for u in users: u.evaluation_reward = 0
 
         for u in users: # For loop to extract losses.
             # All loses per user
-            _, losses = self.model.functions.getAllLossesAbout(u.address).call()
+            voters, losses = self.model.functions.getAllLossesAbout(u.address).call()
 
             try:
                 # Multiple accuracies and losses per user
@@ -1032,6 +1060,14 @@ class FLChallenge(FLManager):
             except Exception as e:
                 per_user_outlier_info.append({})
                 raise type(e)(f"Failed while processing user data: {e}") from e
+
+
+            rewards = softmax_rewards(losses, avg_loss, 1, 0.01)
+            for voter, reward in zip(voters, rewards):
+                if voter in user_map:
+                    user_map[voter].evaluation_reward += reward
+                else:
+                    warnings.warn("Voter {} not found among merging users".format(voter))
 
 
 
@@ -1138,14 +1174,13 @@ class FLChallenge(FLManager):
         result = []
         for ev in reward_events:
             args = ev["args"]
-            if args["roundScore"] > 0:
+            if args["roundScore"] >= 0:
                 result.append(
                     (
                         args["user"],
                         args["roundScore"],
                         args["win"], # Reward/Punishment
-                        args["newReputation"], # New global reputation after reward/punishment
-                        args["is_reward"] # Boolean
+                        args["newReputation"], # New global reputation after reward/punishmens
                     )
                 )
         return result
@@ -1345,9 +1380,6 @@ class FLChallenge(FLManager):
         At the end, all users exit the system.
         """
 
-        # self.pytorch_model.print_client_data_distributions()
-
-
         print(self.modelAddress)
         self.register_all_users()
         
@@ -1373,7 +1405,7 @@ class FLChallenge(FLManager):
                 "GasTransactions": roundTx
             })
 
-        self._log_round_zero()
+        # self._log_round_zero()
 
         for i in range(rounds):
             print(b(f"\n\nRound {self.pytorch_model.round} starts..."))
@@ -1420,19 +1452,17 @@ class FLChallenge(FLManager):
                 avg_losses = self.get_all_n_prior_losses(3)
                 self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_losses=avg_losses)  # Only used for non-dp version. when agg_rule==partial_switch
 
-
-            # self.print_round_summary(receipt)
             if receipt is not None:
                 self.print_round_summary(receipt)
 
             _round_time = time.perf_counter() - _round_start
             _current_round = self.pytorch_model.round - 1
 
-            self._log_round(
-                _current_round, _round_time,
-                accuracy_matrix, loss_matrix, prev_accs, prev_losses,
-                contributors, receipt, users_weight_collector, agg_switch_collector,
-            )
+            # self._log_round(
+            #     _current_round, _round_time,
+            #     accuracy_matrix, loss_matrix, prev_accs, prev_losses,
+            #     contributors, receipt, users_weight_collector, agg_switch_collector,
+            # )
 
             grs = [(user.address, user._globalrep[-1]) for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
             round_punishment = [(punishment[0], punishment[1]) for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]
@@ -1722,9 +1752,6 @@ def normalize_contribution_scores_new(vals: list, prev_val: float, evaluation_me
     if evaluation_metric == "loss":
         vals = [-1 * val for val in vals]
     sum_ = sum(vals)
-    print("vals", vals)
-    print("sum: ", sum_)
-
 
     # Step 2: edge cases  TODO: 0 og -0.5
     max_val = max(vals)
@@ -1734,9 +1761,6 @@ def normalize_contribution_scores_new(vals: list, prev_val: float, evaluation_me
         vals = [sum_ / val for val in vals]
     # elif sum_ < 0:
     # vals = [val / -sum_ for val in vals]
-    sum_ = sum(vals)
-    print("vals", vals)
-    print("sum: ", sum_)
 
 
     # Step 3: clamp negatives to minimum -1
@@ -1744,9 +1768,6 @@ def normalize_contribution_scores_new(vals: list, prev_val: float, evaluation_me
         divisor = -min(vals)
         vals = [val / divisor if val < 0 else val for val in vals]
     sum_ = sum(vals)
-    print("vals", vals)
-    print("sum: ", sum_)
-
 
     # Step 4: normalize to sum = 1
     if not sum_ == 1:  #
@@ -1756,11 +1777,6 @@ def normalize_contribution_scores_new(vals: list, prev_val: float, evaluation_me
             sum_of_positives = sum(val for val in vals if val > 0)
             excess_sum = sum_ - 1
             vals = [val + (val / sum_of_positives) * -excess_sum if val > 0 else val for val in vals]
-        sum_ = sum(vals)
-
-    print("vals", vals)
-    print("sum: ", sum_)
-
     return vals
 
 
@@ -1811,4 +1827,11 @@ def remove_outliers_mad(arr, threshold=0.70, return_mask=False, collector=None, 
 
 runtime_warnings = []
 
+
+def softmax_rewards(values, true_value, total_reward, alpha):
+    distances = [abs(v - true_value) for v in values]
+    weights = [math.exp(-alpha * d) for d in distances]
+    total_weight = sum(weights)
+    rewards = [total_reward * w / total_weight for w in weights]
+    return rewards
 
