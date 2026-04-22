@@ -21,7 +21,7 @@ from torchvision import transforms
 from torchvision.datasets import CIFAR10, MNIST
 from torch.utils.data import DataLoader, random_split, Subset
 from collections import Counter
-from src.openfl.utils import aggregation_strategy_parser
+from openfl.utils import aggregation_strategy_parser
 torch._dynamo.config.cache_size_limit = 512
 debugging = sys.gettrace() is not None
 logging.getLogger("torch._inductor").setLevel(logging.ERROR)
@@ -112,7 +112,7 @@ class Participant:
         self._globalrep = [self.collateral]
         self._roundrep = []
         self.last_attack_type = None  # Actual attack used this round (may differ from config due to fallbacks)
-    
+
     def getStatus(self):
         user = f"$user${self.id}, {self.currentAcc}, {self.attitude}, {self.futureAttitude}, {self.attitudeSwitch}, {self.address}"
         return user
@@ -253,7 +253,7 @@ class PytorchModel:
             
     def add_participant(self, _attitude):
         _train, _val, _test = self.load_data(self.NUMBER_OF_CONTRIBUTORS)
-        
+
         if self.DATASET == "mnist":
             _model = Net_MNIST().to(DEVICE)
         else:
@@ -687,12 +687,15 @@ class PytorchModel:
 
         return crafted_weights
 
-    def the_merge(self, _users, aggregation_rule: str, merge_weight_collector=None, agg_switch_collector=None, avg_prior_losses=None):
+    def the_merge(self, _users, aggregation_rule: str, merge_weight_collector=None, agg_switch_collector=None, avg_prior_losses=None, warning_collector=None):
         # No qualified users → skip merge this round
         if not _users:
+            msg = f"[Round {self.round-1}] No participants qualified for merge – skipping aggregation"
             print("-----------------------------------------------------------------------------------")
-            print(red("No participants qualified for merge this round – skipping aggregation"))
+            print(red(msg))
             print("-----------------------------------------------------------------------------------\n")
+            if warning_collector is not None:
+                warning_collector.append(msg)
             return
 
         pre_merge_snapshot = copy.deepcopy(self.global_model)
@@ -726,6 +729,16 @@ class PytorchModel:
             "plus_more_than_one_normalize": plus_more_than_one_normalize,
             "GRS_aggregation": _grs_fn,
         }
+
+        _low_contributor_fallback = len(_users) <= 3 and aggregation_rule != "FedAVG"
+        # Note: We include FedAVG here so in case of partial/binary_switch paired with GRS_agg. don't become 2xGRS_agg.
+        if _low_contributor_fallback:
+            msg = f"[Round {self.round-1}] Too few contributors ({len(_users)}) – defaulting to GRS_aggregation"
+            print(yellow(msg))
+            if warning_collector is not None:
+                warning_collector.append(msg)
+            aggregation_rule = "GRS_aggregation"
+
 
         if aggregation_rule in agg_rules:
             users_merge_weights = agg_rules[aggregation_rule](users_contribution_scores)
