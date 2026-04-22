@@ -11,9 +11,9 @@
 
 pragma solidity =0.8.9;
 
-import "./OpenFLModel_nobody_is_kicked.sol";
+import "./OpenFLModel_NobodyIsKicked.sol";
 
-contract OpenFLManager_nobody_is_kicked {
+contract OpenFLManager {
     mapping(address => mapping(uint256 => address)) public ModelOf;
     mapping(address => uint256) public ModelCountOf;
 
