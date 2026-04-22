@@ -664,7 +664,10 @@ class PytorchModel:
         """Delta Weights Attack
 
         A free-rider constructs fake gradient updates by subtracting two
-        consecutively received global models
+        consecutively received global models (G_fake = M_{j-1} - M_j), then
+        submits M_j + G_fake = M_{j-1}.  Scale is fixed at 1.0 per the paper
+        definition: this keeps the fake update indistinguishable in magnitude
+        and direction from legitimate updates, evading detection mechanisms.
 
         Falls back to noise in round 1 when no previous global model exists.
         """
@@ -680,8 +683,8 @@ class PytorchModel:
             for key in current_weights.keys():
                 value = current_weights[key]
                 if value.is_floating_point():
-                    fake_gradient = prev_weights[key] - value
-                    crafted_weights[key] = value + self.freerider_noise_scale * fake_gradient
+                    fake_gradient = prev_weights[key] - value  # G_fake = M_{j-1} - M_j
+                    crafted_weights[key] = value + fake_gradient  # = M_{j-1}
                 else:
                     crafted_weights[key] = value.clone()
 
