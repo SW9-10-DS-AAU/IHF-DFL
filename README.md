@@ -28,6 +28,12 @@ PRIVATE_KEYS="<Private keys from your accounts colon separated (for non-locally 
 
 ## 3. Requirements
 - Only tested with Python3.10
+Create a virtual environment and activate it.
+- Run ``python3 -m venv .venv``
+- Then Run ``source .venv/bin/activate``
+
+Install requirements:
+Only tested with Python3.10
 - Run ``pip install -e ".[dev]"``
 
 Build the abi and bytecode files from the smart contracts
