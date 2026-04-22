@@ -816,6 +816,7 @@ class FLChallenge(FLManager):
             self._log_warning(msg)
             scores = [share] * len(_users)
             self._log_contribution_scores(_users, scores, None, None, None)
+            for u in _users: u.evaluation_reward = 1
         else:
             calculator = self._get_contribution_score_calculator() # Choose scoring algorithm based on configured strategy
             scores = calculator(_users)
