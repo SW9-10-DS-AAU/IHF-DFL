@@ -658,19 +658,11 @@ contract OpenFLModel {
 
     // Exit contract - Not safe, gaurds exists but will crash the contract if not met, exits should be queued?
     function exitModel() public onlyRegisteredUsers {
-    require(users[msg.sender].globalReputationScore > 0, "NEF");
+    User storage user = users[msg.sender];
+    uint val = user.globalReputationScore;
 
-    // Allow exit if feedback round is closed OR sufficient rounds have passed
-    bool canExit = (nrOfProvidedHashedWeights != nrOfActiveParticipants &&
-                    roundStart + ONE_DAY > block.timestamp &&
-                    weightsOf[msg.sender][round] == bytes32(0)) ||
-                   users[msg.sender].nrOfRoundsParticipated >= min_rounds;
-
-    require(canExit, "Cannot exit at this time");
-
-    uint val = users[msg.sender].globalReputationScore;
-    users[msg.sender].globalReputationScore = 0;
-    users[msg.sender].isRegistered = false;
+    user.globalReputationScore = 0;
+    user.isRegistered = false;
     nrOfActiveParticipants -= 1;
 
     // Clean up participant array
