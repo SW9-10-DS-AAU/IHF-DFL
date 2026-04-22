@@ -257,3 +257,6 @@ ignition/
 # agents.md
 .claude/
 CLAUDE.md
+
+# foundry
+dependencies

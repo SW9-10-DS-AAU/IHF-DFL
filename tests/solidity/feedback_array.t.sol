@@ -13,8 +13,9 @@ contract OpenFLModelMock is OpenFLModel {
         uint reward,
         uint8 minRounds,
         uint8 punishFactor,
+        uint8 punishFactorContrib,
         uint8 freeriderPenalty
-    ) OpenFLModel(modelHash, minCollateral, maxCollateral, reward, minRounds, punishFactor, freeriderPenalty) {}
+    ) OpenFLModel(modelHash, minCollateral, maxCollateral, reward, minRounds, punishFactor, punishFactorContrib, freeriderPenalty) {}
 
     /// @notice Override feedback to skip all logic/modifiers
     function feedback(address, int) public override {
@@ -38,6 +39,7 @@ contract FallbackGasTest is Test {
             uint(1e18),
             uint(1.8e18),
             uint(1e18),
+            3,
             3,
             3,
             50
