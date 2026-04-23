@@ -70,7 +70,7 @@ PRESETS = {
         freerider_start_round=[2],
         malicious_noise_scale=[0.1],
         malicious_start_round=[2],
-        aggregation_rule=["FedAVG"],
+        aggregation_rule=["binary_switch[positives_only,FedAVG]", "partial_switch[loss,positives_only,GRS_aggregation]" "partial_switch[accuracy,positives_only,GRS_aggregation]" ],
         data_distribution= ["random_split_42"],
         dirichlet_alpha= None,
     ),
@@ -228,7 +228,7 @@ PRESETS = {
         freerider_start_round=[1], # 1
         malicious_noise_scale=[0.1],
         malicious_start_round=None,
-        aggregation_rule=["binary_switch","positives_only", "FedAVG", "plus_one_normalize"], # 4
+        aggregation_rule=["binary_switch[positives_only,FedAVG]", "plus_one_normalize"], # 4
         data_distribution= ["random_split_42"], # 1
         dirichlet_alpha= None,
     ),

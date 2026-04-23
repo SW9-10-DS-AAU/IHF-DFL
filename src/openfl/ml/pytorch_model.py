@@ -376,12 +376,11 @@ class PytorchModel:
         # Split training set into partitions to simulate the individual dataset
         partition_size = len(trainset) // NUM_CLIENTS
         lengths = [partition_size] * NUM_CLIENTS
-        
+        gen = torch.Generator().manual_seed(42) if "42" in str(self.data_distribution) else None
         images_needed = partition_size * NUM_CLIENTS
         if images_needed < len(trainset):
-            trainset,_ = random_split(trainset, [images_needed, len(trainset)-images_needed])
+            trainset,_ = random_split(trainset, [images_needed, len(trainset)-images_needed], generator=gen)
 
-        gen = torch.Generator().manual_seed(42) if "42" in str(self.data_distribution) else None
 
         dist = self.data_distribution or "random_split"
 
