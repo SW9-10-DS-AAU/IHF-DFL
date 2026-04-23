@@ -808,13 +808,6 @@ class FLChallenge(FLManager):
             return
 
         print("START CONTRIBUTION SCORE\n")
-
-        for user in self.pytorch_model.participants:
-            print(f"User {user.address} round reputation: {user._roundrep[-1]}")
-            user._roundrep.append(self.get_round_reputation_of_user(user.address))
-            print(f"User {user.address} round reputation: {user._globalrep[-1]}")
-            
-        
     
 
         if len(_users) <= 3:
@@ -1440,6 +1433,10 @@ class FLChallenge(FLManager):
             self.feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses = self.pytorch_model.evaluation()
 
             self.quick_feedback_round(fbm = self.feedback_matrix, am=accuracy_matrix, lm=loss_matrix, prev_accs=prev_accs, prev_losses=prev_losses)
+
+            for user in self.pytorch_model.participants: # TODO: remove after test?
+                user._roundrep.append(self.get_round_reputation_of_user(user.address))
+                print(f"model participant: {user.address} gets {user._roundrep[-1]} round reputation")
 
             # A roundRep of 0, does not nec. mean mal.
             contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0] # Keeps track of who will be merged in the_merge()
