@@ -50,6 +50,7 @@ contract OpenFLModel {
         bool isRegistered; // 1
         bool whitelistedForRewards; // 1
         bool isDisqualified; // 1
+        bool isPassivePunished; // 1
     }
 
     mapping(address => User) public users;
@@ -59,7 +60,9 @@ contract OpenFLModel {
     mapping(address => mapping(uint8 => bytes32)) public secretOf;
     mapping(address => mapping(uint8 => bytes32)) public weightsOf;
     mapping(uint8 => mapping(address => int256)) public contributionScore; // round => user => score
-    mapping(uint8 => uint256) public nrOfContributionScores; // round => number of submissions
+    mapping(uint8 => mapping(address => uint256)) public evaluationScore; // round => user => score
+    mapping(uint8 => uint16) public nrOfContributionScores; // round => number of submissions
+    mapping(uint8 => uint16) public nrOfEvaluationScores; // round => number of submissions
 
     struct AccuracyLossSubmission {
         address[] adrs;
@@ -106,15 +109,15 @@ contract OpenFLModel {
         _;
     }
 
-    modifier feedbackRoundClosed() {
-        require(
-            nrOfProvidedHashedWeights != nrOfActiveParticipants &&
-            roundStart + ONE_DAY > block.timestamp,
-            "NA"
-        );
-        require(weightsOf[msg.sender][round] == bytes32(0), "WFE");
-        _;
-    }
+//    modifier feedbackRoundClosed() {
+//        require(
+//            nrOfProvidedHashedWeights != nrOfActiveParticipants &&
+//            roundStart + ONE_DAY > block.timestamp,
+//            "NA"
+//        );
+//        require(weightsOf[msg.sender][round] == bytes32(0), "WFE");
+//        _;
+//    }
 
     modifier onlyValidTargets(address target) {
         require(target != msg.sender, "SET");
@@ -155,9 +158,10 @@ contract OpenFLModel {
         int256 newRoundReputation
     );
 
-    event ContributionScoreSubmitted(
+    event ContributionScoreAndEvalSubmitted(
         address indexed user,
-        int256 contributionScore
+        int256 contributionScore,
+        uint256 evaluationScore
     );
 
     event EndRound(
@@ -174,11 +178,10 @@ contract OpenFLModel {
         uint newReputation
     );
 
-    event PassivPunishment(
+    event PassivePunishment(
         address victim,
         int256 roundScore,
-        uint loss,
-        uint newReputation
+        address punishedTarget
     );
 
     event Disqualification(
@@ -188,7 +191,9 @@ contract OpenFLModel {
         uint newReputation
     );
 
-    event Reward(address user, int256 roundScore, uint win, uint newReputation, bool is_reward);
+    event Reward                (address user, int256 roundScore, uint win,    uint newReputation);
+    event ContributionPunishment(address user, int256 roundScore, uint loss,   uint newReputation);
+    event EvaluationVotingReward(address user, uint rewarded,     uint staked, uint newReputation);
 
     constructor(
         bytes32 _modelHash,
@@ -324,18 +329,26 @@ contract OpenFLModel {
         );
     }
 
-    function submitContributionScore(int256 score) external {
+    function submitContributionScoreAndVotingEvaluation(int256 contribScore, uint256 evalScore) external {
         require(users[msg.sender].isRegistered, "User not registered");
         require(
             contributionScore[round][msg.sender] == 0,
-            "Score already submitted"
+            "Contribution Score already submitted"
+        );
+        require(
+            evaluationScore[round][msg.sender] == 0,
+            "Evaluation score already submitted"
         );
 
-        contributionScore[round][msg.sender] = score;
+        contributionScore[round][msg.sender] = contribScore;
         nrOfContributionScores[round] += 1;
 
-        emit ContributionScoreSubmitted(msg.sender, score);
+        evaluationScore[round][msg.sender] = evalScore;
+        nrOfEvaluationScores[round] += 1;
+
+        emit ContributionScoreAndEvalSubmitted(msg.sender, contribScore, evalScore);
     }
+
 
     function isFeedBackRoundDone() public view returns (bool roundClosed) {
         if (nrOfActiveParticipants == 0) {
@@ -358,13 +371,19 @@ contract OpenFLModel {
         uint mergedUsers = 0;
         for (uint i = 0; i < participants.length; i++) {
             if (
-                users[participants[i]].roundReputation < 0 &&
+                users[participants[i]].roundReputation >= 0 &&
                 !users[participants[i]].isDisqualified
             ) {
                 mergedUsers++;
             }
         }
+        require(nrOfContributionScores[round] >= mergedUsers, "Not enough contribution scores submitted yet");
+        require(nrOfEvaluationScores[round] >= mergedUsers, "Not enough evaluation scores submitted yet");
+
         if (nrOfContributionScores[round] < mergedUsers) {
+            return false;
+        }
+        if (nrOfEvaluationScores[round] < mergedUsers) {
             return false;
         }
 
@@ -384,6 +403,8 @@ contract OpenFLModel {
                     freeriderPenalty;
                 freeriderLock += freeriderPenalty;
             }
+            user.isPunished = false;
+            user.isPassivePunished = false;
         }
 
         // Punish malicious users
@@ -414,8 +435,8 @@ contract OpenFLModel {
                             user.globalReputationScore
                         );
                     } else {
-                        user.isRegistered = false;
                         user.isPunished = true;
+                        user.isRegistered = false;
                         punishedAddresses.push(participants[i]);
                         user.whitelistedForRewards = false;
 
@@ -443,18 +464,19 @@ contract OpenFLModel {
             if (user.isRegistered && !user.isDisqualified) {
                 for (uint j = 0; j < punishedAddresses.length; j++) {
                     if (
-                        votedPositiveFor[participants[i]][punishedAddresses[j]]
+                        votedPositiveFor[user.addr][punishedAddresses[j]]
                     ) {
-                        votedPositiveFor[participants[i]][
+                        votedPositiveFor[user.addr][
                         punishedAddresses[j]
                         ] = false;
+                        user.isPassivePunished = true;
                         votesPerRound -= user.nrOfVotesFromUser;
-                        user.whitelistedForRewards = false;
-                        emit PassivPunishment(
-                            participants[i],
+                        user.nrOfVotesFromUser = 0;
+
+                        emit PassivePunishment(
+                            user.addr,
                             user.roundReputation,
-                            0,
-                            user.globalReputationScore
+                            punishedAddresses[j]
                         );
                     }
                 }
@@ -479,23 +501,68 @@ contract OpenFLModel {
             }
         }
 
+        // Evaluation scores based on evaluation votes.
+        uint evaluation_disqualification_pool = 0;
+
+        for (uint i = 0; i < participants.length; i++) {
+            User storage user = users[participants[i]];
+
+            if (_isEligibleForRewards(user)) { // && evaluationScore[round][user.addr] != 0
+                require(evaluationScore[round][user.addr] >= 0, "Evaluation score is <= 0 in settle!");
+                uint staking_min_grs = min_collateral / punishfactorContrib;
+                uint evaluation_reward = (evaluationScore[round][user.addr] * staking_min_grs) / 1e18;
+
+                require(user.globalReputationScore - staking_min_grs + evaluation_reward > 0, "user does not have enough grs to stake for evaluation voting reward!");
+
+                if (user.isPassivePunished && evaluation_reward > staking_min_grs) { // if users with passive punishment get rewarded, strip that reward and add surplus to pool.
+                    evaluation_disqualification_pool += evaluation_reward - staking_min_grs;
+                    evaluation_reward = staking_min_grs;
+                }
+                user.globalReputationScore = user.globalReputationScore - staking_min_grs + evaluation_reward;
+
+                emit EvaluationVotingReward(
+                    user.addr,
+                    evaluation_reward,
+                    staking_min_grs,
+                    user.globalReputationScore
+                );
+
+                if (user.globalReputationScore <= staking_min_grs) {
+                    evaluation_disqualification_pool += user.globalReputationScore;
+
+                    emit Disqualification(
+                        user.addr,
+                        user.roundReputation,
+                        user.globalReputationScore,
+                        0
+                    );
+
+                    user.globalReputationScore = 0;
+                    nrOfActiveParticipants -= 1;
+                    user.isDisqualified = true;
+                    user.isPunished = true;
+                    user.isRegistered = false;
+                }
+            }
+        }
+
         // Devide reward between every user who provided (non-malicious) feedback
-        // Pay back freeriderLock funds to good users
-        // First round users pay their anti-freerider fee
+        // Pay back freeriderLock(totalpunishment) funds to good users
         int256 sumOfWeightedContribScore = 0;
         uint256 positiveSumOfWeightedContribScore;
         if (votesPerRound > 0 && rewardLeft >= rewardPerRound) {
             rewardLeft -= rewardPerRound;
 
             uint reward = rewardPerRound;
-            reward += totalPunishment;
+            reward += totalPunishment; // surplus grs from punishments and <= 0 RRS users
+            reward += evaluation_disqualification_pool; // surplus grs from disqualifications in evaluation voting
 
             // Compute weights
             for (uint i = 0; i < participants.length; i++) {
                 User storage user = users[participants[i]];
 
                 if (_isEligibleForRewards(user) && contributionScore[round][user.addr] > 0) {
-                    int256 weight = int256(uint(user.nrOfVotesFromUser)) * contributionScore[round][user.addr];
+                    int256 weight = int256(uint(user.nrOfVotesFromUser)) * contributionScore[round][user.addr];   // implicitly handles users with passive punishments, as their nrOfVotesFromUser is set to 0 already.
                     user.weightedContribScore = weight;
                     sumOfWeightedContribScore += weight;
                 }
@@ -508,13 +575,9 @@ contract OpenFLModel {
                 User storage user = users[participants[i]];
 
                 if (_isEligibleForRewards(user) && contributionScore[round][user.addr] < 0) {
-                    require(punishfactorContrib > 0, "punishfactorcontrib <= 0");
-                    require(user.globalReputationScore > 0, "user.globalreputation <= 0");
-                    require(contributionScore[round][user.addr] < 0, "contrib >= 0");
                     uint punishment = (user.globalReputationScore / punishfactorContrib) * absUint((contributionScore[round][user.addr]));
-                    require(punishment > 0, "punishment is <= 0 in settle! 1");
+                    require(punishment > 0, "punishment is <= 0 in settle!");
                     punishment /= 1e18;
-                    require(punishment > 0, "punishment is <= 0 in settle! 2");
                     if (user.globalReputationScore <= min_collateral / punishfactorContrib || user.globalReputationScore <= punishment) {
                         reward += user.globalReputationScore;
 
@@ -528,17 +591,19 @@ contract OpenFLModel {
                         user.globalReputationScore = 0;
                         nrOfActiveParticipants -= 1;
                         user.isDisqualified = true;
+                        user.isPunished = true;
+                        user.isRegistered = false;
                     }
                     else { // this is a punishment
                         user.globalReputationScore -= punishment;
                         reward += punishment;
+                        user.isPunished = true;
 
-                        emit Reward(
+                        emit ContributionPunishment(
                             user.addr,
                             user.roundReputation,
                             punishment,
-                            user.globalReputationScore,
-                            false
+                            user.globalReputationScore
                         );
 
                         delete user.whitelistedForRewards;
@@ -560,8 +625,7 @@ contract OpenFLModel {
                         user.addr,
                         user.roundReputation,
                         personalReward,
-                        user.globalReputationScore,
-                        true
+                        user.globalReputationScore
                     );
                 }
 
@@ -583,7 +647,6 @@ contract OpenFLModel {
                 user.nrOfVotesFromUser = 0;
                 user.roundReputation = 0;
                 user.nrOfRoundsParticipated += 1;
-                user.isPunished = false;
                 for (uint j = 0; j < participants.length; j++) {
                     delete hasVoted[user.addr][participants[j]];
                 }
@@ -597,18 +660,34 @@ contract OpenFLModel {
     }
 
     // Exit contract - Not safe, gaurds exists but will crash the contract if not met, exits should be queued?
-    function exitModel() public onlyRegisteredUsers feedbackRoundClosed {
-        require(users[msg.sender].globalReputationScore > 0, "NEF");
-        uint val = users[msg.sender].globalReputationScore;
-        users[msg.sender].globalReputationScore = 0;
-        for (uint i = 0; i < participants.length; i++) {
-            if (participants[i] == msg.sender) {
-                delete participants[i];
-            }
-        }
-        users[msg.sender].isRegistered = false;
-        payable(address(msg.sender)).transfer(val);
+    function exitModel() public {
+    User storage user = users[msg.sender];
+    if (!user.isRegistered) {
+        return; // Do nothing if not registered
     }
+
+    uint val = user.globalReputationScore;
+    if (address(this).balance < val) {
+        val = address(this).balance;
+    }
+//    require(address(this).balance >= val, "Insufficient contract balance");
+    user.globalReputationScore = 0;
+    user.isRegistered = false;
+    nrOfActiveParticipants -= 1;
+
+    // Clean up participant array
+    for (uint i = 0; i < participants.length; i++) {
+        if (participants[i] == msg.sender) {
+            participants[i] = address(0);
+            break;
+        }
+    }
+
+    if (val > 0) {
+        (bool success, ) = payable(msg.sender).call{value: val}("");
+        require(success, "Transfer failed");
+    }
+}
 
     function submitFeedbackBytes(bytes calldata raw) external {
         address[] memory ads;
