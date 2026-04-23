@@ -436,6 +436,7 @@ contract OpenFLModel {
                         );
                     } else {
                         user.isPunished = true;
+                        user.isRegistered = false;
                         punishedAddresses.push(participants[i]);
                         user.whitelistedForRewards = false;
 
@@ -540,6 +541,7 @@ contract OpenFLModel {
                     nrOfActiveParticipants -= 1;
                     user.isDisqualified = true;
                     user.isPunished = true;
+                    user.isRegistered = false;
                 }
             }
         }
@@ -590,6 +592,7 @@ contract OpenFLModel {
                         nrOfActiveParticipants -= 1;
                         user.isDisqualified = true;
                         user.isPunished = true;
+                        user.isRegistered = false;
                     }
                     else { // this is a punishment
                         user.globalReputationScore -= punishment;
@@ -664,6 +667,7 @@ contract OpenFLModel {
     }
 
     uint val = user.globalReputationScore;
+    require(address(this).balance >= val, "Insufficient contract balance");
     user.globalReputationScore = 0;
     user.isRegistered = false;
     nrOfActiveParticipants -= 1;
@@ -676,8 +680,11 @@ contract OpenFLModel {
         }
     }
 
+    require(address(this).balance >= val, "Insufficient contract balance");
+
     if (val > 0) {
-        payable(msg.sender).transfer(val);
+        (bool success, ) = payable(msg.sender).call{value: val}("");
+        require(success, "Transfer failed");
     }
 }
 

@@ -809,6 +809,14 @@ class FLChallenge(FLManager):
 
         print("START CONTRIBUTION SCORE\n")
 
+        for user in self.pytorch_model.participants:
+            print(f"User {user.address} round reputation: {user._roundrep[-1]}")
+            user._roundrep.append(self.get_round_reputation_of_user(user.address))
+            print(f"User {user.address} round reputation: {user._globalrep[-1]}")
+            
+        
+    
+
         if len(_users) <= 3:
             share = 1.0 / len(_users)
             msg = f"[Round {self.pytorch_model.round}] Too few contributors ({len(_users)}) for contribution scoring – using equal shares({share: .4f} each)"
@@ -827,6 +835,7 @@ class FLChallenge(FLManager):
         for u, score in zip(_users, self.scores):
             u.contribution_score = score
 
+            print(green(f"\nUSER @ {u.address} out of {len(_users)} merged contributors"))
             if self.fork:
                 tx = super().build_tx(u.address, self.modelAddress)
                 tx_hash = self.model.functions.submitContributionScoreAndVotingEvaluation(
