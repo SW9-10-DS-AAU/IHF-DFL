@@ -259,4 +259,6 @@ ignition/
 CLAUDE.md
 
 # foundry
-dependencies
+dependencies/
+remappings.txt
+soldeer.lock

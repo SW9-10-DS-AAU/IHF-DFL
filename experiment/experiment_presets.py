@@ -232,7 +232,7 @@ PRESETS = {
         data_distribution= ["random_split_42"], # 1
         dirichlet_alpha= None,
     ),
-"data_distribution_mnist": FullPreset(
+    "data_distribution_mnist": FullPreset(
         fork=True,
         reward=int(1e18),
         standard_buy_in=int(1e18),
