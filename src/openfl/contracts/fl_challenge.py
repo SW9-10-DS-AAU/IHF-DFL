@@ -400,13 +400,6 @@ class FLChallenge(FLManager):
         for i, txHash in enumerate(txs):
             self.track_transaction(i, txHash, len(txs), "feedback")
 
-        for user in self.pytorch_model.participants:
-            user._roundrep.append(self.get_round_reputation_of_user(user.address))
-            print(f"model participant: {user.address} gets {user._roundrep[-1]} round reputation")
-
-        for user in self.pytorch_model.disqualified:
-            print(f"disqualified model participant: {user.address} has no roundrep. he is disqualified, you dummy")
-
         printer._print("                                                   ")
         print("\n-----------------------------------------------------------------------------------")
 
@@ -1437,6 +1430,8 @@ class FLChallenge(FLManager):
             for user in self.pytorch_model.participants: # TODO: remove after test?
                 user._roundrep.append(self.get_round_reputation_of_user(user.address))
                 print(f"model participant: {user.address} gets {user._roundrep[-1]} round reputation")
+            for user in self.pytorch_model.disqualified:
+                print(f"disqualified model participant: {user.address} has no round reputation, as he is disqualified")
 
             # A roundRep of 0, does not nec. mean mal.
             contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0] # Keeps track of who will be merged in the_merge()
