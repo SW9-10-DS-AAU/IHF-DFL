@@ -111,7 +111,8 @@ class Participant:
         self._loss = [] # User's loss on the global model. The actual loss evaluated on test set - is set in: finalize_user_evaluation().
         self._globalrep = [self.collateral]
         self._roundrep = []
-    
+        self.last_attack_type = None  # Actual attack used this round (may differ from config due to fallbacks)
+
     def getStatus(self):
         user = f"$user${self.id}, {self.currentAcc}, {self.attitude}, {self.futureAttitude}, {self.attitudeSwitch}, {self.address}"
         return user
@@ -161,7 +162,7 @@ class Net_MNIST(nn.Module):
 
         
 class PytorchModel:
-    def __init__(self, DATASET, _good_participants, _bad_participants, _freerider_participants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, use_nobody_is_kicked: bool = False, data_distribution : str = None, dirichlet_alpha: float = None):
+    def __init__(self, DATASET, _good_participants, _bad_participants, _freerider_participants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, use_nobody_is_kicked: bool = False, data_distribution : str = None, dirichlet_alpha: float = None, malicious_attack_type: str = "noise", freerider_attack_type: str = "noise"):
         self.DATASET = DATASET
         if self.DATASET == "mnist":
             self.global_model = Net_MNIST().to(DEVICE)
@@ -212,6 +213,16 @@ class PytorchModel:
         if malicious_noise_scale < 0:
             raise ValueError("malicious_noise_scale must be non-negative")
         self.malicious_noise_scale = malicious_noise_scale
+
+        valid_malicious_attack_types = {"noise", "byzantine"}
+        if malicious_attack_type not in valid_malicious_attack_types:
+            raise ValueError(f"malicious_attack_type must be one of {valid_malicious_attack_types}, got '{malicious_attack_type}'")
+        self.malicious_attack_type = malicious_attack_type
+
+        valid_freerider_attack_types = {"noise", "delta_weight"}
+        if freerider_attack_type not in valid_freerider_attack_types:
+            raise ValueError(f"freerider_attack_type must be one of {valid_freerider_attack_types}, got '{freerider_attack_type}'")
+        self.freerider_attack_type = freerider_attack_type
 
         loss, accuracy = test(self.global_model,self.test,DEVICE)
         
@@ -546,9 +557,16 @@ class PytorchModel:
 
     def let_malicious_users_do_their_work(self):
         for i in range(len(self.participants)):
-            if self.participants[i].attitude == "bad":                
-                print(red("Address {} going to provide random weights".format(self.participants[i].address[0:16]+"...")))
-                manipulated_state_dict = manipulate(self.participants[i].model,scale=self.malicious_noise_scale,)
+            if self.participants[i].attitude == "bad":
+                if self.malicious_attack_type == "byzantine":
+                    print(red("Address {} executing Byzantine Attack".format(self.participants[i].address[0:16]+"...")))
+                    manipulated_state_dict = self.byzantine_attack(self.participants[i])
+                    fallback = self.previous_global_model is None
+                    self.participants[i].last_attack_type = "noise" if fallback else "byzantine"
+                else:
+                    print(red("Address {} going to provide random weights".format(self.participants[i].address[0:16]+"...")))
+                    manipulated_state_dict = manipulate(self.participants[i].model, scale=self.malicious_noise_scale)
+                    self.participants[i].last_attack_type = "noise"
                 self.participants[i].model.load_state_dict(manipulated_state_dict)
                 self.participants[i].hashedModel = self.get_hash(self.participants[i].model.state_dict())
                 loss, accuracy = test(self.participants[i].model, self.test, DEVICE)
@@ -564,8 +582,15 @@ class PytorchModel:
     def let_freerider_users_do_their_work(self):
         for i in range(len(self.participants)):
             if self.participants[i].attitude == "freerider":
-                print(red("Address {} going to provide random weights".format(self.participants[i].address[0:16]+"...")))
-                manipulated_state_dict = manipulate(self.participants[i].model,scale=self.freerider_noise_scale,)
+                if self.freerider_attack_type == "delta_weight":
+                    print(red("Address {} executing Delta Weights Attack".format(self.participants[i].address[0:16]+"...")))
+                    manipulated_state_dict = self.delta_weight_attack(self.participants[i])
+                    fallback = self.previous_global_model is None
+                    self.participants[i].last_attack_type = "noise" if fallback else "delta_weight"
+                else:
+                    print(red("Address {} going to provide random weights".format(self.participants[i].address[0:16]+"...")))
+                    manipulated_state_dict = manipulate(self.participants[i].model, scale=self.freerider_noise_scale)
+                    self.participants[i].last_attack_type = "noise"
                 self.participants[i].model.load_state_dict(manipulated_state_dict)
                 self.participants[i].hashedModel = self.get_hash(self.participants[i].model.state_dict())
                 loss, accuracy = test(self.participants[i].model, self.test, DEVICE)
@@ -603,6 +628,64 @@ class PytorchModel:
             )
         ))
         return manipulate(copy.deepcopy(user.model), scale=self.freerider_noise_scale)
+
+    def byzantine_attack(self, user):
+        """Byzantine Attack.
+
+        Computes the global model's recent trajectory (delta between the current
+        and previous global checkpoint) and crafts an update that pushes the
+        global model in the opposite direction of learning, actively harming training.
+
+        Falls back to noise in round 1 when there is not yet enough history to
+        estimate the trajectory.
+        """
+        if self.previous_global_model is None:
+            print(red("  [Byzantine] Not enough history yet – falling back to noise attack"))
+            return manipulate(copy.deepcopy(user.model), scale=self.malicious_noise_scale)
+
+        crafted_weights = OrderedDict()
+        with torch.no_grad():
+            prev_weights    = self.previous_global_model.state_dict()
+            current_weights = self.global_model.state_dict()
+
+            for key in current_weights.keys():
+                value = current_weights[key]
+                if value.is_floating_point():
+                    # Trajectory: direction the global model has been moving
+                    learning_direction = current_weights[key] - prev_weights[key]
+                    # Push against the trajectory to reverse learning
+                    crafted_weights[key] = value - self.malicious_noise_scale * learning_direction
+                else:
+                    crafted_weights[key] = value.clone()
+
+        return crafted_weights
+
+    def delta_weight_attack(self, user):
+        """Delta Weights Attack
+
+        A free-rider constructs fake gradient updates by subtracting two
+        consecutively received global models, and creates a small deviation from the global model,
+        which should be hard to detect.
+        Falls back to noise in round 1 when no previous global model exists.
+        """
+        if self.previous_global_model is None:
+            print(red("  [DeltaWeight] Not enough history yet – falling back to noise attack"))
+            return manipulate(copy.deepcopy(user.model), scale=self.freerider_noise_scale)
+
+        crafted_weights = OrderedDict()
+        with torch.no_grad():
+            prev_weights    = self.previous_global_model.state_dict()
+            current_weights = self.global_model.state_dict()
+
+            for key in current_weights.keys():
+                value = current_weights[key]
+                if value.is_floating_point():
+                    fake_gradient = prev_weights[key] - value  # G_fake = M_{j-1} - M_j
+                    crafted_weights[key] = value + fake_gradient  # = M_{j-1}
+                else:
+                    crafted_weights[key] = value.clone()
+
+        return crafted_weights
 
     def the_merge(self, _users, aggregation_rule: str, merge_weight_collector=None, agg_switch_collector=None, avg_prior_losses=None, warning_collector=None):
         # No qualified users → skip merge this round

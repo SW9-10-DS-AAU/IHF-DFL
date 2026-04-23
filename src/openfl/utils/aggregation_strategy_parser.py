@@ -51,4 +51,3 @@ if __name__ == "__main__":
 
     print(f"Binary switch: type: {res_str_1[0]}, func1: {res_str_1[1]}, func2: {res_str_1[2]}")
     print(f"Partial switch: type: {res_str_2[0]}, func1: {res_str_2[1]}, func2: {res_str_2[2]}")
-

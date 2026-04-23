@@ -47,8 +47,8 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
                               experiment_config.number_of_good_contributors,
                               experiment_config.number_of_bad_contributors,
                               experiment_config.number_of_freerider_contributors,
-                              experiment_config.epochs, 
-                              experiment_config.batch_size, 
+                              experiment_config.epochs,
+                              experiment_config.batch_size,
                               experiment_config.standard_buy_in,
                               experiment_config.max_buy_in,
                               experiment_config.freerider_noise_scale,
@@ -58,7 +58,9 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
                               experiment_config.force_merge_all,
                               experiment_config.use_nobody_is_kicked,
                               experiment_config.data_distribution,
-                              experiment_config.dirichlet_alpha)
+                              experiment_config.dirichlet_alpha,
+                              experiment_config.malicious_attack_type,
+                              experiment_config.freerider_attack_type)
 
 
   manager = Manager.FLManager(pytorch_model, True).init(
@@ -144,8 +146,10 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
           "dataset":                           cfg.dataset,
           "freerider_start_round":             cfg.freerider_start_round,
           "freerider_noise_scale":             cfg.freerider_noise_scale,
+          "freerider_attack_type":             cfg.freerider_attack_type,
           "malicious_start_round":             cfg.malicious_start_round,
           "malicious_noise_scale":             cfg.malicious_noise_scale,
+          "malicious_attack_type":             cfg.malicious_attack_type,
           "force_merge_all":                   cfg.force_merge_all,
           "aggregation_rule":                  cfg.aggregation_rule,
           "data_distribution":                 cfg.data_distribution,
