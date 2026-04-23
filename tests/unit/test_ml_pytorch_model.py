@@ -43,7 +43,7 @@ def test_device_label_formats_output():
 
 
 def test_data_destribution_properties():
-    model1 = pm.PytorchModel("minst", 4, 6, 1, 32, 1, 1, 1, 1, 1, 1, False, False, "random_split_42",)
-    model2 = pm.PytorchModel("minst", 4, 6, 1, 32, 1, 1, 1, 1, 1, 1, False, False, "random_split_42",)
+    model1 = pm.PytorchModel("mnist", 4, 6, 1, 32, 1, 1, 1, 1, 1, 1, False, False, "random_split_42",)
+    model2 = pm.PytorchModel("mnist", 4, 6, 1, 32, 1, 1, 1, 1, 1, 1, False, False, "random_split_42",)
 
     assert model1.get_client_data_distribution() == model2.get_client_data_distribution()

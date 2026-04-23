@@ -6,11 +6,11 @@ import sys
 import traceback
 from itertools import product
 from dataclasses import dataclass
-from helper import getPath
+from experiment.helper import getPath
 import argparse
-import experiment_runner as ExperimentRunner
-from experiment_configuration import ExperimentConfiguration
-from experiment_presets import PRESETS
+import experiment.experiment_runner as ExperimentRunner
+from experiment.experiment_configuration import ExperimentConfiguration
+from experiment.experiment_presets import PRESETS
 from openfl.utils import repo_root
 from openfl.utils.async_writer import AsyncWriter
 from selector import choose_from_list

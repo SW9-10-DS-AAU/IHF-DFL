@@ -55,52 +55,13 @@ def test_normalize_punishment_pool_wei_to_eth():
     assert out.rounds_global["punishment_pool"].iloc[0] == pytest.approx(5.0)
 
 
-def test_normalize_adds_is_baseline_column():
+def test_normalize_objective_global_accuracy_column():
+    """'objective_global_accuracy' is a ratio 0..1 and should be scaled to % (×100)."""
     run = _run_with_global([
-        {"round": 0, "reward_pool": 0, "punishment_pool": 0},
-        {"round": 1, "reward_pool": 0, "punishment_pool": 0},
+        {"round": 1, "objective_global_accuracy": 0.92, "reward_pool": 0, "punishment_pool": 0},
     ])
     out = normalize_run(run)
-    assert "is_baseline" in out.rounds_global.columns
-    assert out.rounds_global.loc[out.rounds_global["round"] == 0, "is_baseline"].iloc[0] == True
-    assert out.rounds_global.loc[out.rounds_global["round"] == 1, "is_baseline"].iloc[0] == False
-
-
-def _run_with_global_and_users(global_rows, user_rows, experiment_id="exp-A"):
-    """normalize_run only converts global acc/loss when users table is non-empty."""
-    return RunData(
-        experiment_id=experiment_id,
-        metadata={},
-        setup={},
-        rounds_global=pd.DataFrame(global_rows),
-        rounds_users=pd.DataFrame(user_rows),
-        votes=pd.DataFrame(),
-        receipts=pd.DataFrame(),
-        contributions=pd.DataFrame(),
-        warnings=pd.DataFrame(),
-    )
-
-
-def test_normalize_global_accuracy_column():
-    """'global_accuracy' (if present) should be divided by 10000.
-    Normalization only runs when users table is non-empty."""
-    run = _run_with_global_and_users(
-        global_rows=[{"round": 1, "global_accuracy": 9200, "reward_pool": 0, "punishment_pool": 0}],
-        user_rows=[{"round": 1, "user_id": 0, "grs": 0}],
-    )
-    out = normalize_run(run)
-    assert out.rounds_global["global_accuracy"].iloc[0] == pytest.approx(0.92)
-
-
-def test_normalize_global_loss_column():
-    """'global_loss' (if present) should be divided by 100.
-    Normalization only runs when users table is non-empty."""
-    run = _run_with_global_and_users(
-        global_rows=[{"round": 1, "global_loss": 150, "reward_pool": 0, "punishment_pool": 0}],
-        user_rows=[{"round": 1, "user_id": 0, "grs": 0}],
-    )
-    out = normalize_run(run)
-    assert out.rounds_global["global_loss"].iloc[0] == pytest.approx(1.5)
+    assert out.rounds_global["objective_global_accuracy"].iloc[0] == pytest.approx(92.0)
 
 
 # ---------------------------------------------------------------------------
@@ -119,26 +80,18 @@ def test_normalize_reward_delta_wei_to_eth():
     assert out.rounds_users["reward_delta"].iloc[0] == pytest.approx(0.5)
 
 
-def test_normalize_users_accuracy_column():
-    """'accuracy' column (if present) should be divided by 10000."""
-    run = _run_with_users([{"round": 1, "user_id": 0, "accuracy": 8500}])
+def test_normalize_subjective_personal_accuracy_column():
+    """'subjective_personal_accuracy' is a ratio 0..1 and should be scaled to % (×100)."""
+    run = _run_with_users([{"round": 1, "user_id": 0, "subjective_personal_accuracy": 0.85}])
     out = normalize_run(run)
-    assert out.rounds_users["accuracy"].iloc[0] == pytest.approx(0.85)
+    assert out.rounds_users["subjective_personal_accuracy"].iloc[0] == pytest.approx(85.0)
 
 
-def test_normalize_users_loss_column():
-    """'loss' column (if present) should be divided by 100."""
-    run = _run_with_users([{"round": 1, "user_id": 0, "loss": 250}])
+def test_normalize_subjective_global_accuracy_column():
+    """'subjective_global_accuracy' is a ratio 0..1 and should be scaled to % (×100)."""
+    run = _run_with_users([{"round": 1, "user_id": 0, "subjective_global_accuracy": 0.77}])
     out = normalize_run(run)
-    assert out.rounds_users["loss"].iloc[0] == pytest.approx(2.5)
-
-
-def test_normalize_subjective_accuracy_not_converted():
-    """subjective_personal_accuracy is NOT in the normalization list — must stay unchanged."""
-    val = 0.82
-    run = _run_with_users([{"round": 1, "user_id": 0, "subjective_personal_accuracy": val}])
-    out = normalize_run(run)
-    assert out.rounds_users["subjective_personal_accuracy"].iloc[0] == pytest.approx(val)
+    assert out.rounds_users["subjective_global_accuracy"].iloc[0] == pytest.approx(77.0)
 
 
 # ---------------------------------------------------------------------------

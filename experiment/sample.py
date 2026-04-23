@@ -1,9 +1,9 @@
 from datetime import datetime
 import sys
 import multiprocessing as mp
-import experiment_runner as ExperimentRunner
-from experiment_configuration import ExperimentConfiguration
-from helper import getPath
+import experiment.experiment_runner as ExperimentRunner
+from experiment.experiment_configuration import ExperimentConfiguration
+from experiment.helper import getPath
 from openfl.utils import repo_root
 from openfl.utils.async_writer import AsyncWriter
 

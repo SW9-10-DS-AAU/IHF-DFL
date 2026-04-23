@@ -163,10 +163,7 @@ artifacts/bytecode/**
 #Data
 data/datasets/**
 data/runs/**
-experiment/data/**
-experiment/figures/**
-experiment/experiment/figures/**
-figures/**
+data/figures/**
 
 
 # Spyder project settings

@@ -322,9 +322,7 @@ class TestCalcContributionScore:
             user._losses = losses
             users.append(user)
 
-        self.aggregator.model.functions \
-            .getAllPreviousAccuraciesAndLosses.return_value \
-            .call.return_value = (prev_accuracies, prev_losses)
+        self.aggregator.get_all_previous_accuracies_and_losses.return_value = (prev_accuracies, prev_losses)
 
         def mock_get_accuracies_losses(address):
             user = next(u for u in users if u.address == address)
@@ -338,17 +336,15 @@ class TestCalcContributionScore:
         scores = FLChallenge._calculate_scores_accuracy_loss(
             self.aggregator, users, mad_threshold=1.1
         )
-        scores_normalized = [s / 1e18 for s in scores]
-        print(f"scores_normalized = {scores_normalized}")
+        print(f"scores = {scores}")
 
         assert isinstance(scores, list)
         assert len(scores) == len(users)
-        assert all(isinstance(s, int) for s in scores)
         assert scores != []
 
         if expected_scores is not None:
-            assert scores_normalized == pytest.approx(expected_scores, rel=1e-9), \
-                f"Expected {expected_scores}, got {scores_normalized}"
+            assert scores == pytest.approx(expected_scores, rel=1e-9), \
+                f"Expected {expected_scores}, got {scores}"
 
 
     @pytest.mark.parametrize("user_accuracies, prev_accuracies, expected_scores", [
@@ -438,9 +434,7 @@ class TestCalcContributionScore:
             user._accuracies = accs
             users.append(user)
 
-        self.aggregator.model.functions \
-            .getAllPreviousAccuraciesAndLosses.return_value \
-            .call.return_value = (prev_accuracies, [])
+        self.aggregator.get_all_previous_accuracies_and_losses.return_value = (prev_accuracies, [])
 
         def mock_get_accuracies(address):
             user = next(u for u in users if u.address == address)
@@ -454,17 +448,15 @@ class TestCalcContributionScore:
         scores = FLChallenge._calculate_scores_accuracy_only(
             self.aggregator, users, mad_threshold=1.1
         )
-        scores_normalized = [s / 1e18 for s in scores]
-        print(f"scores_normalized = {scores_normalized}")
+        print(f"scores = {scores}")
 
         assert isinstance(scores, list)
         assert len(scores) == len(users)
-        assert all(isinstance(s, int) for s in scores)
         assert scores != []
 
         if expected_scores is not None:
-            assert scores_normalized == pytest.approx(expected_scores, rel=1e-9), \
-                f"Expected {expected_scores}, got {scores_normalized}"
+            assert scores == pytest.approx(expected_scores, rel=1e-9), \
+                f"Expected {expected_scores}, got {scores}"
 
 
     @pytest.mark.parametrize("user_losses, prev_losses, expected_scores", [
@@ -554,9 +546,7 @@ class TestCalcContributionScore:
             user._losses = losses
             users.append(user)
 
-        self.aggregator.model.functions \
-            .getAllPreviousAccuraciesAndLosses.return_value \
-            .call.return_value = ([], prev_losses)
+        self.aggregator.get_all_previous_accuracies_and_losses.return_value = ([], prev_losses)
 
         def mock_get_losses(address):
             user = next(u for u in users if u.address == address)
@@ -570,17 +560,15 @@ class TestCalcContributionScore:
         scores = FLChallenge._calculate_scores_loss_only(
             self.aggregator, users, mad_threshold=1.1
         )
-        scores_normalized = [s / 1e18 for s in scores]
-        print(f"scores_normalized = {scores_normalized}")
+        print(f"scores = {scores}")
 
         assert isinstance(scores, list)
         assert len(scores) == len(users)
-        assert all(isinstance(s, int) for s in scores)
         assert scores != []
 
         if expected_scores is not None:
-            assert scores_normalized == pytest.approx(expected_scores, rel=1e-9), \
-                f"Expected {expected_scores}, got {scores_normalized}"
+            assert scores == pytest.approx(expected_scores, rel=1e-9), \
+                f"Expected {expected_scores}, got {scores}"
 
 
 class TestCalcContributionScoresMAD:
@@ -642,7 +630,7 @@ class TestCalcContributionScoresMAD:
 
         filtered_global_update = torch.tensor([0.0, 1.0])
 
-        with patch.object(fl_challenge, 'trim_global_update_using_mad', return_value=filtered_global_update) as mock_trim:
+        with patch.object(fl_challenge, 'trim_global_update_using_mad', return_value=(filtered_global_update, {})) as mock_trim:
             with patch('openfl.contracts.fl_challenge.calc_contribution_scores_dotproduct', return_value=[10, 20, 30]) as mock_math:
                 scores = fl_challenge._calculate_scores_dotproduct(participants)
 
@@ -1073,7 +1061,21 @@ class TestFLChallengeWorkflow:
         """
         Test the contribution_score method (submission logic).
         """
-        mock_strategy_fn = MagicMock(return_value=[100, 200, 300])
+        # contribution_score takes an equal-shares shortcut when len(users) <= 3,
+        # so we need a 4th participant to exercise the strategy path.
+        extra = MagicMock()
+        extra.address = "0xAddressUser3"
+        extra.privateKey = "privateKey3"
+        extra.collateral = 1000
+        extra.isRegistered = False
+        extra.attitude = "honest"
+        extra.cheater = []
+        extra.id = 3
+        extra.hashedModel = b'hash'
+        extra.secret = 103
+        mock_participants.append(extra)
+
+        mock_strategy_fn = MagicMock(return_value=[100, 200, 300, 400])
 
         fl_challenge._get_contribution_score_calculator = MagicMock(return_value=mock_strategy_fn)
 
@@ -1097,12 +1099,15 @@ class TestFLChallengeWorkflow:
 
         fl_challenge.contribution_score(mock_participants)
 
-        assert fl_challenge.model.functions.submitContributionScore.call_count == 3
+        assert fl_challenge.model.functions.submitContributionScore.call_count == 4
 
-        fl_challenge.model.functions.submitContributionScore.assert_any_call(300)
+        # contribution_score scales raw score by 1e18 before submitting (WEI fixed-point)
+        fl_challenge.model.functions.submitContributionScore.assert_any_call(
+            int(Decimal(400) * Decimal('1e18'))
+        )
 
         assert mock_participants[0].contribution_score == 100
-        assert mock_participants[2].contribution_score == 300
+        assert mock_participants[3].contribution_score == 400
 
     # Test naive score calculation wrapper
     def test_calculate_scores_naive_helper(self, fl_challenge, mock_participants):

@@ -70,7 +70,7 @@ PRESETS = {
         freerider_start_round=[2],
         malicious_noise_scale=[0.1],
         malicious_start_round=[2],
-        aggregation_rule=["FedAVG"],
+        aggregation_rule=["binary_switch[positives_only,FedAVG]", "partial_switch[loss,positives_only,GRS_aggregation]" "partial_switch[accuracy,positives_only,GRS_aggregation]" ],
         data_distribution= ["random_split_42"],
         dirichlet_alpha= None,
     ),
