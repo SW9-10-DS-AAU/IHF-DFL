@@ -667,7 +667,10 @@ contract OpenFLModel {
     }
 
     uint val = user.globalReputationScore;
-    require(address(this).balance >= val, "Insufficient contract balance");
+    if (address(this).balance < val) {
+        val = address(this).balance;
+    }
+//    require(address(this).balance >= val, "Insufficient contract balance");
     user.globalReputationScore = 0;
     user.isRegistered = false;
     nrOfActiveParticipants -= 1;
@@ -679,8 +682,6 @@ contract OpenFLModel {
             break;
         }
     }
-
-    require(address(this).balance >= val, "Insufficient contract balance");
 
     if (val > 0) {
         (bool success, ) = payable(msg.sender).call{value: val}("");
