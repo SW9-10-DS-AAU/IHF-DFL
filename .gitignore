@@ -8,12 +8,11 @@ __pycache__/
 
 # Distribution / packaging
 .idea
-out/                # compiled artifacts (bytecode, ABIs)
+.idea/**
+.idea/.gitignore
 cache/              # compiler cache
 node_modules/       # if using npm packages
-foundry.lock              # optional: foundry.lock can be committed if you want exact dependency versions, otherwise can ignore
 .Python
-.idea/**
 build/
 api/build/
 develop-eggs/
@@ -32,6 +31,11 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+# foundry
+foundry/out/                # compiled artifacts (bytecode, ABIs)
+foundry/dependencies/       # soldeer install tree (regenerated from soldeer.lock)
+foundry/remappings.txt      # only inline remappings in foundry.toml are authoritative
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -257,8 +261,3 @@ ignition/
 # agents.md
 .claude/
 CLAUDE.md
-
-# foundry
-dependencies/
-remappings.txt
-soldeer.lock
