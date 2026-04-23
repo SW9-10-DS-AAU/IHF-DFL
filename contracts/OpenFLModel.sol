@@ -457,7 +457,49 @@ contract OpenFLModel {
             }
         }
 
-        // Punish helpers of malicious users
+         [Previous line repeated 1 more time]
+  File "/home/ubuntu/Software/openFL-2.0/.venv/lib/python3.13/site-packages/web3/middleware/base.py", line 55, in middleware
+    method, params = self.request_processor(method, params)
+                     ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/Software/openFL-2.0/.venv/lib/python3.13/site-packages/web3/middleware/buffered_gas_estimate.py", line 43, in request_processor
+    hex(get_buffered_gas_estimate(cast("Web3", self._w3), transaction)),
+        ~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/Software/openFL-2.0/.venv/lib/python3.13/site-packages/web3/_utils/transactions.py", line 162, in get_buffered_gas_estimate
+    gas_estimate = w3.eth.estimate_gas(gas_estimate_transaction)
+  File "/home/ubuntu/Software/openFL-2.0/.venv/lib/python3.13/site-packages/web3/eth/eth.py", line 317, in estimate_gas
+    return self._estimate_gas(transaction, block_identifier, state_override)
+           ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/Software/openFL-2.0/.venv/lib/python3.13/site-packages/web3/module.py", line 112, in caller
+    result = w3.manager.request_blocking(
+        method_str, params, error_formatters, null_result_formatters
+    )
+  File "/home/ubuntu/Software/openFL-2.0/.venv/lib/python3.13/site-packages/web3/manager.py", line 233, in request_blocking
+    return self.formatted_response(
+           ~~~~~~~~~~~~~~~~~~~~~~~^
+        response, params, error_formatters, null_result_formatters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/ubuntu/Software/openFL-2.0/.venv/lib/python3.13/site-packages/web3/manager.py", line 199, in formatted_response
+    validate_rpc_response_and_raise_if_error(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        response,
+        ^^^^^^^^^
+    ...<3 lines>...
+        params=params,
+        ^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/ubuntu/Software/openFL-2.0/.venv/lib/python3.13/site-packages/web3/_utils/validation.py", line 397, in validate_rpc_response_and_raise_if_error
+    response = apply_error_formatters(error_formatters, response)
+  File "/home/ubuntu/Software/openFL-2.0/.venv/lib/python3.13/site-packages/web3/_utils/formatters.py", line 146, in apply_error_formatters
+    formatted_resp = pipe(response, error_formatters)
+  File "cytoolz/functoolz.pyx", line 706, in cytoolz.functoolz.pipe
+  File "cytoolz/functoolz.pyx", line 681, in cytoolz.functoolz.c_pipe
+    data = func(data)
+  File "/home/ubuntu/Software/openFL-2.0/.venv/lib/python3.13/site-packages/web3/_utils/error_formatters_utils.py", line 159, in raise_contract_logic_error_on_revert
+    raise ContractLogicError(f"execution reverted: {message}", data=data)
+web3.exceptions.ContractLogicError: ('execution reverted: VM Exception while processing transaction: revert', {'hash': None, 'programCounter': 4527, 'result': '0x', 'reason': None, 'message': 'revert'})
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             if (user.isRegistered && !user.isDisqualified) {
@@ -657,10 +699,13 @@ contract OpenFLModel {
     }
 
     // Exit contract - Not safe, gaurds exists but will crash the contract if not met, exits should be queued?
-    function exitModel() public onlyRegisteredUsers {
+    function exitModel() public {
     User storage user = users[msg.sender];
-    uint val = user.globalReputationScore;
+    if (!user.isRegistered) {
+        return; // Do nothing if not registered
+    }
 
+    uint val = user.globalReputationScore;
     user.globalReputationScore = 0;
     user.isRegistered = false;
     nrOfActiveParticipants -= 1;
@@ -673,7 +718,9 @@ contract OpenFLModel {
         }
     }
 
-    payable(msg.sender).transfer(val);
+    if (val > 0) {
+        payable(msg.sender).transfer(val);
+    }
 }
 
     function submitFeedbackBytes(bytes calldata raw) external {
