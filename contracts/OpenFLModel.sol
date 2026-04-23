@@ -371,7 +371,7 @@ contract OpenFLModel {
         uint mergedUsers = 0;
         for (uint i = 0; i < participants.length; i++) {
             if (
-                users[participants[i]].roundReputation < 0 &&
+                users[participants[i]].roundReputation <= 0 &&
                 !users[participants[i]].isDisqualified
             ) {
                 mergedUsers++;
