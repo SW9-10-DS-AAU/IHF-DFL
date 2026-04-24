@@ -22,6 +22,7 @@ from torchvision.datasets import CIFAR10, MNIST
 from torch.utils.data import DataLoader, random_split, Subset
 from collections import Counter
 from openfl.utils import aggregation_strategy_parser, repo_root
+from openfl.utils.colors import green, red, yellow, b, rb
 torch._dynamo.config.cache_size_limit = 512
 debugging = sys.gettrace() is not None
 logging.getLogger("torch._inductor").setLevel(logging.ERROR)
@@ -1234,24 +1235,24 @@ def test(net, testloader: torch.utils.data.DataLoader, device: torch.device) -> 
     loss = min(sys.float_info.max, loss)
 
     return loss, accuracy
-    
-def green(text):
-    return colored(text, "green")
 
-def gb(string):
-    return colored(string, color="green", attrs=["bold"])
-
-def rb(string):
-    return colored(string, color="red", attrs=["bold"])
-
-def b(string):
-    return colored(string, color=None, attrs=["bold"])
-
-def red(text):
-    return colored(text, "red")
-
-def yellow(text):
-    return colored(text, "yellow", attrs=["bold"])
+# def green(text):
+#     return colored(text, "green")
+#
+# def gb(string):
+#     return colored(string, color="green", attrs=["bold"])
+#
+# def rb(string):
+#     return colored(string, color="red", attrs=["bold"])
+#
+# def b(string):
+#     return colored(string, color=None, attrs=["bold"])
+#
+# def red(text):
+#     return colored(text, "red")
+#
+# def yellow(text):
+#     return colored(text, "yellow", attrs=["bold"])
 
 
 def manipulate(model, scale: float = 1.0) -> OrderedDict:

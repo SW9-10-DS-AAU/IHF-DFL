@@ -9,7 +9,7 @@ import pandas as pd
 from web3 import Web3
 from termcolor import colored
 from subprocess import Popen, PIPE
-from openfl.ml.pytorch_model import gb, rb, b, green, red
+from openfl.utils.colors import gb, rb, b, green, red
 from openfl.utils import require_env_var
 
 class ConnectionHelper:

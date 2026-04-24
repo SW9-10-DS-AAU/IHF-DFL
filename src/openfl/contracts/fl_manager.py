@@ -1,5 +1,5 @@
 from web3 import Web3
-from openfl.ml.pytorch_model import b
+from openfl.utils.colors import b
 from openfl.api import ConnectionHelper
 
 class FLManager(ConnectionHelper):
