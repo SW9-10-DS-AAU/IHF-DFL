@@ -156,7 +156,7 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
           "dirichlet_alpha":                   cfg.dirichlet_alpha,
       }
 
-      logger.log_setup(total_experiment_time, hardware, config)
+      logger.setup(total_experiment_time, hardware, config)
 
   return Experiment(model, manager)
 
