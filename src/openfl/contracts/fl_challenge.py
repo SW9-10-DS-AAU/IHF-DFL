@@ -169,11 +169,11 @@ class FLChallenge(FLManager):
                 signed = self.w3.eth.account.sign_transaction(hw, private_key=acc.privateKey)
                 txHash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
             txs.append(txHash)
-            print("{:<17}   {} | {} | {:>25,.0f} WEI".format("Weights provided:", 
-                                                                         acc.address[0:16] + "...", 
-                                                                         txHash.hex()[0:6] + "...",
-                                                                         self.get_global_reputation_of_user(acc.address)
-                                                                         ))
+            # print("{:<17}   {} | {} | {:>25,.0f} WEI".format("Weights provided:",
+            #                                                              acc.address[0:16] + "...",
+            #                                                              txHash.hex()[0:6] + "...",
+            #                                                              self.get_global_reputation_of_user(acc.address)
+            #                                                              ))
         l = len(txs)
         for i, txHash in enumerate(txs):
             printer.print_bar(i, l)
@@ -184,7 +184,7 @@ class FLChallenge(FLManager):
             self.gas_weights.append(receipt["gasUsed"])
             self.txHashes.append(("weights", receipt["transactionHash"].hex(), receipt["gasUsed"]))
             self._log_receipt(receipt, "weights")
-        printer._print("-----------------------------------------------------------------------------------\n")
+        # printer._print("-----------------------------------------------------------------------------------\n")
         
 
              
@@ -289,8 +289,8 @@ class FLChallenge(FLManager):
 
         for user in self.pytorch_model.disqualified:
             user._roundrep.append(self.get_round_reputation_of_user(user.address))
-        printer._print("                                                   ")
-        print("\n-----------------------------------------------------------------------------------")
+        # printer._print("                                                   ")
+        # print("\n-----------------------------------------------------------------------------------")
 
     def build_feedback_bytes(self, a, v):
         fbb = ""  # keep as string
@@ -484,8 +484,7 @@ class FLChallenge(FLManager):
                 input("Inactive users found - such users do not provide feedback.. " \
                           + "\nGoing to forward time for 1 day\n")
                 self.w3.provider.make_request("evm_increaseTime", [self.config.WAIT_DELAY])
-        
-        print(b(f"\Feedback round: {self.pytorch_model.round}"))
+
         settleStart = datetime.datetime.now(datetime.timezone.utc).timestamp()
         while (datetime.datetime.now(datetime.timezone.utc).timestamp() < settleStart + config.get_contracts_config().FEEDBACK_ROUND_TIMEOUT):
             if (self.model.functions.isFeedBackRoundDone().call()):
@@ -496,7 +495,6 @@ class FLChallenge(FLManager):
         else:
             print("Feedback round failed, forcing Contribution...")
 
-        print(b(f"\Contribution round: {self.pytorch_model.round}"))
         contributionStart = datetime.datetime.now(datetime.timezone.utc).timestamp()
         while (datetime.datetime.now(datetime.timezone.utc).timestamp() < contributionStart + config.get_contracts_config().CONTRIBUTION_ROUND_TIMEOUT):
             if (self.model.functions.isContributionRoundDone().call()):
@@ -508,7 +506,6 @@ class FLChallenge(FLManager):
             print("Contribution round failed, forcing settlement...")
 
 
-        print(b(f"\Settling round: {self.pytorch_model.round}"))
         if self.fork:
             tx = super().build_tx(self.w3.eth.default_account, self.modelAddress, 0)
             txHash = self.model.functions.settle().transact(tx)
@@ -561,11 +558,11 @@ class FLChallenge(FLManager):
                 signed = w3.eth.account.sign_transaction(sl, private_key=acc.privateKey)
                 txHash = w3.eth.send_raw_transaction(signed.raw_transaction)
             txs.append(txHash)
-            print("{:<17}   {} | {} | {:>25,.0f} WEI".format("Slot registered: ", 
-                                                                         acc.address[0:16] + "...", 
-                                                                         txHash.hex()[0:6] + "...",
-                                                                         self.get_global_reputation_of_user(acc.address)
-                                                                         ))
+            # print("{:<17}   {} | {} | {:>25,.0f} WEI".format("Slot registered: ",
+            #                                                              acc.address[0:16] + "...",
+            #                                                              txHash.hex()[0:6] + "...",
+            #                                                              self.get_global_reputation_of_user(acc.address)
+            #                                                              ))
         l = len(txs)
         for i, txHash in enumerate(txs):
             printer.print_bar(i, l)
@@ -576,7 +573,7 @@ class FLChallenge(FLManager):
             self.gas_slot.append(receipt["gasUsed"])
             self.txHashes.append(("slot", receipt["transactionHash"].hex(), receipt["gasUsed"]))
             self._log_receipt(receipt, "slot")
-        printer._print("-----------------------------------------------------------------------------------\n")
+        # printer._print("-----------------------------------------------------------------------------------\n")
         return 
     
     
@@ -663,14 +660,14 @@ class FLChallenge(FLManager):
         eval_reward_events = events["EvaluationVotingReward"]
 
         # End of round summary
-        if end_events:
-            for ev in end_events:
-                args = ev["args"]
-                print(b(f"\nEND OF ROUND      {args['round'] + 1}"))
-                print(b(f"VALID VOTES:      {args['validVotes']}"))
-                print(b(f"SUM OF WEIGHTS:   {args['sumOfWeightedContribScore']:,}"))
-                print(b(f"TOTAL PUNISHMENT: {args['totalPunishment']:,}\n"))
-            print("-----------------------------------------------------------------------------------\n")
+        # if end_events:
+        #     for ev in end_events:
+        #         args = ev["args"]
+        #         print(b(f"\nEND OF ROUND      {args['round'] + 1}"))
+        #         print(b(f"VALID VOTES:      {args['validVotes']}"))
+        #         print(b(f"SUM OF WEIGHTS:   {args['sumOfWeightedContribScore']:,}"))
+        #         print(b(f"TOTAL PUNISHMENT: {args['totalPunishment']:,}\n"))
+        #     print("-----------------------------------------------------------------------------------\n")
 
         if passive_punish_events:
             print(b("PASSIVE PUNISHMENTS"))
@@ -681,17 +678,17 @@ class FLChallenge(FLManager):
                 print(green(f"PUNISHED TARGET: {args['punishedTarget']}\n"))
 
         if eval_reward_events:
-            print(b("EVALUATION VOTING REWARDS DISTRIBUTION"))
+            # print(b("EVALUATION VOTING REWARDS DISTRIBUTION"))
 
             contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0]
             user_map = {u.address: u for u in contributors}
 
             for ev in eval_reward_events:
                 args = ev["args"]
-                print(green(f"USER @          {args['user']}"))
-                print(green(f"STAKED:         {args['staked']:,}"))
-                print(green(f"REWARDED:       {args['rewarded']:,}"))
-                print(green(f"NEW REPUTATION: {args['newReputation']:,}\n"))
+                # print(green(f"USER @          {args['user']}"))
+                # print(green(f"STAKED:         {args['staked']:,}"))
+                # print(green(f"REWARDED:       {args['rewarded']:,}"))
+                # print(green(f"NEW REPUTATION: {args['newReputation']:,}\n"))
 
                 user_map[args['user']].temporary_grs_evaluation = args['newReputation']
 
@@ -699,20 +696,21 @@ class FLChallenge(FLManager):
 
         # Rewarded users
         if reward_events:
-            print(b("REWARDED USERS"))
+            # print(b("REWARDED USERS"))
             for ev in reward_events:
                 args = ev["args"]
                 if args["roundScore"] >= 0:
-                        print(green(f"USER @            {args['user']}"))
-                        print(green(f"ROUND SCORE:      {args['roundScore']:,}"))
-                        print(green(f"TOTAL REWARD:     {args['win']:,}"))
-                        print(green(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
+                    continue
+                        # print(green(f"USER @            {args['user']}"))
+                        # print(green(f"ROUND SCORE:      {args['roundScore']:,}"))
+                        # print(green(f"TOTAL REWARD:     {args['win']:,}"))
+                        # print(green(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
                 else: warnings.warn(f"User {args['user']} had negative round score but was rewarded? Score: {args['roundScore']}, Reward: {args['win']}")
             print("-----------------------------------------------------------------------------------\n")
 
         # Punished users
         if punish_events:
-            print(b("RRS < 0 PUNISHED USERS FOR NOT GETTING MERGED"))
+            # print(b("RRS < 0 PUNISHED USERS FOR NOT GETTING MERGED"))
             for ev in punish_events:
                 args = ev["args"]
                 self._punishments.append((
@@ -720,26 +718,27 @@ class FLChallenge(FLManager):
                     args["loss"],
                     next((i + 1 for i, x in enumerate(self.pytorch_model.participants) if x.address == args["victim"]), 0),
                     ))
-                print(red(f"USER @            {args['victim']}"))
-                print(red(f"ROUND SCORE:      {args['roundScore']:,}"))
-                print(red(f"TOTAL LOSS:       {args['loss']:,}"))
-                print(red(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
-            print("-----------------------------------------------------------------------------------\n")
+            #     print(red(f"USER @            {args['victim']}"))
+            #     print(red(f"ROUND SCORE:      {args['roundScore']:,}"))
+            #     print(red(f"TOTAL LOSS:       {args['loss']:,}"))
+            #     print(red(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
+            # print("-----------------------------------------------------------------------------------\n")
 
         if contrib_punish_events:
-            print(b("CONTRIBUTION-PUNISHED USERS"))
+            # print(b("CONTRIBUTION-PUNISHED USERS"))
             for ev in contrib_punish_events:
-                print("Punishing a user for bad contribution")
+                # print("Punishing a user for bad contribution")
                 args = ev["args"]
                 if args["roundScore"] >= 0:
-                    print(green(f"USER @ {args['user']}"))
-                    print(green(f"ROUND SCORE:      {args['roundScore']:,}"))
-                    print(green(f"LOSS:             {args['loss']:,}"))
-                    print(green(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
+                    continue
+                    # print(green(f"USER @ {args['user']}"))
+                    # print(green(f"ROUND SCORE:      {args['roundScore']:,}"))
+                    # print(green(f"LOSS:             {args['loss']:,}"))
+                    # print(green(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
                 else:
                     warnings.warn(
                         f"User {args['user']} had negative round score but was rewarded? Score: {args['roundScore']}, Reward: {args['win']}")
-            print("-----------------------------------------------------------------------------------\n")
+            # print("-----------------------------------------------------------------------------------\n")
 
         # Disqualified users
         if disqualify_events:
@@ -800,7 +799,7 @@ class FLChallenge(FLManager):
             print("-----------------------------------------------------------------------------------")
             return
 
-        print("START CONTRIBUTION SCORE\n")
+        print("Calculating contribution scores and evaluation rewards...\n")
     
 
         if len(_users) <= 3:
@@ -820,8 +819,6 @@ class FLChallenge(FLManager):
         txs = []
         for u, score in zip(_users, self.scores):
             u.contribution_score = score
-
-            print(green(f"\nUSER @ {u.address} out of {len(_users)} merged contributors"))
             if self.fork:
                 tx = super().build_tx(u.address, self.modelAddress)
                 tx_hash = self.model.functions.submitContributionScoreAndVotingEvaluation(
@@ -1068,11 +1065,11 @@ class FLChallenge(FLManager):
 
 
         norm_losses = normalize_contribution_scores_new(avg_losses, avg_prev_loss, 'loss')
-        print(f"normalized losses: {norm_losses}")
+        # print(f"normalized losses: {norm_losses}")
 
         sum_nl = sum(norm_losses)
 
-        print(f"sum_nl: {sum_nl}")
+        # print(f"sum_nl: {sum_nl}")
 
         # Validating Shapley Axioms (Runtime Guard)
         diffs = [v - avg_prev_loss for v in avg_losses]
@@ -1087,7 +1084,7 @@ class FLChallenge(FLManager):
 
         scores = norm_losses
 
-        print(f"scores = {scores}")
+        # print(f"scores = {scores}")
 
         self._log_contribution_scores(users, scores, avg_losses, per_user_outlier_info, avg_prev_loss)
 
