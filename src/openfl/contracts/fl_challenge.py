@@ -15,6 +15,8 @@ from openfl.utils.async_writer import AsyncWriter, NullWriter
 from openfl.contracts import contribution
 from openfl.contracts import challenge_logging
 from openfl.contracts.contribution import contribution_score
+import openfl.ml.attacks as attacks
+import openfl.ml.evaluation as evaluation
 
 UINT256_MAX = 2**256 - 1
 
@@ -105,8 +107,8 @@ class FLChallenge(ConnectionHelper):
         return self.model.functions.weightsOf(user.address,self.pytorch_model.round-1).call({"to": self.modelAddress})
 
 
-    def get_global_reputation_of_user(self, userAddr):
-        user = self.model.functions.getUser(userAddr).call()
+    def get_global_reputation_of_user(self, user_addr):
+        user = self.model.functions.getUser(user_addr).call()
         return user[2]
 
 
@@ -119,13 +121,16 @@ class FLChallenge(ConnectionHelper):
         voters, accuracies, losses = self.model.functions.getAllAccuraciesLossesAbout(user_addr).call()
         return voters, accuracies, losses
 
+
     def get_all_accuracies_about(self, user_addr):
         voters, accuracies = self.model.functions.getAllAccuraciesAbout(user_addr).call()
         return voters, accuracies
 
+
     def get_all_losses_about(self, user_addr):
         voters, losses = self.model.functions.getAllLossesAbout(user_addr).call()
         return voters, losses
+
 
     # 'all' as in users
     def get_all_previous_accuracies_and_losses(self):
@@ -844,23 +849,23 @@ class FLChallenge(ConnectionHelper):
             print(b(f"\n\nRound {self.pytorch_model.round} starts..."))
             _round_start = time.perf_counter()
 
-            self.pytorch_model.update_users_attitude()
+            attacks.update_users_attitude(self.pytorch_model)
 
             self.pytorch_model.federated_training()
 
-            self.pytorch_model.let_malicious_users_do_their_work()
+            attacks.let_malicious_users_do_their_work(self.pytorch_model)
 
-            self.pytorch_model.let_freerider_users_do_their_work()
+            attacks.let_freerider_users_do_their_work(self.pytorch_model)
             
             self.user_register_slot()
 
             self.users_provide_hashed_weights()
 
-            self.pytorch_model.exchange_models()
+            evaluation.exchange_models(self.pytorch_model)
             
-            self.pytorch_model.verify_models({u.id: self.get_hashed_weights_of(u) for u in self.pytorch_model.participants})
+            evaluation.verify_models(self.pytorch_model, {u.id: self.get_hashed_weights_of(u) for u in self.pytorch_model.participants})
 
-            self.feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses = self.pytorch_model.evaluation()
+            self.feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses = evaluation.evaluate_peers(self.pytorch_model)
 
             self.quick_feedback_round(fbm = self.feedback_matrix, am=accuracy_matrix, lm=loss_matrix, prev_accs=prev_accs, prev_losses=prev_losses)
 

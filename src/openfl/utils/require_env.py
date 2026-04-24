@@ -1,7 +1,6 @@
 import os
-from pathlib import Path
 import sys
-
+from pathlib import Path
 from dotenv import load_dotenv
 
 env_loaded = False
@@ -14,7 +13,7 @@ def require_env_var(name: str) -> str:
         env_loaded = True
     value = os.environ.get(name)
     if not value:
-        print(f"❌ Error: Environment variable '{name}' is missing or empty.")
+        print(f"Error: Environment variable '{name}' is missing or empty.")
         sys.exit(1)
     return value
 

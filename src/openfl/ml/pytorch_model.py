@@ -1,167 +1,27 @@
-import copy
 import sys
-import warnings
 import torch
-import random
 import numpy as np
 import torch.nn as nn
 import torch.optim as optim
-import matplotlib.pyplot as plt
-import torch.nn.functional as F
+import copy
 import torch.multiprocessing as mp
 import os
 import time
 import math
-import logging
-from web3 import Web3
-from termcolor import colored
-from typing import Tuple, Dict, Callable
-from collections import OrderedDict
-from torchvision import transforms
-from torchvision.datasets import CIFAR10, MNIST
-from torch.utils.data import DataLoader, random_split, Subset
-from collections import Counter
+from typing import Callable
 from openfl.utils import aggregation_strategy_parser, repo_root
 from openfl.utils.colors import green, red, yellow, b, rb
-torch._dynamo.config.cache_size_limit = 512
+from openfl.ml.visualization import get_color
+from openfl.ml.cnn_models import Net_CIFAR, Net_MNIST
+from openfl.ml.runtime import (DEVICE, PIN_MEMORY, NON_BLOCKING, NUM_WORKERS, PERSISTENT_WORKERS, DATASET_ROOT, print_training_mode)
+from openfl.ml.participant import Participant
+import openfl.ml.training as training
+import openfl.ml.attacks as attacks
+import openfl.ml.data as data
+import openfl.ml.evaluation as evaluation
+
 debugging = sys.gettrace() is not None
-logging.getLogger("torch._inductor").setLevel(logging.ERROR)
-logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
-RNG = np.random.default_rng()
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-USE_CUDA = (DEVICE.type == "cuda")
-PIN_MEMORY = USE_CUDA
-NON_BLOCKING = USE_CUDA
-NUM_WORKERS = min(4, os.cpu_count() // 2) if torch.cuda.is_available() else 0
-PERSISTENT_WORKERS = USE_CUDA and NUM_WORKERS > 0
-AMP = USE_CUDA # Optional: mixed precision on CUDA
-DATASET_ROOT = repo_root() / "data" / "datasets"
-# cuDNN autotune for fixed-size inputs (both MNIST 28x28 and CIFAR-10 32x32)
-torch.backends.cudnn.benchmark = USE_CUDA
-if DEVICE.type == "cuda":
-    torch.set_float32_matmul_precision("high")
 
-def model_to_device(net: nn.Module) -> nn.Module:
-    # Move model once; keep it on the chosen device
-    return net.to(DEVICE, non_blocking=NON_BLOCKING)
-
-def cuda_safe_dataloader(ds, batch_size, shuffle=False):
-    return DataLoader(
-        ds,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        pin_memory=PIN_MEMORY,
-        num_workers=NUM_WORKERS,
-        persistent_workers=PERSISTENT_WORKERS,
-    )
-
-
-colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-bad_c  = "#d62728"
-free_c = "#9467bd"
-colors.remove(bad_c)
-colors.remove(free_c)
-
-class Participant:
-    def __init__(self, _id, _train, _val, _model, _optimizer, _criterion,
-                 _attitude, _default_collateral, _max_collateral,
-                 _attitudeSwitch=1, number_of_participants=None):
-        self.id = _id
-        self.train = _train
-        self.val  = _val
-        self.model = _model
-        self.previousModel = copy.deepcopy(_model)
-        self.modelHash = Web3.solidity_keccak(['string'],[str(_model)]).hex()
-        self.optimizer = _optimizer
-        self.criterion = _criterion
-        self.userToEvaluate = []
-        self.currentAcc = 0
-        # User's locally-trained model accuracy on their own validation set (after they trained on top of the global model).
-        # Is set in: apply_training_results().
-        self.currentLoss = 0
-        # New variable introduced. Needs to be implemented in code. Alongside currentAcc.
-        self.attitude = "good"
-        self.futureAttitude = _attitude
-        self.attitudeSwitch = _attitudeSwitch
-        self.hashedModel = None
-        self.address = None
-        self.privateKey = None
-        self.isRegistered = False
-        # Old:  self.collateral = _default_collateral + np.random.randint(0,int(_max_collateral-_default_collateral))
-        # ---- collateral (handles huge ranges; avoids int32 cap) ----
-        lo = int(_default_collateral)
-        hi = int(_max_collateral)
-        if hi < lo:
-            raise ValueError(f"max_collateral ({hi}) must be >= default_collateral ({lo})")
-
-        diff = hi - lo
-        jitter = int(RNG.integers(0, np.int64(diff), dtype=np.int64)) if diff > 0 else 0
-        self.collateral = lo + jitter
-
-        # ---- secret (big nonce) ----
-        self.secret = int(RNG.integers(0, np.int64(10 ** 18), dtype=np.int64))
-        # self.secret = np.random.randint(0,int(1e18))
-
-        self.color = get_color(number_of_participants, self.attitude)
-        self.roundRep = 0
-
-        self.disqualified = False
-
-        # INTERFACE VARIABLES - Not used for training. Only for reporting.
-        self._accuracy = [] # User's accuracy on the global model. The actual accuracy evaluated on test set - is set in: finalize_user_evaluation().
-        self._loss = [] # User's loss on the global model. The actual loss evaluated on test set - is set in: finalize_user_evaluation().
-        self._globalrep = [self.collateral]
-        self._roundrep = []
-        self.last_attack_type = None  # Actual attack used this round (may differ from config due to fallbacks)
-
-    def getStatus(self):
-        user = f"$user${self.id}, {self.currentAcc}, {self.attitude}, {self.futureAttitude}, {self.attitudeSwitch}, {self.address}"
-        return user
-          
-class Net_CIFAR(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
-
-    def forward(self, x):
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = torch.flatten(x, 1) # flatten all dimensions except batch
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
-        return x
-    
-class Net_MNIST(nn.Module):
-    def __init__(self):
-        super(Net_MNIST, self).__init__()
-        # input is 28x28
-        # padding=2 for same padding
-        self.conv1 = nn.Conv2d(1, 32, 5, padding=2)
-        # feature map size is 14*14 by pooling
-        # padding=2 for same padding
-        self.conv2 = nn.Conv2d(32, 64, 5, padding=2)
-        # feature map size is 7*7 by pooling
-        self.fc1 = nn.Linear(64*7*7, 1024)
-        self.fc2 = nn.Linear(1024, 10)
-        
-    def forward(self, x):
-        x = F.max_pool2d(F.relu(self.conv1(x)), 2)
-        x = F.max_pool2d(F.relu(self.conv2(x)), 2)
-        x = x.view(-1, 64*7*7)   # reshape Variable
-        x = F.relu(self.fc1(x))
-        x = F.dropout(x, training=self.training)
-        x = self.fc2(x)
-        # return F.log_softmax(x)
-        return x
-
-
-        
 class PytorchModel:
     def __init__(self, DATASET, _good_participants, _bad_participants, _freerider_participants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, use_nobody_is_kicked: bool = False, data_distribution : str = None, dirichlet_alpha: float = None, malicious_attack_type: str = "noise", freerider_attack_type: str = "noise"):
         self.DATASET = DATASET
@@ -191,7 +51,7 @@ class PytorchModel:
         else:
             self.dirichlet_alpha = dirichlet_alpha
 
-        self.train, self.val, self.test = self.load_data(self.NUMBER_OF_CONTRIBUTORS, _print=True)
+        self.train, self.val, self.test = data.load_data(self, self.NUMBER_OF_CONTRIBUTORS, _print=True)
         self.default_collateral = default_collateral
         self.max_collateral = max_collateral
         self.force_merge_all = force_merge_all
@@ -225,8 +85,8 @@ class PytorchModel:
             raise ValueError(f"freerider_attack_type must be one of {valid_freerider_attack_types}, got '{freerider_attack_type}'")
         self.freerider_attack_type = freerider_attack_type
 
-        loss, accuracy = test(self.global_model,self.test,DEVICE)
-        
+        loss, accuracy = training.test(self.global_model,self.test,DEVICE)
+
         # INTERFACE VARIABLES
         self.accuracy = [accuracy]
         self.loss = [loss]
@@ -251,15 +111,15 @@ class PytorchModel:
         for i in range(self.NUMBER_OF_INACTIVE_CONTRIBUTORS):
             self.add_participant("inactive")
 
-            
+
     def add_participant(self, _attitude):
-        _train, _val, _test = self.load_data(self.NUMBER_OF_CONTRIBUTORS)
+        _train, _val, _test = data.load_data(self, self.NUMBER_OF_CONTRIBUTORS)
 
         if self.DATASET == "mnist":
             _model = Net_MNIST().to(DEVICE)
         else:
             _model = Net_CIFAR().to(DEVICE)
-            
+
         optimizer = optim.SGD(_model.parameters(), lr=0.001, momentum=0.9)
         criterion = nn.CrossEntropyLoss()
 
@@ -281,11 +141,11 @@ class PytorchModel:
             raise Exception("Unknown attitude {}".format(_attitude))
 
         length = len(self.participants)
-        self.participants.append(Participant(len(self.participants), 
+        self.participants.append(Participant(len(self.participants),
                                              _train[length],
                                              _val[length],
-                                             _model, 
-                                             optimizer, 
+                                             _model,
+                                             optimizer,
                                             criterion,
                                              _attitude,
                                              self.default_collateral,
@@ -293,161 +153,9 @@ class PytorchModel:
                                              _attitudeSwitch,
                                              length
                                             ))
-        
+
         color_fn = green if _attitude == "good" else (yellow if _attitude == "inactive" else red)
         print("Participant added: {:<9} {}".format(color_fn(_attitude.upper()[0]+_attitude[1:]), color_fn("User")))
-
-    def print_client_data_distributions(self):
-        """Prints the label distribution for every client's train/val sets and the global test set."""
-        if self.DATA is None:
-            self.load_data(self.NUMBER_OF_CONTRIBUTORS)
-
-        trainloaders, valloaders, testloader = self.DATA
-
-        print("\n--- CLIENT DATA DISTRIBUTIONS ---")
-        print("\nUSING DATA DISTRIBUTION:", self.data_distribution)
-        if "dirichlet" in self.data_distribution:
-            print(f"\nDirichlet alpha: {self.dirichlet_alpha}")
-
-        for i, (train_loader, val_loader) in enumerate(zip(trainloaders, valloaders)):
-            print(f"\nClient {i} Training Set:")
-            print_label_distribution(train_loader, name=f"Client {i} Train")
-
-            print(f"Client {i} Validation Set:")
-            print_label_distribution(val_loader, name=f"Client {i} Val")
-
-        print("\nGlobal Test Set:")
-        print_label_distribution(testloader, name="Test Set")
-
-
-    def get_client_data_distribution(self):
-        if self.DATA is None:
-            self.load_data(self.NUMBER_OF_CONTRIBUTORS)
-
-        trainloaders, valloaders, testloader = self.DATA
-
-        result = {
-            "clients": [],
-            "test": {}
-        }
-
-        for train_loader, val_loader in zip(trainloaders, valloaders):
-            train_dataset = train_loader.dataset
-            val_dataset = val_loader.dataset
-
-            client_info = {
-                "train": {
-                    "size": len(train_dataset),
-                    "label_counts": get_label_distribution(train_loader),
-                    "indices": train_dataset.indices if hasattr(train_dataset, "indices") else None
-                },
-                "val": {
-                    "size": len(val_dataset),
-                    "label_counts": get_label_distribution(val_loader),
-                    "indices": val_dataset.indices if hasattr(val_dataset, "indices") else None
-                }
-            }
-            result["clients"].append(client_info)
-
-        test_dataset = testloader.dataset
-        result["test"] = {
-            "size": len(test_dataset),
-            "label_counts": get_label_distribution(testloader),
-            "indices": test_dataset.indices if hasattr(test_dataset, "indices") else None
-        }
-
-        return result
-
-    def load_data(self, NUM_CLIENTS, _print=False):
-        if self.DATA:
-            return self.DATA
-
-        if self.DATASET == "cifar-10":
-            transform = transforms.Compose([
-                transforms.RandomCrop(32, padding=4),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            ])
-            transform_test = transforms.Compose([
-                transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-            ])
-            trainset = CIFAR10(DATASET_ROOT / "CIFAR", train=True, download=True, transform=transform) # Since CIFAR does not makes its own subfolder, we make it.
-            testset = CIFAR10(DATASET_ROOT / "CIFAR", train=False, download=True, transform=transform_test)
-        else:
-            trainset = MNIST(DATASET_ROOT, train=True, download=True, transform=transforms.ToTensor())
-            testset = MNIST(DATASET_ROOT, train=False, download=True, transform=transforms.ToTensor())
-            
-        
-        if _print:
-            print("Data Loaded:")
-            print("Nr. of images for training: {:,.0f}".format(len(trainset)))
-            print("Nr. of images for testing:  {:,.0f}\n".format(len(testset)))
-
-        # Split training set into partitions to simulate the individual dataset
-        partition_size = len(trainset) // NUM_CLIENTS
-        lengths = [partition_size] * NUM_CLIENTS
-        gen = torch.Generator().manual_seed(42) if "42" in str(self.data_distribution) else None
-        images_needed = partition_size * NUM_CLIENTS
-        if images_needed < len(trainset):
-            trainset,_ = random_split(trainset, [images_needed, len(trainset)-images_needed], generator=gen)
-
-
-        dist = self.data_distribution or "random_split"
-
-        if dist.startswith("random_split"):
-            datasets = random_split(trainset, lengths, generator=gen)
-
-        elif dist.startswith("stratified_split"):
-            datasets = stratified_split(trainset, NUM_CLIENTS, generator=gen)
-
-        elif dist.startswith("dirichlet_split"):
-            datasets = dirichlet_split(trainset, NUM_CLIENTS, alpha=self.dirichlet_alpha, generator=gen)
-
-        else:
-            raise ValueError(f"Data distribution {self.data_distribution} not recognized")
-
-        # Split each partition into train/val and create DataLoader
-        trainloaders = []
-        valloaders = []
-
-        for ds in datasets:
-            len_val = len(ds) // 10
-            len_train = len(ds) - len_val
-            tv_lengths = [len_train, len_val]
-
-            if "stratified" in str(self.data_distribution):
-                ds_train, ds_val = stratified_split(ds, tv_lengths, generator=gen)
-            else:
-                ds_train, ds_val = random_split(ds, tv_lengths, generator=gen)
-
-            trainloaders.append(DataLoader(
-                ds_train,
-                batch_size=self.BATCHSIZE,
-                shuffle=True,
-                pin_memory=PIN_MEMORY,
-                num_workers=NUM_WORKERS,
-                persistent_workers=PERSISTENT_WORKERS,
-            ))
-            valloaders.append(DataLoader(
-                ds_val,
-                batch_size=self.BATCHSIZE,
-                shuffle=False,
-                pin_memory=PIN_MEMORY,
-                num_workers=NUM_WORKERS,
-                persistent_workers=PERSISTENT_WORKERS,
-            ))
-        testloader = DataLoader(
-            testset,
-            batch_size=self.BATCHSIZE,
-            shuffle=False,
-            pin_memory=PIN_MEMORY,
-            num_workers=NUM_WORKERS,
-            persistent_workers=PERSISTENT_WORKERS,
-        )
-        self.DATA = (trainloaders, valloaders, testloader)
-        return trainloaders, valloaders, testloader
 
 
     def federated_training(self):
@@ -467,12 +175,6 @@ class PytorchModel:
         print(b("=================== PARALLEL TRAINING END ===================\n"))
         print(green(f"Total federated training time: {total_time:.2f} seconds\n"))
 
-    def finalize_user_evaluation(self, user): # Same as lines 294-296,306 in orgiginal code.
-        loss, acc = test(user.model, self.test, DEVICE) # TODO: Investigate if this should be user.val instead.
-        user._accuracy.append(acc) # Line 295 in original code # TODO: Investigate if this should be test and not validation accuracy.
-        user._loss.append(loss) # Line 296 in original code # TODO: Investigate if this should be test and not validation loss.
-        user.hashedModel = self.get_hash(user.model.state_dict())
-
 
     def apply_training_results(self, results):
         # Apply results back to participants
@@ -482,7 +184,7 @@ class PytorchModel:
             user.model.load_state_dict(state_dict)
             user.currentAcc = val_acc # Line 287 in original code
             user.currentLoss = val_loss
-            self.finalize_user_evaluation(user)
+            evaluation.finalize_user_evaluation(self, user)
 
 
     def run_sequential(self):
@@ -496,7 +198,7 @@ class PytorchModel:
             sd_cpu = {k: v.cpu() for k, v in user.model.state_dict().items()}
 
             if user.attitude == "good":
-                result = train_user_proc(
+                result = training.train_user_proc(
                     user.id,
                     sd_cpu,
                     user.train.dataset,
@@ -510,7 +212,7 @@ class PytorchModel:
                 )
                 results.append(result)
             else:
-                self.finalize_user_evaluation(user)
+                evaluation.finalize_user_evaluation(self, user)
         return results
 
     def run_multi_processing(self):
@@ -534,7 +236,7 @@ class PytorchModel:
 
                 if user.attitude=="good": # train
                     async_results.append(pool.apply_async(
-                        train_user_proc,
+                        training.train_user_proc,
                         (user.id,
                         sd_cpu,
                         user.train.dataset,
@@ -548,144 +250,13 @@ class PytorchModel:
                     ))
                 else: # If user's behaviour !good, skip Training.
                     # Skips apply_training_results() - goes directly to evaluation. Corresponds to lines 261-277 in original code.
-                    self.finalize_user_evaluation(user)
+                    evaluation.finalize_user_evaluation(self, user)
 
             results = [r.get() for r in async_results] # Gather results from Multi-Processing
         print(green(f"Parallel execution time: {time.perf_counter() - start_pool:.2f} seconds"))
         return results
 
 
-    def let_malicious_users_do_their_work(self):
-        for i in range(len(self.participants)):
-            if self.participants[i].attitude == "bad":
-                if self.malicious_attack_type == "byzantine":
-                    print(red("Address {} executing Byzantine Attack".format(self.participants[i].address[0:16]+"...")))
-                    manipulated_state_dict = self.byzantine_attack(self.participants[i])
-                    fallback = self.previous_global_model is None
-                    self.participants[i].last_attack_type = "noise" if fallback else "byzantine"
-                else:
-                    print(red("Address {} going to provide random weights".format(self.participants[i].address[0:16]+"...")))
-                    manipulated_state_dict = manipulate(self.participants[i].model, scale=self.malicious_noise_scale)
-                    self.participants[i].last_attack_type = "noise"
-                self.participants[i].model.load_state_dict(manipulated_state_dict)
-                self.participants[i].hashedModel = self.get_hash(self.participants[i].model.state_dict())
-                loss, accuracy = test(self.participants[i].model, self.test, DEVICE)
-
-                self.participants[i].currentAcc = accuracy
-                self.participants[i].currentLoss = loss
-
-                print("{:<17} {} |  Testing  | Accuracy {:>3.0f} % | Loss ∞\n".format("Account testing:   ",
-                                                                                self.participants[i].address[0:16]+"...",
-                                                                                accuracy*100, loss))
-
-
-    def let_freerider_users_do_their_work(self):
-        for i in range(len(self.participants)):
-            if self.participants[i].attitude == "freerider":
-                if self.freerider_attack_type == "delta_weight":
-                    print(red("Address {} executing Delta Weights Attack".format(self.participants[i].address[0:16]+"...")))
-                    manipulated_state_dict = self.delta_weight_attack(self.participants[i])
-                    fallback = self.previous_global_model is None
-                    self.participants[i].last_attack_type = "noise" if fallback else "delta_weight"
-                else:
-                    print(red("Address {} going to provide random weights".format(self.participants[i].address[0:16]+"...")))
-                    manipulated_state_dict = manipulate(self.participants[i].model, scale=self.freerider_noise_scale)
-                    self.participants[i].last_attack_type = "noise"
-                self.participants[i].model.load_state_dict(manipulated_state_dict)
-                self.participants[i].hashedModel = self.get_hash(self.participants[i].model.state_dict())
-                loss, accuracy = test(self.participants[i].model, self.test, DEVICE)
-
-                self.participants[i].currentAcc = accuracy
-                self.participants[i].currentLoss = loss
-
-                print("{:<17} {} |  Testing  | Accuracy {:>3.0f} % | Loss ∞\n".format("Account testing:   ",
-                                                                                self.participants[i].address[0:16]+"...",
-                                                                                accuracy*100, loss))
-
-    def update_users_attitude(self):
-        for user in self.participants:
-            if user.attitudeSwitch == self.round and user.attitude != user.futureAttitude:
-                print(rb("Address {} going to switch attitude to {}".format(user.address[0:16]+"...",
-                                                                            user.futureAttitude)))
-                user.attitude = user.futureAttitude
-                user.color = get_color(None, user.attitude)
-
-
-    def _freerider_submit_with_noise(self, user):
-        """Freerider reuses the global model with configurable noise."""
-
-        if self.freerider_noise_scale < 0:
-            raise ValueError("freerider_noise_scale must be non-negative")
-
-        if self.freerider_noise_scale == 0: # Copy global model if noise is zero
-            print(yellow("Address {} resubmitting original model".format(user.address[0:16]+"...")))
-            return copy.deepcopy(user.model).state_dict()
-
-        print(red(
-            "Address {} adding noise (scale={}) to global weights".format(
-                user.address[0:16]+"...",
-                self.freerider_noise_scale,
-            )
-        ))
-        return manipulate(copy.deepcopy(user.model), scale=self.freerider_noise_scale)
-
-    def byzantine_attack(self, user):
-        """Byzantine Attack.
-
-        Computes the global model's recent trajectory (delta between the current
-        and previous global checkpoint) and crafts an update that pushes the
-        global model in the opposite direction of learning, actively harming training.
-
-        Falls back to noise in round 1 when there is not yet enough history to
-        estimate the trajectory.
-        """
-        if self.previous_global_model is None:
-            print(red("  [Byzantine] Not enough history yet – falling back to noise attack"))
-            return manipulate(copy.deepcopy(user.model), scale=self.malicious_noise_scale)
-
-        crafted_weights = OrderedDict()
-        with torch.no_grad():
-            prev_weights    = self.previous_global_model.state_dict()
-            current_weights = self.global_model.state_dict()
-
-            for key in current_weights.keys():
-                value = current_weights[key]
-                if value.is_floating_point():
-                    # Trajectory: direction the global model has been moving
-                    learning_direction = current_weights[key] - prev_weights[key]
-                    # Push against the trajectory to reverse learning
-                    crafted_weights[key] = value - self.malicious_noise_scale * learning_direction
-                else:
-                    crafted_weights[key] = value.clone()
-
-        return crafted_weights
-
-    def delta_weight_attack(self, user):
-        """Delta Weights Attack
-
-        A free-rider constructs fake gradient updates by subtracting two
-        consecutively received global models, and creates a small deviation from the global model,
-        which should be hard to detect.
-        Falls back to noise in round 1 when no previous global model exists.
-        """
-        if self.previous_global_model is None:
-            print(red("  [DeltaWeight] Not enough history yet – falling back to noise attack"))
-            return manipulate(copy.deepcopy(user.model), scale=self.freerider_noise_scale)
-
-        crafted_weights = OrderedDict()
-        with torch.no_grad():
-            prev_weights    = self.previous_global_model.state_dict()
-            current_weights = self.global_model.state_dict()
-
-            for key in current_weights.keys():
-                value = current_weights[key]
-                if value.is_floating_point():
-                    fake_gradient = prev_weights[key] - value  # G_fake = M_{j-1} - M_j
-                    crafted_weights[key] = value + fake_gradient  # = M_{j-1}
-                else:
-                    crafted_weights[key] = value.clone()
-
-        return crafted_weights
 
     def the_merge(self, _users, aggregation_rule: str, merge_weight_collector=None, agg_switch_collector=None, avg_prior_losses=None, warning_collector=None):
         # No qualified users → skip merge this round
@@ -813,7 +384,7 @@ class PytorchModel:
         # -------------------------
         # Evaluation
         # -------------------------
-        loss, accuracy = test(self.global_model, self.test, DEVICE)
+        loss, accuracy = training.test(self.global_model, self.test, DEVICE)
         self.accuracy.append(accuracy)
         self.loss.append(loss)
 
@@ -832,152 +403,6 @@ class PytorchModel:
 
         print("-----------------------------------------------------------------------------------\n")
 
-
-    def exchange_models(self):
-        print("Users exchanging models...")
-        for user in self.participants:
-            user.userToEvaluate = []
-            for j in self.participants:
-                if user.model == j.model:
-                    continue
-                if j.model in user.userToEvaluate:
-                    continue
-                user.userToEvaluate.append(j)
-        print("-----------------------------------------------------------------------------------")
-
-    def verify_models(self, on_chain_hashes):
-        print("Users verifying models...")
-        for _user in self.participants:
-            _user.cheater = []
-            for user in _user.userToEvaluate:  
-                if not self.get_hash(user.model.state_dict()) == on_chain_hashes[user.id]:
-                    print(red(f"Account {_user.id}: Account {user.address[0:16]}... could not provide the registered model"))
-                    _user.cheater.append(user)
-                    
-        print("-----------------------------------------------------------------------------------")
-
-
-    def get_hash(self, _state_dict):
-        if not isinstance(_state_dict, dict):
-            _state_dict = dict(_state_dict)
-
-        parts = []
-        for k, v in sorted(_state_dict.items(), key=lambda x: x[0]):
-            t = v.detach()
-            if t.is_cuda:
-                t = t.cpu()
-            t = t.contiguous()
-            parts.append(k.encode("utf-8"))
-            parts.append(b"|")
-            # include shape to avoid accidental collisions
-            parts.append(np.asarray(t.shape, dtype=np.int64).tobytes())
-            parts.append(b"|")
-            parts.append(t.numpy().tobytes())
-            parts.append(b"\n")
-        blob = b"".join(parts)
-        return Web3.keccak(blob)  #remove hex to match old, with improved algo.
-
-    def evaluation(self):
-        print("Users evaluating models...")
-
-        scalar = 100 # Adds more decimals for precision (Adding 0 gives another decimal, vice versa)
-        MAX_UINT16_SIZE = 65535
-        count_dq = len(self.disqualified)
-
-        feedback_matrix = np.zeros((1, len(self.participants) + count_dq, len(self.participants) + count_dq))[0]
-        n = len(self.participants) + count_dq
-        accuracy_matrix = [[0 for _ in range(n)] for _ in range(n)]
-        loss_matrix = [[0 for _ in range(n)] for _ in range(n)]
-        prev_accs = [0 for _ in range(n)]
-        prev_losses = [0 for _ in range(n)]
-
-        for feedbackGiver in self.participants:
-            valloader = feedbackGiver.val
-            bad_att = feedbackGiver.attitude == "bad"
-            free_att = feedbackGiver.attitude == "freerider"
-            accuracy_last_round = -1
-
-            for ix, user in enumerate(feedbackGiver.userToEvaluate):
-                if not bad_att and not free_att:
-                    loss, accuracy = test(user.model, valloader, DEVICE)
-                    prev_loss, prev_acc = test(self.global_model, valloader, DEVICE)
-                    prev_acc = round(prev_acc * 100 * scalar)
-                    prev_loss = safe_scale(prev_loss, scalar, MAX_UINT16_SIZE)
-
-                if bad_att:
-                    feedback_matrix[feedbackGiver.id][user.id] = -1
-                    accuracy_matrix[feedbackGiver.id][user.id] = 0
-                    loss_matrix[feedbackGiver.id][user.id] = 65535
-                    prev_loss, prev_acc = test(self.global_model, valloader, DEVICE)
-                    prev_accs[feedbackGiver.id] = round(prev_acc * 100 * scalar)
-                    prev_losses[feedbackGiver.id] = safe_scale(prev_loss, scalar, MAX_UINT16_SIZE)
-
-                elif free_att:
-                    feedback_matrix[feedbackGiver.id][user.id] = 0
-                    if accuracy_last_round == -1:
-                        loss_last_round, accuracy_last_round = test(self.global_model, valloader, DEVICE)
-                        accuracy_last_round = round(accuracy_last_round * 100 * scalar)
-                        loss_last_round = safe_scale(loss_last_round, scalar, MAX_UINT16_SIZE)
-                    accuracy_matrix[feedbackGiver.id][user.id] = accuracy_last_round
-                    loss_matrix[feedbackGiver.id][user.id] = min(loss_last_round, MAX_UINT16_SIZE)
-                    prev_accs[feedbackGiver.id] = accuracy_last_round
-                    prev_losses[feedbackGiver.id] = loss_last_round
-
-                elif user in feedbackGiver.cheater:
-                    feedback_matrix[feedbackGiver.id][user.id] = -1
-                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
-                    loss_matrix[feedbackGiver.id][user.id] = safe_scale(loss, scalar, MAX_UINT16_SIZE)
-                    prev_accs[feedbackGiver.id] = prev_acc
-                    prev_losses[feedbackGiver.id] = prev_loss
-
-                elif accuracy > feedbackGiver.currentAcc - 0.07 : # 7% Worse
-                    feedback_matrix[feedbackGiver.id][user.id] = 1
-                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
-                    loss_matrix[feedbackGiver.id][user.id] = safe_scale(loss, scalar, MAX_UINT16_SIZE)
-                    prev_accs[feedbackGiver.id] = prev_acc
-                    prev_losses[feedbackGiver.id] = prev_loss
-
-                elif accuracy > feedbackGiver.currentAcc - 0.14: # 14% Worse
-                    feedback_matrix[feedbackGiver.id][user.id] = 0
-                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
-                    loss_matrix[feedbackGiver.id][user.id] = safe_scale(loss, scalar, MAX_UINT16_SIZE)
-                    prev_accs[feedbackGiver.id] = prev_acc
-                    prev_losses[feedbackGiver.id] = prev_loss
-
-                else:
-                    feedback_matrix[feedbackGiver.id][user.id] = -1
-                    accuracy_matrix[feedbackGiver.id][user.id] = round(accuracy * 100 * scalar)
-                    loss_matrix[feedbackGiver.id][user.id] = safe_scale(loss, scalar, MAX_UINT16_SIZE)
-                    prev_accs[feedbackGiver.id] = prev_acc
-                    prev_losses[feedbackGiver.id] = prev_loss
-
-                if self.force_merge_all:
-                    feedback_matrix[feedbackGiver.id][user.id] = 0
-
-            # Reset
-            feedbackGiver.userToEvaluate = []
-        # acc_mat = [[x / 10 for x in sublist] for sublist in accuracy_matrix]
-        # loss_mat = [[x / 10 for x in sublist] for sublist in loss_matrix]
-        # prev_accs_divided = [x / 10 for x in prev_accs]
-        # prev_losses_divided = [x / 10 for x in prev_losses]
-
-        # print("FEEDBACK MATRIX:")
-        # print(feedback_matrix)
-        # print("-----------------------------------------------------------------------------------")
-        # print("ACCURACY MATRIX:")
-        # print(accuracy_matrix)
-        # print("-----------------------------------------------------------------------------------")
-        # print("LOSS MATRIX:")
-        # print(loss_matrix)
-        # print("-----------------------------------------------------------------------------------")
-        # print("PREVIOUS ACCURACIES:")
-        # print(prev_accs)
-        # print("-----------------------------------------------------------------------------------")
-        # print("PREVIOUS LOSSES:")
-        # print(prev_losses)
-        # print("-----------------------------------------------------------------------------------")
-
-        return feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses
 
     @staticmethod
     def models_are_equal(model_a, model_b):
@@ -1164,378 +589,6 @@ class PytorchModel:
         return {addr: w / total for addr, w in combined.items()}
 
 
-# PYTORCH FUNCTIONS
-def train(
-    net,
-    trainloader: torch.utils.data.DataLoader,
-    epochs: int,
-    device: torch.device,
-) -> None:
-
-    # Compile ONCE per process (not per batch)
-    if device.type == "cuda":
-        try:
-            net = torch.compile(net, mode="reduce-overhead")
-        except Exception:
-            pass
-
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
-
-    use_amp = device.type == "cuda"
-    scaler = torch.amp.GradScaler(enabled=use_amp)
-
-    net.train()
-
-    for _ in range(epochs):
-        for images, labels in trainloader:
-            images = images.to(device, non_blocking=NON_BLOCKING)
-            labels = labels.to(device, non_blocking=NON_BLOCKING)
-
-            optimizer.zero_grad(set_to_none=True)
-
-            with torch.amp.autocast("cuda", enabled=use_amp):
-                outputs = net(images)
-                loss = criterion(outputs, labels)
-
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
-
-
-def test(net, testloader: torch.utils.data.DataLoader, device: torch.device) -> Tuple[float, float]:
-    """
-    Evaluate model on test set: forward pass only (no gradients), with optional AMP on CUDA
-    Accumulate total cross-entropy loss and count correct predictions for accuracy
-    Returns (total_loss, accuracy) over the entire test dataset
-    """
-    criterion = nn.CrossEntropyLoss()
-    net.eval()
-
-    correct = 0
-    total = 0
-    loss = 0.0
-
-    use_amp = device.type == "cuda"
-
-    with torch.no_grad():
-        for images, labels in testloader:
-            images = images.to(device, non_blocking=NON_BLOCKING)
-            labels = labels.to(device, non_blocking=NON_BLOCKING)
-
-            with torch.amp.autocast("cuda", enabled=use_amp):
-                outputs = net(images)
-                loss += criterion(outputs, labels).item()
-                _, predicted = torch.max(outputs, 1)
-
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-
-    accuracy = correct / total
-    loss = min(sys.float_info.max, loss)
-
-    return loss, accuracy
-
-# def green(text):
-#     return colored(text, "green")
-#
-# def gb(string):
-#     return colored(string, color="green", attrs=["bold"])
-#
-# def rb(string):
-#     return colored(string, color="red", attrs=["bold"])
-#
-# def b(string):
-#     return colored(string, color=None, attrs=["bold"])
-#
-# def red(text):
-#     return colored(text, "red")
-#
-# def yellow(text):
-#     return colored(text, "yellow", attrs=["bold"])
-
-
-def manipulate(model, scale: float = 1.0) -> OrderedDict:
-    sd = OrderedDict()
-    with torch.no_grad():
-        for k, v in model.state_dict().items():
-            t = v.clone()
-            if t.is_floating_point():
-                # uniform noise in [-scale, scale]
-                noise = torch.empty_like(t).uniform_(-scale, scale)
-                t.add_(noise)
-            sd[k] = t
-    return sd
-
-
-def add_noise(model, offset_from_end: int = 5) -> OrderedDict:
-    """
-    GPU-friendly: keep tensors on their original device/dtype and add a tiny scalar
-    to the tensor at index len(state_dict)-offset_from_end.
-    """
-    items = list(model.state_dict().items())
-    target_idx = max(0, len(items) - offset_from_end)
-
-    new_sd = OrderedDict()
-    with torch.no_grad():
-        for idx, (k, v) in enumerate(items):
-            t = v.clone()
-            if t.is_floating_point() and idx == target_idx:
-                # Match original magnitude: 9e-6 or 1e-5
-                eps = 1e-5 if random.randint(9, 10) == 10 else 9e-6
-                t.add_(eps)  # in-place scalar add on the same device (CPU/GPU)
-            new_sd[k] = t
-    return new_sd
-
-
-def get_color(i, a):
-    if a == "bad":
-        return bad_c
-    if a == "freerider":
-        return free_c
-    try:
-        return colors[i]
-    except:
-        return None
-
-
-def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, dataset, batchsize, pin_memory, shuffle):
-        # Multi-GPU Support
-        # Select device
-        use_cuda = torch.cuda.is_available()
-        device = torch.device(f"cuda:{device_id}" if use_cuda else "cpu")
-
-        # Recreate model based on dataset
-        if dataset == "mnist":
-            model = Net_MNIST()
-        else:
-            model = Net_CIFAR()
-
-        model.load_state_dict(model_state)
-        model.to(device)
-
-        # Rebuild dataloaders inside the process
-        train_loader = DataLoader(train_ds, batch_size=batchsize, shuffle=shuffle, pin_memory=pin_memory) # TODO: Investigate if this breaks something
-        val_loader = DataLoader(val_ds, batch_size=batchsize, shuffle=False, pin_memory=pin_memory) # TODO: Investigate if this breaks something
-
-        train(model, train_loader, epochs, device) # Line 285 in original code
-        val_loss, val_acc = test(model, val_loader, device) # Line 286 in original code
-
-        # del: Mark for GC
-        del train_loader
-        del val_loader
-
-        print(f"[{device_label(device, device_id)}] User {user_id} done | Acc: {val_acc:.3f}, Loss: {val_loss:.3f}")
-        
-        # Ensure all GPU work is complete before worker exits
-        if device.type == "cuda":
-            torch.cuda.synchronize(device)
-        return user_id, model.state_dict(), val_loss, val_acc
-
-
-def print_training_mode(num_gpus: int, num_processes: int):
-    """Prints a clean status message describing how training will run."""
-    if num_gpus >= 2:
-        print(green(f"Detected {num_gpus} GPU(s) → Parallel multi-GPU training"))
-
-    elif num_gpus == 1:
-        if num_processes > 1:
-            print(yellow(
-                f"Detected 1 GPU → Parallel training on one GPU (shared across {num_processes} workers)"
-            ))
-        else:
-            print(green("Detected 1 GPU → Sequential GPU training"))
-
-    else:  # CPU-only
-        if num_processes > 1:
-            print(yellow(
-                f"Detected 0 GPU(s) → Parallel CPU training ({num_processes} workers)"
-            ))
-        else:
-            print(red("Detected 0 GPU(s) → Sequential CPU mode"))
-
-
-def device_label(device: torch.device, device_id: int = 0) -> str:
-    if device.type == "cuda":
-        return f"GPU {device_id}"
-    else:
-        return "CPU"
-
-def safe_scale(value, scalar, max_val):
-    if not math.isfinite(value):
-        return max_val
-
-    scaled = value * scalar
-
-    if not math.isfinite(scaled):
-        return max_val
-
-    return min(round(scaled), max_val)
-
-
-def dirichlet_split(dataset, num_clients, alpha=0.5, generator=None):
-    """
-    Dirichlet split that ensures:
-    - All clients have exactly len(dataset)//num_clients samples
-    - Non-IID distribution controlled by alpha
-    - Optional reproducibility with generator
-    """
-    # Handle Subset
-    if isinstance(dataset, Subset):
-        actual_dataset = dataset.dataset
-        indices = dataset.indices
-    else:
-        actual_dataset = dataset
-        indices = list(range(len(dataset)))
-
-    # Get labels
-    if hasattr(actual_dataset, "targets"):
-        targets = torch.tensor(actual_dataset.targets)[indices]
-    elif hasattr(actual_dataset, "labels"):
-        targets = torch.tensor(actual_dataset.labels)[indices]
-    else:
-        raise AttributeError("Dataset must have targets or labels attribute")
-
-    num_classes = len(torch.unique(targets))
-    class_indices = {c: (targets == c).nonzero(as_tuple=True)[0].tolist() for c in range(num_classes)}
-
-    # Shuffle class indices
-    seed = 42 if generator is not None else None
-    rng = np.random.default_rng(seed)
-    for c in class_indices:
-        rng.shuffle(class_indices[c])
-
-    splits = [[] for _ in range(num_clients)]
-    total_per_client = len(dataset) // num_clients
-    client_counts = [0] * num_clients  # track total assigned per client
-
-    # Allocate samples per class
-    for c in range(num_classes):
-        cls_idx = class_indices[c]
-        n_cls = len(cls_idx)
-
-        # Sample Dirichlet proportions
-        proportions = rng.dirichlet([alpha] * num_clients)
-        counts = (proportions * n_cls).astype(int)
-
-        # Fix rounding to match class total
-        diff = n_cls - counts.sum()
-        if diff > 0:
-            topk = np.argsort(proportions)[-diff:]
-            counts[topk] += 1
-
-        # Assign to clients, but do not exceed total_per_client
-        start = 0
-        for i in range(num_clients):
-            # adjust count if client is almost full
-            remaining_space = total_per_client - client_counts[i]
-            assign_count = min(counts[i], remaining_space)
-            end = start + assign_count
-            splits[i].extend(cls_idx[start:end])
-            client_counts[i] += assign_count
-            start += assign_count
-
-    # At this point, all clients should have exactly total_per_client
-    # If any client still has less (due to rounding), fill from leftover pool
-    assigned = set(idx for client in splits for idx in client)
-    all_indices = set(idx for cls in class_indices.values() for idx in cls)
-    remaining = list(all_indices - assigned)
-    rng.shuffle(remaining)
-
-    for i in range(num_clients):
-        current_len = len(splits[i])
-        if current_len < total_per_client:
-            needed = total_per_client - current_len
-            splits[i].extend(remaining[:needed])
-            remaining = remaining[needed:]
-
-    return [Subset(actual_dataset, split) for split in splits]
-
-
-
-
-def stratified_split(dataset, lengths, generator=None):
-    from torch.utils.data import Subset
-    import torch
-
-    # Normalize input
-    if isinstance(lengths, int):
-        num_splits = lengths
-        lengths = [1] * num_splits  # equal split
-    else:
-        num_splits = len(lengths)
-
-    total_length = sum(lengths)
-
-    # Handle subset
-    if isinstance(dataset, Subset):
-        actual_dataset = dataset.dataset
-        base_indices = list(dataset.indices)
-    else:
-        actual_dataset = dataset
-        base_indices = list(range(len(dataset)))
-
-    # Get targets
-    if hasattr(actual_dataset, "targets"):
-        targets = actual_dataset.targets
-    elif hasattr(actual_dataset, "labels"):
-        targets = actual_dataset.labels
-    else:
-        raise AttributeError("Dataset must have targets or labels")
-
-    targets = torch.as_tensor(targets, dtype=torch.long)[base_indices]
-
-    # Group by class
-    classes = torch.unique(targets)
-    class_indices = {
-        int(c): (targets == c).nonzero(as_tuple=True)[0].tolist()
-        for c in classes
-    }
-
-    # Shuffle per class
-    for c in class_indices:
-        perm = torch.randperm(len(class_indices[c]), generator=generator).tolist()
-        class_indices[c] = [class_indices[c][i] for i in perm]
-
-    splits = [[] for _ in range(num_splits)]
-
-    # Split per class proportionally
-    for c in class_indices:
-        cls_idx = class_indices[c]
-        cls_len = len(cls_idx)
-
-        proportions = [l / total_length for l in lengths]
-        raw = [p * cls_len for p in proportions]
-        cls_lengths = [int(x) for x in raw]
-
-        # distribute remainder
-        remainder = cls_len - sum(cls_lengths)
-        for i in range(remainder):
-            cls_lengths[i % num_splits] += 1
-
-        start = 0
-        for i in range(num_splits):
-            selected_local = cls_idx[start:start + cls_lengths[i]]
-            selected_global = [base_indices[idx] for idx in selected_local]
-            splits[i].extend(selected_global)
-            start += cls_lengths[i]
-
-    # Final shuffle
-    for i in range(num_splits):
-        perm = torch.randperm(len(splits[i]), generator=generator).tolist()
-        splits[i] = [splits[i][j] for j in perm]
-
-    return [Subset(actual_dataset, split) for split in splits]
-
-
-def get_label_distribution(loader):
-    counter = Counter()
-    for _, labels in loader:
-        counter.update(labels.tolist())
-    return dict(counter)
-
-
-
 # OLD — BUG: division by zero when all scores <= 0
 def positives_only(users_contrib_scores: dict):
      positive_sum = sum(score for score in users_contrib_scores.values() if score > 0)
@@ -1566,19 +619,3 @@ def GRS_aggregation(users):
     total_grs = sum(user._globalrep[-1] for user in users)
     aggregation_scores = {user.address: user._globalrep[-1] / total_grs for user in users}
     return aggregation_scores
-
-
-def print_label_distribution(loader, name="Dataset"):
-    """
-    Prints the distribution of labels in a DataLoader.
-    """
-    label_counts = Counter()
-    for _, labels in loader:
-        label_counts.update(labels.numpy())  # Convert tensor to numpy for Counter
-
-    total = sum(label_counts.values())
-    print(f"{name} | Total samples: {total}")
-    for label in range(10):
-        count = label_counts[label]
-        print(f"  Label {label}: {count} ({count/total*100:.2f}%)")
-    print("-" * 50)
