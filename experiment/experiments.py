@@ -1,27 +1,28 @@
 from datetime import datetime
 import json
 import multiprocessing as mp
-from pathlib import Path
 import re
 import sys
 import traceback
 from itertools import product
 from dataclasses import dataclass
-from helper import getPath
+from experiment.helper import getPath
 import argparse
-import experiment_runner as ExperimentRunner
-from experiment_configuration import ExperimentConfiguration
-from experiment_presets import PRESETS
+import experiment.experiment_runner as ExperimentRunner
+from experiment.experiment_configuration import ExperimentConfiguration
+from experiment.experiment_presets import PRESETS
+from openfl.utils import repo_root
 from openfl.utils.async_writer import AsyncWriter
 from selector import choose_from_list
 
 # Add the repo root to sys.path so `analysis` package is importable from here
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(repo_root()))
 from analysis import ExperimentLogger
 
+DATA_ROOT = repo_root() / "data"
 DATASETSLOW = "cifar.10"
 DATASETFAST = "mnist"
-RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/experimentData")
+RESULTDATAFOLDER = repo_root() / "data" / "runs" / "experiments"
 
 # ---------------- PRESET SEARCH SPACE ----------------
 
@@ -268,7 +269,7 @@ def main(author): # single preset
 
             print(f"Error logged to: {err_file}")
 
-        #experiment.model.visualize_simulation("experiment/figures")
+        # experiment.model.visualize_simulation(DATA_ROOT / "figures")
 
     #ExperimentRunner.print_transactions(experiment)
 
@@ -316,7 +317,7 @@ def parseSkips():
             r"-(?P<dataDistribution>[^-]+)"
             r"(?:-(?P<dirichletAlpha>[^-]+))"
             r"(?:-\{[0-9a-fA-F-]+\})?"  # <-- optional UUID part
-            r"\.csv",
+            r"\.pkl",
             file,
         )
 

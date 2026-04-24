@@ -74,7 +74,7 @@ PRESETS = {
         malicious_start_round=[2],
         malicious_attack_type= ["noise", "byzantine"],
         freerider_attack_type= ["noise", "delta_weight"],
-        aggregation_rule=["FedAVG"],
+        aggregation_rule=["binary_switch[positives_only,FedAVG]", "partial_switch[loss,positives_only,GRS_aggregation]" "partial_switch[accuracy,positives_only,GRS_aggregation]" ],
         data_distribution= ["random_split_42"],
         dirichlet_alpha= None,
     ),
@@ -250,7 +250,7 @@ PRESETS = {
         data_distribution= ["random_split_42"], # 1
         dirichlet_alpha= None,
     ),
-"data_distribution_mnist": FullPreset(
+    "data_distribution_mnist": FullPreset(
         fork=True,
         reward=int(1e18),
         standard_buy_in=int(1e18),

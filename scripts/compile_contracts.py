@@ -1,22 +1,34 @@
+import os
+import platform
 from solcx import install_solc, set_solc_version, compile_standard, get_installed_solc_versions
 from pathlib import Path
 import json
 
 print(get_installed_solc_versions())
 
-# 1) Ensure exact compiler
-install_solc("0.8.9")
-set_solc_version("0.8.9")
+SOLC_VERSION = "0.8.9"
+IS_ARM = platform.machine() in ("aarch64", "arm64")
+
+compile_kwargs = {}
+if IS_ARM:
+    # solcx has no prebuilt ARM binary; use a system-installed solc.
+    # Override via SOLC_BINARY env var if installed outside ~/.local/bin.
+    compile_kwargs["solc_binary"] = os.environ.get(
+        "SOLC_BINARY", str(Path.home() / ".local/bin/solc")
+    )
+else:
+    install_solc(SOLC_VERSION)
+    set_solc_version(SOLC_VERSION)
 
 # 2) Load sources
 root = Path(__file__).parents[1]
 contracts_dir = root / "contracts"
-test_contracts_dir = root / "contracts" / "test"
+harnesses_contracts_dir = root / "contracts" / "harnesses"
 sources = {
     "OpenFLManager.sol": {"content": (contracts_dir / "OpenFLManager.sol").read_text(encoding="utf-8")},
-    "OpenFLManager_nobody_is_kicked.sol": {"content": (test_contracts_dir / "OpenFLManager_nobody_is_kicked.sol").read_text(encoding="utf-8")},
+    "OpenFLManager_NobodyIsKicked.sol": {"content": (harnesses_contracts_dir / "OpenFLManager_NobodyIsKicked.sol").read_text(encoding="utf-8")},
     "OpenFLModel.sol":   {"content": (contracts_dir / "OpenFLModel.sol").read_text(encoding="utf-8")},
-    "OpenFLModel_nobody_is_kicked.sol": {"content": (test_contracts_dir / "OpenFLModel_nobody_is_kicked.sol").read_text(encoding="utf-8")},
+    "OpenFLModel_NobodyIsKicked.sol": {"content": (harnesses_contracts_dir / "OpenFLModel_NobodyIsKicked.sol").read_text(encoding="utf-8")},
 }
 
 # 3) Compile
@@ -27,22 +39,22 @@ compiled = compile_standard({
         "optimizer": {"enabled": True, "runs": 200},
         "outputSelection": {"*": {"*": ["abi","evm.bytecode.object"]}}
     }
-})
+}, **compile_kwargs)
 
 bytecode = compiled["contracts"]["OpenFLModel.sol"]["OpenFLModel"]["evm"]["bytecode"]["object"]
 
 size_bytes = len(bytecode) // 2  # Each 2 hex chars = 1 byte
 size_kb = size_bytes / 1024
 
-print(f"Contract size openflmodel: {size_bytes} bytes ({size_kb:.2f} KB)")
+print(f"Contract size OpenFLModel: {size_bytes} bytes ({size_kb:.2f} KB)")
 
 
-bytecode = compiled["contracts"]["OpenFLModel_nobody_is_kicked.sol"]["OpenFLModel_nobody_is_kicked"]["evm"]["bytecode"]["object"]
+bytecode = compiled["contracts"]["OpenFLModel_NobodyIsKicked.sol"]["OpenFLModel_NobodyIsKicked"]["evm"]["bytecode"]["object"]
 
 size_bytes = len(bytecode) // 2  # Each 2 hex chars = 1 byte
 size_kb = size_bytes / 1024
 
-print(f"Contract size openflmodel_nobody_is_kicked: {size_bytes} bytes ({size_kb:.2f} KB)")
+print(f"Contract size OpenFLModel_NobodyIsKicked: {size_bytes} bytes ({size_kb:.2f} KB)")
 
 
 bytecode = compiled["contracts"]["OpenFLManager.sol"]["OpenFLManager"]["evm"]["bytecode"]["object"]
@@ -50,22 +62,22 @@ bytecode = compiled["contracts"]["OpenFLManager.sol"]["OpenFLManager"]["evm"]["b
 size_bytes = len(bytecode) // 2  # Each 2 hex chars = 1 byte
 size_kb = size_bytes / 1024
 
-print(f"Contract size openflmanager: {size_bytes} bytes ({size_kb:.2f} KB)")
+print(f"Contract size OpenFLManager: {size_bytes} bytes ({size_kb:.2f} KB)")
 
 
-bytecode = compiled["contracts"]["OpenFLManager_nobody_is_kicked.sol"]["OpenFLManager_nobody_is_kicked"]["evm"]["bytecode"]["object"]
+bytecode = compiled["contracts"]["OpenFLManager_NobodyIsKicked.sol"]["OpenFLManager_NobodyIsKicked"]["evm"]["bytecode"]["object"]
 
 size_bytes = len(bytecode) // 2  # Each 2 hex chars = 1 byte
 size_kb = size_bytes / 1024
 
-print(f"Contract size openflmanager_nobody_is_kicked: {size_bytes} bytes ({size_kb:.2f} KB)")
+print(f"Contract size OpenFLManager_NobodyIsKicked: {size_bytes} bytes ({size_kb:.2f} KB)")
 
 
 # 4) Extract artifacts
 mgr = compiled["contracts"]["OpenFLManager.sol"]["OpenFLManager"]
-mgr_nobody = compiled["contracts"]["OpenFLManager_nobody_is_kicked.sol"]["OpenFLManager_nobody_is_kicked"]
+mgr_nobody = compiled["contracts"]["OpenFLManager_NobodyIsKicked.sol"]["OpenFLManager_NobodyIsKicked"]
 mdl = compiled["contracts"]["OpenFLModel.sol"]["OpenFLModel"]
-mdl_nobody = compiled["contracts"]["OpenFLModel_nobody_is_kicked.sol"]["OpenFLModel_nobody_is_kicked"]
+mdl_nobody = compiled["contracts"]["OpenFLModel_NobodyIsKicked.sol"]["OpenFLModel_NobodyIsKicked"]
 
 build = root / "artifacts" / "bytecode"
 build.mkdir(parents=True, exist_ok=True)

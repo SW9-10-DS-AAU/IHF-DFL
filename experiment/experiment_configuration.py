@@ -1,4 +1,4 @@
-from experiment_presets import PRESETS, DefaultPreset, ExperimentPreset, FullPreset
+from experiment.experiment_presets import PRESETS, DefaultPreset, ExperimentPreset, FullPreset
 
 
 class ExperimentConfiguration:

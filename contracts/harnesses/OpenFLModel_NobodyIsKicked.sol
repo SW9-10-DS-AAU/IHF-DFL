@@ -11,9 +11,9 @@
 
 pragma solidity =0.8.9;
 
-import "./OpenFLModel.sol";
+import "../OpenFLModel.sol";
 
-contract OpenFLModel_nobody_is_kicked is OpenFLModel {
+contract OpenFLModel_NobodyIsKicked is OpenFLModel {
 
     constructor(
         bytes32 _modelHash,

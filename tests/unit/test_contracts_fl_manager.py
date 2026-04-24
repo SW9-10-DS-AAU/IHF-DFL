@@ -19,7 +19,7 @@ class DummyHelper:
 def test_init_delegates_to_connection_helper(monkeypatch):
     helper = DummyHelper()
     monkeypatch.setattr(fl_manager.ConnectionHelper, "initiate_rpc", lambda self, **kwargs: helper.initiate_rpc(**kwargs))
-    monkeypatch.setattr(fl_manager.ConnectionHelper, "initialize", lambda self: helper.initialize())
+    monkeypatch.setattr(fl_manager.ConnectionHelper, "initialize", lambda self, **kwargs: helper.initialize())
 
     mgr = fl_manager.FLManager(pytorch_model="model")
     result = mgr.init(1, 0, 0, 0, 5)

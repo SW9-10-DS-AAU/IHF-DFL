@@ -1,4 +1,4 @@
-// contracts/test/OpenFLModelHarness.sol
+// contracts/harnesses/OpenFLModelHarness.sol
 pragma solidity =0.8.9;
 
 import "../OpenFLModel.sol";

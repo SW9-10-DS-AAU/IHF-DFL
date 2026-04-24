@@ -58,15 +58,23 @@ The file experiments.py runs one such experiment and can be run with:
 
 
 ## 5. Solidity testing
+- All forge commands must be run in the foundry directory.
 - Download Foundry in a Unix-like shell (WSL or Linux): 
   - `curl -L https://foundry.paradigm.xyz | bash && source ~/.bashrc`
   - `foundryup`
-  - `forge soldeer install`
+  - `cd foundry && forge soldeer install`
   
 - To Test:
+  - `cd foundry`
   - `forge build` 
   - `forge test`
 
 # 6. Test Coverage
 To get test coverage, run the following command: \
 `pytest --cov=openfl tests/`
+
+
+# 7. Solidity Compiler (Arm)
+If running on arm cpu, you need to download a recompiled solidity (solc) compiler for arm 
+and place it in the directory ```~/.local/bin/solc```
+The files can be found here: https://github.com/0xidm/solc-bin
