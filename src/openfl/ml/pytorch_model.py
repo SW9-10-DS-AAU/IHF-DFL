@@ -707,7 +707,7 @@ class PytorchModel:
 
         for u in _users:
             client_models.append(u.model)
-            print("Account {} participating in merge".format(u.address[0:16] + "..."))
+            # print("Account {} participating in merge".format(u.address[0:16] + "..."))
             users_contribution_scores[u.address] = u.contribution_score
 
         print("Using aggregation rule: {}".format(aggregation_rule))
@@ -961,21 +961,21 @@ class PytorchModel:
         # prev_accs_divided = [x / 10 for x in prev_accs]
         # prev_losses_divided = [x / 10 for x in prev_losses]
 
-        print("FEEDBACK MATRIX:")
-        print(feedback_matrix)
-        print("-----------------------------------------------------------------------------------")
-        print("ACCURACY MATRIX:")
-        print(accuracy_matrix)
-        print("-----------------------------------------------------------------------------------")
-        print("LOSS MATRIX:")
-        print(loss_matrix)
-        print("-----------------------------------------------------------------------------------")
-        print("PREVIOUS ACCURACIES:")
-        print(prev_accs)
-        print("-----------------------------------------------------------------------------------")
-        print("PREVIOUS LOSSES:")
-        print(prev_losses)
-        print("-----------------------------------------------------------------------------------")
+        # print("FEEDBACK MATRIX:")
+        # print(feedback_matrix)
+        # print("-----------------------------------------------------------------------------------")
+        # print("ACCURACY MATRIX:")
+        # print(accuracy_matrix)
+        # print("-----------------------------------------------------------------------------------")
+        # print("LOSS MATRIX:")
+        # print(loss_matrix)
+        # print("-----------------------------------------------------------------------------------")
+        # print("PREVIOUS ACCURACIES:")
+        # print(prev_accs)
+        # print("-----------------------------------------------------------------------------------")
+        # print("PREVIOUS LOSSES:")
+        # print(prev_losses)
+        # print("-----------------------------------------------------------------------------------")
 
         return feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses
 
