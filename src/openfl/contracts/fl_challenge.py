@@ -15,11 +15,11 @@ from openfl.api.connection_helper import ConnectionHelper
 from openfl.utils.async_writer import AsyncWriter, NullWriter
 from openfl.contracts import contribution
 from openfl.contracts import challenge_logging
-from src.openfl.contracts.contribution import contribution_score
+from openfl.contracts.contribution import contribution_score
 
 UINT256_MAX = 2**256 - 1
 
-class FLChallenge(FLManager):
+class FLChallenge(ConnectionHelper):
     """
     Smart-contract-backed federated learning simulation.
 
@@ -31,9 +31,7 @@ class FLChallenge(FLManager):
       - Round settlement and visualization
     """
     def __init__(self, manager, configs, pyTorchModel, experiment_config, writer: AsyncWriter=None, logger=None):
-        self.manager = manager
         self.w3 = manager.w3
-
         self.model, self.modelAddress = configs[:2]
         self.pytorch_model = pyTorchModel
         self.MIN_BUY_IN, self.MAX_BUY_IN, self.REWARD, self.MIN_ROUNDS = configs[2:6]

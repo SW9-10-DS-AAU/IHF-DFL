@@ -12,10 +12,8 @@ class FLManager(ConnectionHelper):
         self.pytorch_model = pytorch_model
         self.modelOf = {}
         self.manual_setup = manual_ganache_setup
-        
         self.gas_deploy = []
         self.txHashes   = []
-
         self.use_nobody_is_kicked = False
         
     
