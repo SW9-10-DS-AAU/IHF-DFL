@@ -8,7 +8,6 @@ from eth_abi import encode
 from web3 import Web3
 from termcolor import colored
 from web3.exceptions import ContractLogicError
-from openfl.contracts import FLManager
 from openfl.utils.colors import rb, b, green, red
 from openfl.utils import printer, config
 from openfl.api.connection_helper import ConnectionHelper
