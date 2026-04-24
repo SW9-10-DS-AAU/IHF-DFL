@@ -156,7 +156,7 @@ def _calculate_scores_accuracy_loss(challenge, users, mad_threshold=1.1):
     for u in users:  # For loop to extract accuracies and loses.
 
         # All accuracies and loses per user
-        _, accuracies, losses = challenge.model.functions.getAllAccuraciesLossesAbout(u.address).call()
+        _, accuracies, losses = challenge.get_all_accuracies_and_losses_about(u.address)
 
         try:
             # Multiple accuracies and losses per user
@@ -219,7 +219,7 @@ def _calculate_scores_accuracy_only(challenge, users, mad_threshold=1.1):
 
     for u in users:  # For loop to extract accuracies.
         # All accuracies per user
-        _, accuracies = challenge.model.functions.getAllAccuraciesAbout(u.address).call()
+        _, accuracies = challenge.get_all_accuracies_about(u.address)
 
         try:
             # Multiple accuracies per user
@@ -235,6 +235,8 @@ def _calculate_scores_accuracy_only(challenge, users, mad_threshold=1.1):
         except Exception as e:
             per_user_outlier_info.append({})
             raise type(e)(f"Failed while processing user data: {e}") from e
+
+        # No evaluation voting here. For loss_only
 
     norm_accuracies = normalize_contribution_scores_new(avg_accuracies, avg_prev_acc, 'accuracy')
     print(f"normalized accuracies: {norm_accuracies}")
@@ -279,7 +281,7 @@ def _calculate_scores_loss_only(challenge, users, mad_threshold=1.1):
 
     for u in users:  # For loop to extract losses.
         # All loses per user
-        voters, losses = challenge.model.functions.getAllLossesAbout(u.address).call()
+        voters, losses = challenge.get_all_losses_about(u.address)
 
         try:
             # Multiple accuracies and losses per user

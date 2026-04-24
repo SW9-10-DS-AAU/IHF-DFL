@@ -116,6 +116,45 @@ class FLChallenge(ConnectionHelper):
         return user_struct[2]
 
 
+    def get_all_accuracies_and_losses_about(self, user_addr):
+        voters, accuracies, losses = self.model.functions.getAllAccuraciesLossesAbout(user_addr).call()
+        return voters, accuracies, losses
+
+    def get_all_accuracies_about(self, user_addr):
+        voters, accuracies = self.model.functions.getAllAccuraciesAbout(user_addr).call()
+        return voters, accuracies
+
+    def get_all_losses_about(self, user_addr):
+        voters, losses = self.model.functions.getAllLossesAbout(user_addr).call()
+        return voters, losses
+
+    # 'all' as in users
+    def get_all_previous_accuracies_and_losses(self):
+        prev_accuracies, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses().call()
+        return prev_accuracies, prev_losses
+
+
+    def get_all_n_prior_losses(self, n_rounds: int):
+        # returns whatever rounds are available, up to n_rounds. So:
+        #   - Round 0 or 1: returns empty list []
+        #   - Round 2: returns [round-1] — only one round back
+        #   - Round 3: returns [round-1, round-2]
+        #   - Round 5+: returns [round-1, round-2, round-3, round-4] (if n_rounds=4)
+        #
+        #   The caller checks the length and decides what to do — if fewer than 2 entries, not enough data to compute a trend, fall back to default
+        #   behavior.
+        assert n_rounds >= 2, "n_rounds must be at least 2 to compute a trend"
+        contract_round = self.model.functions.round().call()
+        losses_per_round = []
+
+        for steps_back in range(1, n_rounds + 1):
+            if contract_round >= steps_back:
+                losses = self.model.functions.getAllNPriorLosses(steps_back).call()
+                mad_losses = contribution.remove_outliers_mad(losses)
+                losses_per_round.append(np.mean(mad_losses))
+        return losses_per_round  # [round-1, round-2, ..., round-n]
+
+
     def get_reward_left(self):
         return self.model.functions.rewardLeft().call({"to": self.modelAddress})
 
@@ -757,33 +796,6 @@ class FLChallenge(ConnectionHelper):
                     )
                 )
         return result
-
-
-    def get_all_n_prior_losses(self, n_rounds: int):
-        # returns whatever rounds are available, up to n_rounds. So:
-        #   - Round 0 or 1: returns empty list []
-        #   - Round 2: returns [round-1] — only one round back
-        #   - Round 3: returns [round-1, round-2]
-        #   - Round 5+: returns [round-1, round-2, round-3, round-4] (if n_rounds=4)
-        #
-        #   The caller checks the length and decides what to do — if fewer than 2 entries, not enough data to compute a trend, fall back to default
-        #   behavior.
-        assert n_rounds >= 2, "n_rounds must be at least 2 to compute a trend"
-        contract_round = self.model.functions.round().call()
-        losses_per_round = []
-
-        for steps_back in range(1, n_rounds + 1):
-            if contract_round >= steps_back:
-                losses = self.model.functions.getAllNPriorLosses(steps_back).call()
-                mad_losses = contribution.remove_outliers_mad(losses)
-                losses_per_round.append(np.mean(mad_losses))
-        return losses_per_round  # [round-1, round-2, ..., round-n]
-
-
-    # 'all' as in users
-    def get_all_previous_accuracies_and_losses(self):
-        prev_accuracies, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses().call()
-        return prev_accuracies, prev_losses
 
 
     def simulate(self, rounds):
