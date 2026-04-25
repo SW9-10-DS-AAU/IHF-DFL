@@ -17,6 +17,7 @@ from openfl.contracts import challenge_logging
 from openfl.contracts.contribution import contribution_score
 import openfl.ml.attacks as attacks
 import openfl.ml.evaluation as evaluation
+import openfl.ml.aggregation as aggregation
 
 UINT256_MAX = 2**256 - 1
 
@@ -880,10 +881,14 @@ class FLChallenge(ConnectionHelper):
 
             users_weight_collector = {}
             agg_switch_collector = {}
+            warning_collector = []
+
 
             # Ordering of the merge. If dotproduct we merge before contribution score
             if self.experiment_config.contribution_score_strategy == "dotproduct":
-                self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector)
+                aggregation.the_merge(self.pytorch_model, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, warning_collector=warning_collector)
+                for msg in warning_collector:
+                    challenge_logging.log_warning(self, msg)
 
             print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
             contribution_score(self, contributors)
@@ -894,7 +899,9 @@ class FLChallenge(ConnectionHelper):
             # If not dotproduct, we calculate contribution score before the merge
             if not self.experiment_config.contribution_score_strategy == "dotproduct":
                 avg_losses = self.get_all_n_prior_losses(3)
-                self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_losses=avg_losses)  # Only used for non-dp version. when agg_rule==partial_switch
+                aggregation.the_merge(self.pytorch_model, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_losses=avg_losses, warning_collector=warning_collector)
+                for msg in warning_collector:
+                    challenge_logging.log_warning(self, msg, round=self.pytorch_model.round - 1) # Minus 1 since close_round increments.
 
             if receipt is not None:
                 self.print_round_summary(receipt)

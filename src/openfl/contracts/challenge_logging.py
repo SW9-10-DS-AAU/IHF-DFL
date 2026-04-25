@@ -21,10 +21,11 @@ def log_receipt(challenge, receipt, receipt_type, round=None):
     )
 
 
-def log_warning(challenge, msg):
+def log_warning(challenge, msg, round=None):
     if challenge._logger is None:
         return
-    challenge._logger.warning(challenge.pytorch_model.round, msg)
+    r = round if round is not None else challenge.pytorch_model.round
+    challenge._logger.warning(r, msg)
 
 
 def log_contribution_scores(challenge, users, scores, raw_values, outlier_info, previous_avg):
