@@ -9,7 +9,7 @@ from parser import *
 from parser.helpers.setLegendLocation import LegendPosition
 from utils.paths import repo_root
 
-RESULTDATAFOLDER = repo_root(Path(__file__)) / "experiment" / "data" / "experimentData"
+RESULTDATAFOLDER = repo_root(Path(__file__)) / "data" / "runs" / "experiments"
 
 LISTOFALLMETHODS = [
     Method.ACCURACY_ONLY, Method.DOTPRODUCT, Method.DOTPRODUCTANDOUTLIER, Method.NAIVE, Method.ACCURACY_LOSS, Method.LOSS_ONLY]

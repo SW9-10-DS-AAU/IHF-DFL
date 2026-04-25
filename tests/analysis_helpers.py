@@ -49,7 +49,6 @@ def make_users(experiment_ids, roles_config=None, n_rounds=6):
                     "state":                        "active",
                     "grs":                          (r + 1) * int(1e18),
                     "reward_delta":                 int(1e18),
-                    "is_reward":                    True,
                     "merged":                       merged,
                     "merge_weight":                 merge_weight,
                     "subjective_personal_accuracy": 0.80 + r * 0.01,
