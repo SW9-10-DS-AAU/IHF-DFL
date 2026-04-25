@@ -1,24 +1,11 @@
 import sys
 from pathlib import Path
-
-# Add the repo root and src to sys.path so root/src packages are importable
-# when this file is run directly.
-def _repo_root_from_file(path: Path) -> Path:
-    for parent in [path.resolve(), *path.resolve().parents]:
-        if (parent / "pyproject.toml").exists():
-            return parent
-    raise RuntimeError("pyproject.toml not found - not in a repo")
-
-
-REPO_ROOT = _repo_root_from_file(Path(__file__))
-sys.path.insert(0, str(REPO_ROOT))
-sys.path.insert(0, str(REPO_ROOT / "src"))
-
 from utils.paths import repo_root
+
 REPO_ROOT = repo_root(Path(__file__))
 
 import matplotlib.pyplot as plt
-from analysis import load_runs_recursive, normalize_runs, merge_runs, aggregations as agg, plots
+from analysis import load_runs, normalize_runs, merge_runs, aggregations as agg, plots
 
 # Set to a specific timestamp folder, or leave as None to scan all folders
 FOLDER = "26-02-26--11_04_41"
@@ -29,7 +16,7 @@ if FOLDER:
 
 print(f"Scanning: {data_dir}")
 
-runs = load_runs_recursive(data_dir)
+runs = load_runs(data_dir)
 print(f"Loaded {len(runs)} run(s)")
 
 if not runs:

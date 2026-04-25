@@ -6,22 +6,12 @@ import re
 import sys
 import traceback
 import argparse
-
-# Running this file directly puts experiment/ on sys.path. Add the repo root
-# and src before importing repo-root packages such as experiment and analysis.
-def _repo_root_from_file(path: Path) -> Path:
-    for parent in [path.resolve(), *path.resolve().parents]:
-        if (parent / "pyproject.toml").exists():
-            return parent
-    raise RuntimeError("pyproject.toml not found - not in a repo")
-
-
-REPO_ROOT = _repo_root_from_file(Path(__file__))
-sys.path.insert(0, str(REPO_ROOT))
-sys.path.insert(0, str(REPO_ROOT / "src"))
-
 from utils.paths import repo_root
+
+# Running this file directly puts experiment/ on sys.path; add repo root so
+# that `import experiment.*` and `import analysis` resolve correctly.
 REPO_ROOT = repo_root(Path(__file__))
+sys.path.insert(0, str(REPO_ROOT))
 
 import experiment.experiment_runner as ExperimentRunner
 from itertools import product
