@@ -209,6 +209,9 @@ class PytorchModel:
         return results
 
     def run_multi_processing(self):
+        if len(self.participants) == 0:
+            raise RuntimeError("All participants have been disqualified - simulation cannot continue.")
+
         num_gpus = torch.cuda.device_count()
         ctx = mp.get_context("spawn")
 
