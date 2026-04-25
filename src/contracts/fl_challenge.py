@@ -49,6 +49,7 @@ class FLChallenge(ConnectionHelper):
         self.gas_deploy   = []
         self.gas_exit     = []
         self.txHashes     = []
+        self.scores       = []
         self._reward_balance = [self.REWARD]
         self._punishments = []
         self.config = config.get_contracts_config()

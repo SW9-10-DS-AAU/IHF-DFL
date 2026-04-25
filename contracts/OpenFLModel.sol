@@ -413,6 +413,7 @@ contract OpenFLModel {
             if (user.isRegistered && !user.isDisqualified) {
                 if (user.roundReputation < 0) {
                     votesPerRound -= user.nrOfVotesFromUser;
+                    user.nrOfVotesFromUser = 0;
 
                     uint punishment = uint(user.globalReputationScore / punishfactor);
 

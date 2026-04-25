@@ -72,11 +72,11 @@ PRESETS = {
         freerider_start_round=[2],
         malicious_noise_scale=[0.1],
         malicious_start_round=[2],
-        malicious_attack_type= None,
-        freerider_attack_type= None,
+        malicious_attack_type=["noise", "byzantine"],
+        freerider_attack_type=["noise", "delta_weight"],
         aggregation_rule=["binary_switch[positives_only,FedAVG]", "partial_switch[loss, positives_only, FedAVG]", "partial_switch[acc, positives_only, FedAVG]", "partial_switch[retro, positives_only, FedAVG]"],
-        data_distribution= ["random_split_42"],
-        dirichlet_alpha= None,
+        data_distribution=["random_split_42", "dirichlet_split_42"],
+        dirichlet_alpha=[0.5],
     ),
 
     "mnist_openfl_w_outlier": ExperimentPreset(
