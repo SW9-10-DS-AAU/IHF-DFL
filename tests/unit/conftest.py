@@ -126,11 +126,11 @@ def fl_challenge(request, mock_w3, mock_contract, mock_participants):
         )
     )
 
-    with patch("openfl.contracts.fl_challenge.FLManager.build_tx") as mock_build_tx:
+    with patch("openfl.api.connection_helper.ConnectionHelper.build_tx") as mock_build_tx:
         mock_build_tx.return_value = {"gas": 100000, "gasPrice": 1, "nonce": 1}
 
         with patch(
-            "openfl.contracts.fl_challenge.FLManager.build_non_fork_tx"
+            "openfl.api.connection_helper.ConnectionHelper.build_non_fork_tx"
         ) as mock_build_nf_tx:
             mock_build_nf_tx.return_value = {"gas": 100000, "nonce": 1}
 

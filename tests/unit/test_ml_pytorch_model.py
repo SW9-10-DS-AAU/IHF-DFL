@@ -1,16 +1,18 @@
 import random
-
 import pytest
 import torch
-
-import openfl.ml.pytorch_model as pm
+import openfl.ml.attacks as attacks
+import openfl.ml.visualization as visualization
+import openfl.ml.training as training
+import openfl.ml.data as data
+from openfl.ml.pytorch_model import PytorchModel
 
 
 def test_manipulate_adds_noise():
     model = torch.nn.Linear(2, 2)
     original = {k: v.clone() for k, v in model.state_dict().items()}
 
-    updated = pm.manipulate(model, scale=0.0)
+    updated = attacks.manipulate(model, scale=0.0)
 
     # With scale 0.0, floating tensors should be unchanged
     for key, tensor in updated.items():
@@ -20,7 +22,7 @@ def test_manipulate_adds_noise():
 def test_add_noise_modifies_target_tensor():
     random.seed(0)
     model = torch.nn.Linear(3, 1)
-    state_dict = pm.add_noise(model, offset_from_end=1)
+    state_dict = attacks.add_noise(model, offset_from_end=1)
 
     items = list(model.state_dict().items())
     target_idx = max(0, len(items) - 1)
@@ -32,18 +34,21 @@ def test_add_noise_modifies_target_tensor():
 
 
 def test_get_color_handles_known_and_unknown_indices():
-    assert pm.get_color(0, "bad") == pm.bad_c
-    assert pm.get_color(0, "freerider") == pm.free_c
-    assert pm.get_color(100, "good") is None
+    assert visualization.get_color(0, "bad") == visualization.bad_c
+    assert visualization.get_color(0, "freerider") == visualization.free_c
+    assert visualization.get_color(100, "good") is None
 
 
 def test_device_label_formats_output():
-    assert pm.device_label(torch.device("cpu")) == "CPU"
-    assert pm.device_label(torch.device("cuda"), 2) == "GPU 2"
+    assert training.device_label(torch.device("cpu")) == "CPU"
+    assert training.device_label(torch.device("cuda"), 2) == "GPU 2"
 
 
 def test_data_destribution_properties():
-    model1 = pm.PytorchModel("mnist", 4, 6, 1, 32, 1, 1, 1, 1, 1, 1, False, False, "random_split_42",)
-    model2 = pm.PytorchModel("mnist", 4, 6, 1, 32, 1, 1, 1, 1, 1, 1, False, False, "random_split_42",)
-
-    assert model1.get_client_data_distribution() == model2.get_client_data_distribution()
+    model1 = PytorchModel("mnist", 4, 6, 1, epochs=32, batchsize=1,
+                          default_collateral=1, max_collateral=1,
+                          force_merge_all=False, use_nobody_is_kicked=False, data_distribution="random_split_42",)
+    model2 = PytorchModel("mnist", 4, 6, 1, epochs=32, batchsize=1,
+                          default_collateral=1, max_collateral=1,
+                          data_distribution="random_split_42")
+    assert data.get_client_data_distribution(model1) == data.get_client_data_distribution(model2)
