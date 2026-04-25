@@ -513,7 +513,17 @@ contract OpenFLModel {
                 uint staking_min_grs = min_collateral / punishfactorContrib;
                 uint evaluation_reward = (evaluationScore[round][user.addr] * staking_min_grs) / 1e18;
 
-                require(user.globalReputationScore + evaluation_reward > staking_min_grs, "user does not have enough grs to stake for evaluation voting reward!");
+                // Disqualification
+                if (user.globalReputationScore + evaluation_reward <= staking_min_grs) {
+                    evaluation_disqualification_pool += user.globalReputationScore;
+                    emit Disqualification(user.addr, user.roundReputation, user.globalReputationScore, 0);
+                    user.globalReputationScore = 0;
+                    nrOfActiveParticipants -= 1;
+                    user.isDisqualified = true;
+                    user.isPunished = true;
+                    user.isRegistered = false;
+                    continue;
+                }
 
                 if (user.isPassivePunished && evaluation_reward > staking_min_grs) { // if users with passive punishment get rewarded, strip that reward and add surplus to pool.
                     evaluation_disqualification_pool += evaluation_reward - staking_min_grs;
