@@ -43,6 +43,15 @@ _CONTRIB_LIST_COLS = [
     "previous_accepted_values",
 ]
 
+# Punishments table — Wei columns
+_PUNISHMENT_WEI_COLS = ["loss", "new_reputation"]
+
+# Evaluation rewards table — Wei columns
+_EVAL_REWARD_WEI_COLS = ["staked", "rewarded", "new_reputation"]
+
+# Evaluation votes table — same raw scale as vote_loss (actual_loss * 100)
+_EVAL_VOTE_LOSS_COLS = ["loss_vote", "avg_loss_true_value"]
+
 
 # Metadata keys stored in the "metadata" lookup table returned by merge_runs.
 # Data tables only carry experiment_id; join on it when you need config values.
@@ -76,12 +85,15 @@ def normalize_run(run: RunData, make_readable: bool = True) -> RunData:
     make_readable: if False, skip all unit conversions and return raw values.
                    The outlier/is_baseline/vote merge logic still runs regardless.
     """
-    g = run.rounds_global.copy() if not run.rounds_global.empty else pd.DataFrame()
-    u = run.rounds_users.copy()  if not run.rounds_users.empty  else pd.DataFrame()
-    v = run.votes.copy()         if not run.votes.empty         else pd.DataFrame()
-    r = run.receipts.copy()      if not run.receipts.empty      else pd.DataFrame()
-    c = run.contributions.copy() if not run.contributions.empty else pd.DataFrame()
-    w = run.warnings.copy()      if not run.warnings.empty      else pd.DataFrame()
+    g  = run.rounds_global.copy()      if not run.rounds_global.empty      else pd.DataFrame()
+    u  = run.rounds_users.copy()       if not run.rounds_users.empty       else pd.DataFrame()
+    v  = run.votes.copy()              if not run.votes.empty              else pd.DataFrame()
+    r  = run.receipts.copy()           if not run.receipts.empty           else pd.DataFrame()
+    c  = run.contributions.copy()      if not run.contributions.empty      else pd.DataFrame()
+    w  = run.warnings.copy()           if not run.warnings.empty           else pd.DataFrame()
+    p  = run.punishments.copy()        if not run.punishments.empty        else pd.DataFrame()
+    er = run.evaluation_rewards.copy() if not run.evaluation_rewards.empty else pd.DataFrame()
+    ev = run.evaluation_votes.copy()   if not run.evaluation_votes.empty   else pd.DataFrame()
 
 
     wei_divisor         = 1e18  # Wei → ETH
@@ -119,6 +131,24 @@ def normalize_run(run: RunData, make_readable: bool = True) -> RunData:
             for col in _CONTRIB_SCALAR_COLS:
                 if col in c.columns:
                     c[col] = c[col] / contrib_divisor
+
+        # Punishments table
+        if not p.empty:
+            for col in _PUNISHMENT_WEI_COLS:
+                if col in p.columns:
+                    p[col] = p[col] / wei_divisor
+
+        # Evaluation rewards table
+        if not er.empty:
+            for col in _EVAL_REWARD_WEI_COLS:
+                if col in er.columns:
+                    er[col] = er[col] / wei_divisor
+
+        # Evaluation votes table (loss columns same raw scale as vote_loss)
+        if not ev.empty:
+            for col in _EVAL_VOTE_LOSS_COLS:
+                if col in ev.columns:
+                    ev[col] = ev[col] / vote_loss_unscaler
 
     # Votes table — flag whether the voted accuracy was excluded as an outlier.
     # Only current_excluded_values is pulled from contributions; it's dropped after use.
@@ -165,15 +195,18 @@ def normalize_run(run: RunData, make_readable: bool = True) -> RunData:
 
 
     return RunData(
-        experiment_id=run.experiment_id,
-        metadata=run.metadata,
-        setup=run.setup,
-        rounds_global=g,
-        rounds_users=u,
-        votes=v,
-        receipts=r,
-        contributions=c,
-        warnings=w
+        experiment_id=      run.experiment_id,
+        metadata=           run.metadata,
+        setup=              run.setup,
+        rounds_global=      g,
+        rounds_users=       u,
+        votes=              v,
+        receipts=           r,
+        contributions=      c,
+        warnings=           w,
+        punishments=        p,
+        evaluation_rewards= er,
+        evaluation_votes=   ev,
     )
 
 
@@ -191,13 +224,16 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
     Returns {"metadata": df, "global": df, "users": df, "votes": df,
              "receipts": df, "contributions": df, "warnings": df}.
     """
-    metadata_rows   = []
-    global_frames   = []
-    users_frames    = []
-    votes_frames    = []
-    receipts_frames = []
-    contributions   = []
-    warnings        = []
+    metadata_rows        = []
+    global_frames        = []
+    users_frames         = []
+    votes_frames         = []
+    receipts_frames      = []
+    contributions        = []
+    warnings             = []
+    punishments          = []
+    evaluation_rewards   = []
+    evaluation_votes     = []
 
     for run in runs:
         eid = run.experiment_id
@@ -227,6 +263,12 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
             contributions.append(_tag(run.contributions))
         if not run.warnings.empty:
             warnings.append(_tag(run.warnings))
+        if not run.punishments.empty:
+            punishments.append(_tag(run.punishments))
+        if not run.evaluation_rewards.empty:
+            evaluation_rewards.append(_tag(run.evaluation_rewards))
+        if not run.evaluation_votes.empty:
+            evaluation_votes.append(_tag(run.evaluation_votes))
 
     def _concat(frames):
         if not frames:
@@ -238,11 +280,14 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
         return pd.concat([f.dropna(axis=1, how="all") for f in frames], ignore_index=True)
 
     return {
-        "metadata": pd.DataFrame(metadata_rows),
-        "global":   _concat(global_frames),
-        "users":    _concat(users_frames),
-        "votes":    _concat(votes_frames),
-        "receipts": _concat(receipts_frames),
-        "contributions": _concat(contributions),
-        "warnings": _concat(warnings),
+        "metadata":           pd.DataFrame(metadata_rows),
+        "global":             _concat(global_frames),
+        "users":              _concat(users_frames),
+        "votes":              _concat(votes_frames),
+        "receipts":           _concat(receipts_frames),
+        "contributions":      _concat(contributions),
+        "warnings":           _concat(warnings),
+        "punishments":        _concat(punishments),
+        "evaluation_rewards": _concat(evaluation_rewards),
+        "evaluation_votes":   _concat(evaluation_votes),
     }

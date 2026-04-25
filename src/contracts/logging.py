@@ -68,7 +68,6 @@ def log_round_zero(challenge):
             sub_global_loss=None,
             round_reputation_assigned=None,
             reward_delta=None,
-            is_reward=None,
             merged=None,
             merge_weight=None
         )
@@ -124,8 +123,7 @@ def log_round(challenge, current_round, round_time,
 
     # ---- per-user round ----
     _round_rewards = challenge.get_round_rewards(receipt) if receipt is not None else []
-    _addr_to_reward = {addr: win for addr, _rs, win, _nr, _ir in _round_rewards}
-    _addr_to_ir = {addr: _ir for addr, _rs, win, _nr, _ir in _round_rewards}
+    _addr_to_reward = {addr: win for addr, _rs, win, _nr in _round_rewards}
 
     for _user in challenge.pytorch_model.participants:
         challenge._logger.user_round(
@@ -138,7 +136,6 @@ def log_round(challenge, current_round, round_time,
             sub_global_loss=_user._loss[-1],
             round_reputation_assigned=_user._roundrep[-1] if _user._roundrep else None,
             reward_delta=_addr_to_reward.get(_user.address, None),
-            is_reward=_addr_to_ir.get(_user.address, None),
             merged=any(u.id == _user.id for u in contributors),
             merge_weight=users_weight_collector.get(_user.address, None),
             attack_type=_user.last_attack_type,
@@ -154,7 +151,6 @@ def log_round(challenge, current_round, round_time,
             sub_global_loss=_user._loss[-1],
             round_reputation_assigned=_user._roundrep[-1] if _user._roundrep else None,
             reward_delta=_addr_to_reward.get(_user.address, None),
-            is_reward=_addr_to_ir.get(_user.address, None),
             merged=False,
             merge_weight=None,
             attack_type=_user.last_attack_type,
@@ -163,3 +159,79 @@ def log_round(challenge, current_round, round_time,
     # ---- global round ----
     _punishment_total = sum(p[1] for p in challenge._punishments if p[0] == current_round)
     log_global_round(challenge, current_round, round_time, _punishment_total, agg_switch_collector)
+
+
+def log_punishments(challenge, events):
+    """Forward Punishment/ContributionPunishment/PassivePunishment events to the logger.
+
+    Takes the pre-parsed events dict from print_round_summary to avoid parsing twice.
+    """
+    if challenge._logger is None:
+        return
+    r = challenge.pytorch_model.round
+    user_map = {u.address: u for u in challenge.pytorch_model.participants + challenge.pytorch_model.disqualified}
+
+    for ev in events.get("Punishment", []):
+        args = ev["args"]
+        u = user_map.get(args["victim"])
+        challenge._logger.punishment(
+            round=r, user_id=u.id if u else None, user_address=args["victim"],
+            punishment_type="punishment",
+            loss=args["loss"], round_score=args["roundScore"], new_reputation=args["newReputation"],
+        )
+
+    for ev in events.get("ContributionPunishment", []):
+        args = ev["args"]
+        u = user_map.get(args["user"])
+        challenge._logger.punishment(
+            round=r, user_id=u.id if u else None, user_address=args["user"],
+            punishment_type="contribution",
+            loss=args["loss"], round_score=args["roundScore"], new_reputation=args["newReputation"],
+        )
+
+    for ev in events.get("PassivePunishment", []):
+        args = ev["args"]
+        u = user_map.get(args["victim"])
+        challenge._logger.punishment(
+            round=r, user_id=u.id if u else None, user_address=args["victim"],
+            punishment_type="passive",
+            loss=args.get("loss"), round_score=args["roundScore"], new_reputation=None,
+        )
+
+
+def log_evaluation_voting_rewards(challenge, events):
+    """Forward EvaluationVotingReward contract events to the logger."""
+    if challenge._logger is None:
+        return
+    r = challenge.pytorch_model.round
+    user_map = {u.address: u for u in challenge.pytorch_model.participants + challenge.pytorch_model.disqualified}
+    for ev in events.get("EvaluationVotingReward", []):
+        args = ev["args"]
+        u = user_map.get(args["user"])
+        challenge._logger.evaluation_voting_reward(
+            round=r, user_id=u.id if u else None, user_address=args["user"],
+            staked=args["staked"], rewarded=args["rewarded"], new_reputation=args["newReputation"],
+        )
+
+
+def log_evaluation_votes(challenge, softmax_records):
+    """Log per-voter softmax details for each evaluated user (loss_only strategy).
+
+    softmax_records: list of dicts with keys:
+        evaluated_user, voter_user  (Participant objects)
+        loss_vote, avg_loss_true_value, softmax_reward  (floats)
+    """
+    if challenge._logger is None:
+        return
+    r = challenge.pytorch_model.round
+    for rec in softmax_records:
+        eu = rec["evaluated_user"]
+        vu = rec["voter_user"]
+        challenge._logger.evaluation_vote(
+            round=r,
+            evaluated_user_id=eu.id, evaluated_user_address=eu.address,
+            voter_user_id=vu.id, voter_user_address=vu.address,
+            loss_vote=rec["loss_vote"],
+            avg_loss_true_value=rec["avg_loss_true_value"],
+            softmax_reward=rec["softmax_reward"],
+        )

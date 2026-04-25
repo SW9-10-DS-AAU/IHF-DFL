@@ -762,6 +762,9 @@ class FLChallenge(ConnectionHelper):
                 print(red(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
             print("-----------------------------------------------------------------------------------\n")
 
+        logging.log_punishments(self, events)
+        logging.log_evaluation_voting_rewards(self, events)
+
         # round grs summary print
         print(b(f"Round {self.pytorch_model.round - 1} completed:"))
         print(b("Round Rewards (per user):"))
@@ -844,7 +847,7 @@ class FLChallenge(ConnectionHelper):
                 "GasTransactions": roundTx
             })
 
-        # logging.log_round_zero(self)
+        logging.log_round_zero(self)
 
         for i in range(rounds):
             print(b(f"\n\nRound {self.pytorch_model.round} starts..."))
@@ -909,11 +912,11 @@ class FLChallenge(ConnectionHelper):
             _round_time = time.perf_counter() - _round_start
             _current_round = self.pytorch_model.round - 1
 
-            # logging.log_round(self,
-            #     _current_round, _round_time,
-            #     accuracy_matrix, loss_matrix, prev_accs, prev_losses,
-            #     contributors, receipt, users_weight_collector, agg_switch_collector,
-            # )
+            logging.log_round(self,
+                _current_round, _round_time,
+                accuracy_matrix, loss_matrix, prev_accs, prev_losses,
+                contributors, receipt, users_weight_collector, agg_switch_collector,
+            )
 
             grs = [(user.address, user._globalrep[-1]) for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
             round_punishment = [(punishment[0], punishment[1]) for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]

@@ -276,6 +276,7 @@ def _calculate_scores_loss_only(challenge, users, mad_threshold=1.1):
     avg_prev_loss = np.mean(mad_prev_losses)
     avg_losses = []  # after loop: [60, 70, 50, 80]
     per_user_outlier_info = []
+    softmax_records = []
     user_map = {u.address: u for u in users}
     for u in users: u.evaluation_reward = 0
 
@@ -299,11 +300,18 @@ def _calculate_scores_loss_only(challenge, users, mad_threshold=1.1):
             raise type(e)(f"Failed while processing user data: {e}") from e
 
         rewards = softmax_rewards(losses, avg_loss, 1, 0.01)
-        for voter, reward in zip(voters, rewards):
-            if voter in user_map:
-                user_map[voter].evaluation_reward += reward
+        for voter_addr, loss_vote, reward in zip(voters, losses, rewards):
+            if voter_addr in user_map:
+                user_map[voter_addr].evaluation_reward += reward
+                softmax_records.append({
+                    "evaluated_user":      u,
+                    "voter_user":          user_map[voter_addr],
+                    "loss_vote":           loss_vote,
+                    "avg_loss_true_value": avg_loss,
+                    "softmax_reward":      reward,
+                })
             else:
-                warnings.warn("Voter {} not found among merging users".format(voter))
+                warnings.warn("Voter {} not found among merging users".format(voter_addr))
 
     norm_losses = normalize_contribution_scores_new(avg_losses, avg_prev_loss, 'loss')
     # print(f"normalized losses: {norm_losses}")
@@ -326,7 +334,7 @@ def _calculate_scores_loss_only(challenge, users, mad_threshold=1.1):
     scores = norm_losses
 
     # print(f"scores = {scores}")
-
+    logging.log_evaluation_votes(challenge, softmax_records)
     logging.log_contribution_scores(challenge, users, scores, avg_losses, per_user_outlier_info, avg_prev_loss)
 
     return scores

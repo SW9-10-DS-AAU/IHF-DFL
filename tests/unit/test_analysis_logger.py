@@ -22,7 +22,7 @@ def _populated_logger(experiment_id="test-exp"):
         grs=int(1e18), sub_personal_acc=0.82, sub_personal_loss=110,
         sub_global_acc=0.85, sub_global_loss=120,
         round_reputation_assigned=100,
-        reward_delta=int(5e17), is_reward=True,
+        reward_delta=int(5e17),
         merged=True, merge_weight=0.25,
     )
     logger.vote(
@@ -44,7 +44,10 @@ def _populated_logger(experiment_id="test-exp"):
 def test_finalize_returns_all_tables():
     logger = ExperimentLogger("exp", {})
     tables = logger.finalize()
-    assert set(tables.keys()) == {"global", "users", "votes", "receipts", "contributions", "warnings"}
+    assert set(tables.keys()) == {
+        "global", "users", "votes", "receipts", "contributions", "warnings",
+        "punishments", "evaluation_rewards", "evaluation_votes",
+    }
 
 
 def test_global_table_columns():
@@ -197,7 +200,14 @@ def test_null_logger_all_methods_do_not_raise():
                         grs=0, sub_personal_acc=0, sub_personal_loss=0,
                         sub_global_acc=0, sub_global_loss=0,
                         round_reputation_assigned=0,
-                        reward_delta=0, is_reward=True, merged=True, merge_weight=0.25)
+                        reward_delta=0, merged=True, merge_weight=0.25)
+    null.punishment(round=1, user_id=0, user_address="0x0", punishment_type="punishment",
+                        loss=100, round_score=-1, new_reputation=0)
+    null.evaluation_voting_reward(round=1, user_id=0, user_address="0x0",
+                                      staked=100, rewarded=10, new_reputation=110)
+    null.evaluation_vote(round=1, evaluated_user_id=1, evaluated_user_address="0x1",
+                             voter_user_id=0, voter_user_address="0x0",
+                             loss_vote=50, avg_loss_true_value=45, softmax_reward=0.5)
     null.vote(round=1, giver_id=0, receiver_id=1,
                   giver_address="0x0", receiver_address="0x1",
                   vote_feedback_score=1, vote_prev_accuracy=0,
