@@ -1,6 +1,5 @@
 from types import SimpleNamespace
-
-import openfl.utils.printer as printer
+import utils.printer as printer
 
 
 def test_print_respects_only_summary_flag_false(capsys, monkeypatch):

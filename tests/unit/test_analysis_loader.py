@@ -18,12 +18,15 @@ def _write_pkl(path, experiment_id, metadata=None):
         "metadata": metadata or {},
         "setup": {},
         "tables": {
-            "global":        pd.DataFrame(),
-            "users":         pd.DataFrame(),
-            "votes":         pd.DataFrame(),
-            "receipts":      pd.DataFrame(),
-            "contributions": pd.DataFrame(),
-            "warnings":      pd.DataFrame(),
+            "global":              pd.DataFrame(),
+            "users":               pd.DataFrame(),
+            "votes":               pd.DataFrame(),
+            "receipts":            pd.DataFrame(),
+            "contributions":       pd.DataFrame(),
+            "warnings":            pd.DataFrame(),
+            "punishments":         pd.DataFrame(),
+            "evaluation_rewards":  pd.DataFrame(),
+            "evaluation_votes":    pd.DataFrame(),
         },
     }
     with open(path, "wb") as f:
@@ -76,6 +79,9 @@ def test_load_run_tables_are_dataframes(tmp_path):
     assert isinstance(run.receipts, pd.DataFrame)
     assert isinstance(run.contributions, pd.DataFrame)
     assert isinstance(run.warnings, pd.DataFrame)
+    assert isinstance(run.punishments, pd.DataFrame)
+    assert isinstance(run.evaluation_rewards, pd.DataFrame)
+    assert isinstance(run.evaluation_votes, pd.DataFrame)
 
 
 def test_load_run_metadata_preserved(tmp_path):

@@ -1,34 +1,42 @@
 from datetime import datetime
 import json
 import multiprocessing as mp
+from pathlib import Path
 import re
 import sys
 import traceback
+import argparse
+
+# Running this file directly puts experiment/ on sys.path.
+# Insert src/ and repo root before any project imports so they resolve
+# regardless of whether the editable install is present.
+_repo = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_repo / "src"))
+sys.path.insert(0, str(_repo))
+
+from utils.paths import repo_root
+REPO_ROOT = repo_root(Path(__file__))
+
+import experiment.experiment_runner as ExperimentRunner
 from itertools import product
 from dataclasses import dataclass
 from experiment.helper import getPath
-import argparse
-import experiment.experiment_runner as ExperimentRunner
 from experiment.experiment_configuration import ExperimentConfiguration
 from experiment.experiment_presets import PRESETS
-from openfl.utils import repo_root
-from openfl.utils.async_writer import AsyncWriter
+from utils.async_writer import AsyncWriter
 from selector import choose_from_list
-
-# Add the repo root to sys.path so `analysis` package is importable from here
-sys.path.insert(0, str(repo_root()))
 from analysis import ExperimentLogger
 
-DATA_ROOT = repo_root() / "data"
+DATA_ROOT = REPO_ROOT / "data"
 DATASETSLOW = "cifar.10"
 DATASETFAST = "mnist"
-RESULTDATAFOLDER = repo_root() / "data" / "runs" / "experiments"
+RESULTDATAFOLDER = REPO_ROOT / "data" / "runs" / "experiments"
 
 # ---------------- PRESET SEARCH SPACE ----------------
 
 # preset = "test"
-preset = "aggregation_rules_test_model_performance_people_get_kicked_now_mnist"
-_use_defaults = False
+preset = "test"
+_use_defaults = True
 datasets = [ DATASETFAST ]
 
 

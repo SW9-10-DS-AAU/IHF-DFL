@@ -46,6 +46,7 @@ def test_compile_contracts_runs_with_stubs(tmp_path, monkeypatch):
     module_path = tmp_path / "pkg" / "compile_contracts.py"
     module_path.parent.mkdir(parents=True, exist_ok=True)
     module_path.write_text(code)
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = \"test\"\n", encoding="utf-8")
 
     # Create fake contract sources
     contracts_dir = tmp_path / "contracts"

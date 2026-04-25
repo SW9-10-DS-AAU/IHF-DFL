@@ -1,12 +1,11 @@
 import sys
 from pathlib import Path
+from utils.paths import repo_root
 
-# Repo root is one level above this script (analysis/)
-REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT))
+REPO_ROOT = repo_root(Path(__file__))
 
 import matplotlib.pyplot as plt
-from analysis import load_runs_recursive, normalize_runs, merge_runs, aggregations as agg, plots
+from analysis import load_runs, normalize_runs, merge_runs, aggregations as agg, plots
 
 # Set to a specific timestamp folder, or leave as None to scan all folders
 FOLDER = "26-02-26--11_04_41"
@@ -17,7 +16,7 @@ if FOLDER:
 
 print(f"Scanning: {data_dir}")
 
-runs = load_runs_recursive(data_dir)
+runs = load_runs(data_dir)
 print(f"Loaded {len(runs)} run(s)")
 
 if not runs:

@@ -9,8 +9,9 @@ import pandas as pd
 from web3 import Web3
 from termcolor import colored
 from subprocess import Popen, PIPE
-from openfl.ml.pytorch_model import gb, rb, b, green, red
-from openfl.utils import require_env_var
+from utils.colors import gb, rb, b, green, red
+from utils.paths import repo_root
+from utils.require_env import require_env_var
 
 class ConnectionHelper:
     # Start Ganache client with connection to infura
@@ -139,7 +140,7 @@ class ConnectionHelper:
         return w3
     
     def initialize(self, nobody_is_kicked=False):
-        bytecode_path = Path(__file__).resolve().parents[3] / "artifacts" / "bytecode"
+        bytecode_path = repo_root(Path(__file__)) / "artifacts" / "bytecode"
         if nobody_is_kicked:
             with open(bytecode_path / "abi_mgr_nobody.txt") as abiFile:
                 abi = re.sub("\n|\t|\ ", "", abiFile.read())
@@ -154,7 +155,7 @@ class ConnectionHelper:
 
     
     def initialize_model(self, address=None, nobody_is_kicked=False):
-        bytecode_path = Path(__file__).resolve().parents[3] / "artifacts" / "bytecode"
+        bytecode_path = repo_root(Path(__file__)) / "artifacts" / "bytecode"
         if nobody_is_kicked:
             with open(bytecode_path / "abi_model_nobody.txt") as abiFile:
                 abi = re.sub("\n|\t|\ ", "", abiFile.read())

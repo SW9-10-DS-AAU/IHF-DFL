@@ -1,15 +1,14 @@
-from types import SimpleNamespace
-from unittest.mock import MagicMock
 import torch
 import torch.nn as nn
-import pytest
-import numpy as np
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+from contracts import contribution
 
 # All scoring helpers come from the challenge contract. These tests
 # validate how the contract normalizes/weights participant updates across the
 # three scoring strategies exposed in production (dotproduct, naive, accuracy).
-from openfl.contracts.fl_challenge import (
-    FLChallenge,
+from contracts.fl_challenge import FLChallenge
+from contracts.contribution import (
     calc_contribution_score_naive,
     calc_contribution_scores_dotproduct,
 )
@@ -111,7 +110,7 @@ class TestDotProductScoring:
         backup = make_participant(2, TinyModel(1.05), merged)
 
         challenge = build_challenge("dotproduct", use_outlier_detection=False)
-        scores = challenge._calculate_scores_dotproduct([honest, freerider, backup])
+        scores = contribution._calculate_scores_dotproduct(challenge, [honest, freerider, backup])
 
         local_updates = torch.stack([
             torch.tensor([1.0, 1.0]),
@@ -137,7 +136,7 @@ class TestDotProductScoring:
         backup = make_participant(2, TinyModel(1.1), merged)
 
         challenge = build_challenge("dotproduct", use_outlier_detection=False)
-        scores = challenge._calculate_scores_dotproduct([honest, freerider, backup])
+        scores = contribution._calculate_scores_dotproduct(challenge, [honest, freerider, backup])
 
         assert scores[2] > scores[0] > scores[1]
 
@@ -156,8 +155,8 @@ class TestDotProductScoring:
         challenge_no_filter = build_challenge("dotproduct", use_outlier_detection=False)
         challenge_filter = build_challenge("dotproduct", use_outlier_detection=True)
 
-        raw_scores = challenge_no_filter._calculate_scores_dotproduct([honest, freerider, backup])
-        filtered_scores = challenge_filter._calculate_scores_dotproduct([honest, freerider, backup])
+        raw_scores = contribution._calculate_scores_dotproduct(challenge_no_filter, [honest, freerider, backup])
+        filtered_scores = contribution._calculate_scores_dotproduct(challenge_filter, [honest, freerider, backup])
 
         assert abs(filtered_scores[1]) <= abs(raw_scores[1])
         assert filtered_scores[0] > 0
@@ -177,7 +176,7 @@ class TestDotProductScoring:
         ]
 
         challenge = build_challenge("dotproduct", use_outlier_detection=False)
-        scores = challenge._calculate_scores_dotproduct(participants)
+        scores = contribution._calculate_scores_dotproduct(challenge, participants)
 
         assert scores[0] == scores[1] == scores[2]
 
@@ -193,7 +192,7 @@ class TestDotProductScoring:
         freerider = make_participant(2, TinyModel(0.9), merged)
 
         challenge = build_challenge("dotproduct", use_outlier_detection=False)
-        scores = challenge._calculate_scores_dotproduct([honest, anti_aligned, freerider])
+        scores = contribution._calculate_scores_dotproduct(challenge, [honest, anti_aligned, freerider])
 
         assert scores[1] < 0
         assert scores[0] > scores[2] > scores[1]
@@ -212,10 +211,10 @@ class TestDotProductScoring:
         ]
 
         challenge = build_challenge("dotproduct", use_outlier_detection=False)
-        baseline = challenge._calculate_scores_dotproduct(participants)
+        baseline = contribution._calculate_scores_dotproduct(challenge, participants)
 
         reversed_participants = list(reversed(participants))
-        reversed_scores = challenge._calculate_scores_dotproduct(reversed_participants)
+        reversed_scores = contribution._calculate_scores_dotproduct(challenge, reversed_participants)
 
         baseline_by_addr = {p.address: score for p, score in zip(participants, baseline)}
         reversed_by_addr = {p.address: score for p, score in zip(reversed_participants, reversed_scores)}
@@ -237,7 +236,7 @@ class TestNaiveScoring:
         ]
 
         challenge = build_challenge("naive")
-        scores = challenge._calculate_scores_naive(participants)
+        scores = contribution._calculate_scores_naive(challenge, participants)
 
         expected = [calc_contribution_score_naive(len(participants))] * len(participants)
         assert scores == expected
@@ -256,7 +255,7 @@ class TestNaiveScoring:
         ]
 
         challenge = build_challenge("naive")
-        scores = challenge._calculate_scores_naive(participants)
+        scores = contribution._calculate_scores_naive(challenge, participants)
 
         assert len(set(scores)) == 1
 
@@ -275,7 +274,7 @@ class TestNaiveScoring:
         ]
 
         challenge = build_challenge("naive")
-        scores = challenge._calculate_scores_naive(participants)
+        scores = contribution._calculate_scores_naive(challenge, participants)
 
         assert all(score == scores[0] for score in scores)
 
@@ -290,7 +289,7 @@ class TestNaiveScoring:
         participants = [make_participant(0, TinyModel(1.5), merged)]
 
         challenge = build_challenge("naive")
-        scores = challenge._calculate_scores_naive(participants)
+        scores = contribution._calculate_scores_naive(challenge, participants)
 
         assert scores == [int(1e18)]
 
@@ -307,7 +306,7 @@ class TestNaiveScoring:
         ]
 
         challenge = build_challenge("naive")
-        scores = challenge._calculate_scores_naive(participants)
+        scores = contribution._calculate_scores_naive(challenge, participants)
 
         expected_score = calc_contribution_score_naive(len(participants))
         assert scores == [expected_score] * len(participants)
@@ -325,7 +324,7 @@ class TestNaiveScoring:
         ]
 
         challenge = build_challenge("naive")
-        scores = challenge._calculate_scores_naive(participants)
+        scores = contribution._calculate_scores_naive(challenge, participants)
 
         per_user = calc_contribution_score_naive(len(participants))
         assert sum(scores) == per_user * len(participants)
@@ -391,7 +390,7 @@ class TestAccuracyScoring:
         contract = make_accuracy_contract(prev_accs, prev_losses, metrics)
         challenge = build_challenge("accuracy", contract=contract)
 
-        scores = challenge._calculate_scores_accuracy_loss(users)
+        scores = contribution._calculate_scores_accuracy_loss(challenge, users)
 
         assert scores[1] < min(scores[0], scores[2])
 
@@ -416,7 +415,7 @@ class TestAccuracyScoring:
         contract = make_accuracy_contract(prev_accs, prev_losses, metrics)
         challenge = build_challenge("accuracy", contract=contract)
 
-        scores = challenge._calculate_scores_accuracy_loss(users)
+        scores = contribution._calculate_scores_accuracy_loss(challenge, users)
 
         assert scores[1] == min(scores)
         assert scores[0] > scores[2] > scores[1]
@@ -442,7 +441,7 @@ class TestAccuracyScoring:
         contract = make_accuracy_contract(prev_accs, prev_losses, metrics)
         challenge = build_challenge("accuracy", contract=contract)
 
-        scores = challenge._calculate_scores_accuracy_loss(users)
+        scores = contribution._calculate_scores_accuracy_loss(challenge, users)
 
         assert scores[0] == scores[1] == scores[2]
 

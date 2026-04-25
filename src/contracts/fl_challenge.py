@@ -1,41 +1,39 @@
-import asyncio
 import datetime
 import os
 import time
 import warnings
-import math
-
-import torch
 import numpy as np
-from types import SimpleNamespace
-from decimal import Decimal
-from collections.abc import Mapping
+import matplotlib.pyplot as plt
+import ml.attacks as attacks
+import ml.evaluation as evaluation
+import ml.aggregation as aggregation
 from eth_abi import encode
 from web3 import Web3
 from termcolor import colored
-import matplotlib.pyplot as plt
 from web3.exceptions import ContractLogicError
-from openfl.contracts import FLManager
-from openfl.ml.pytorch_model import gb, rb, b, green, red
-from openfl.utils import printer, config
-from openfl.api.connection_helper import ConnectionHelper
-from openfl.utils.async_writer import AsyncWriter, NullWriter
-import openfl.utils.config
-from openfl.utils.shapley import check_shapley_compliance
-# Smart-contract–backed federated learning simulation.
-# Handles:
-#   - User registration / exit on-chain
-#   - Hashed model submission & slot reservation
-#   - Feedback exchange (reputation updates)
-#   - Contribution score calculation (dot-product & MAD-based)
-#   - Round settlement and visualization
+from utils.colors import rb, b, green, red
+from utils import printer, config
+from api.connection_helper import ConnectionHelper
+from utils.async_writer import AsyncWriter, NullWriter
+from contracts import contribution
+from contracts import logging
+from contracts.contribution import contribution_score
+
 UINT256_MAX = 2**256 - 1
 
-class FLChallenge(FLManager):
-    def __init__(self, manager, configs, pyTorchModel, experiment_config, writer: AsyncWriter=None, logger=None):
-        self.manager = manager
-        self.w3 = manager.w3
+class FLChallenge(ConnectionHelper):
+    """
+    Smart-contract-backed federated learning simulation.
 
+    Handles:
+      - User registration / exit on-chain
+      - Hashed model submission & slot reservation
+      - Feedback exchange (reputation updates)
+      - Contribution scoring (delegated to `contribution`)
+      - Round settlement and visualization
+    """
+    def __init__(self, manager, configs, pyTorchModel, experiment_config, writer: AsyncWriter=None, logger=None):
+        self.w3 = manager.w3
         self.model, self.modelAddress = configs[:2]
         self.pytorch_model = pyTorchModel
         self.MIN_BUY_IN, self.MAX_BUY_IN, self.REWARD, self.MIN_ROUNDS = configs[2:6]
@@ -43,7 +41,6 @@ class FLChallenge(FLManager):
         self.PUNISHMENT_FACTOR_CONTRIB = configs[7]
         self.FREERIDER_FACTOR = configs[8]
         self.fork = manager.fork
-
         self.gas_feedback = []
         self.gas_register = []
         self.gas_slot     = []
@@ -52,44 +49,19 @@ class FLChallenge(FLManager):
         self.gas_deploy   = []
         self.gas_exit     = []
         self.txHashes     = []
-
+        self.scores       = []
         self._reward_balance = [self.REWARD]
         self._punishments = []
         self.config = config.get_contracts_config()
         self.writer = writer or NullWriter()
         self._logger = logger
         self.writeTxProgress = 0
-
-
-        self._contribution_score_strategy = experiment_config.contribution_score_strategy
-        self._contribution_score_calculators = {
-            "dotproduct": self._calculate_scores_dotproduct,
-            "naive": self._calculate_scores_naive,
-            "accuracy_loss": self._calculate_scores_accuracy_loss,
-            "accuracy_only": self._calculate_scores_accuracy_only,
-            "loss_only": self._calculate_scores_loss_only,
-        }
         self.experiment_config = experiment_config
-
         self.disqualifiedUserEvents = []
 
         print("Contract address:", self.model.address)
         print("Contract ABI functions:", [f["name"] for f in self.model.abi if f["type"] == "function"])
 
-    def _get_contribution_score_calculator(self):
-        """
-        Return the function used for contribution-score calculation,
-        based on the configured strategy.
-        """
-
-        strategy = self._contribution_score_strategy
-        if strategy not in self._contribution_score_calculators:
-            available = ", ".join(sorted(self._contribution_score_calculators))
-            raise ValueError(
-                f"Unknown contribution score strategy '{strategy}'. Available strategies: {available}"
-            )
-        print("strategy: ", strategy)
-        return self._contribution_score_calculators[strategy]
         
     def register_all_users(self):
         """
@@ -129,23 +101,69 @@ class FLChallenge(FLManager):
             
             self.gas_register.append(receipt["gasUsed"])
             self.txHashes.append(("register",receipt["transactionHash"].hex(), receipt["gasUsed"]))
-            self._log_receipt(receipt, "register", round=0)
+            logging.log_receipt(self, receipt, "register", round=0)
         printer._print("-----------------------------------------------------------------------------------", "\n")
         
     
     def get_hashed_weights_of(self, user):
         return self.model.functions.weightsOf(user.address,self.pytorch_model.round-1).call({"to": self.modelAddress})
-    
-    def get_global_reputation_of_user(self, userAddr):
-        user = self.model.functions.getUser(userAddr).call()
+
+
+    def get_global_reputation_of_user(self, user_addr):
+        user = self.model.functions.getUser(user_addr).call()
         return user[2]
-    
+
+
     def get_round_reputation_of_user(self, user):
         user_struct = self.model.functions.users(user).call()
         return user_struct[2]
 
+
+    def get_all_accuracies_and_losses_about(self, user_addr):
+        voters, accuracies, losses = self.model.functions.getAllAccuraciesLossesAbout(user_addr).call()
+        return voters, accuracies, losses
+
+
+    def get_all_accuracies_about(self, user_addr):
+        voters, accuracies = self.model.functions.getAllAccuraciesAbout(user_addr).call()
+        return voters, accuracies
+
+
+    def get_all_losses_about(self, user_addr):
+        voters, losses = self.model.functions.getAllLossesAbout(user_addr).call()
+        return voters, losses
+
+
+    # 'all' as in users
+    def get_all_previous_accuracies_and_losses(self):
+        prev_accuracies, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses().call()
+        return prev_accuracies, prev_losses
+
+
+    def get_all_n_prior_losses(self, n_rounds: int):
+        # returns whatever rounds are available, up to n_rounds. So:
+        #   - Round 0 or 1: returns empty list []
+        #   - Round 2: returns [round-1] — only one round back
+        #   - Round 3: returns [round-1, round-2]
+        #   - Round 5+: returns [round-1, round-2, round-3, round-4] (if n_rounds=4)
+        #
+        #   The caller checks the length and decides what to do — if fewer than 2 entries, not enough data to compute a trend, fall back to default
+        #   behavior.
+        assert n_rounds >= 2, "n_rounds must be at least 2 to compute a trend"
+        contract_round = self.model.functions.round().call()
+        losses_per_round = []
+
+        for steps_back in range(1, n_rounds + 1):
+            if contract_round >= steps_back:
+                losses = self.model.functions.getAllNPriorLosses(steps_back).call()
+                mad_losses = contribution.remove_outliers_mad(losses)
+                losses_per_round.append(np.mean(mad_losses))
+        return losses_per_round  # [round-1, round-2, ..., round-n]
+
+
     def get_reward_left(self):
         return self.model.functions.rewardLeft().call({"to": self.modelAddress})
+
 
     def users_provide_hashed_weights(self):
 
@@ -183,9 +201,8 @@ class FLChallenge(FLManager):
             
             self.gas_weights.append(receipt["gasUsed"])
             self.txHashes.append(("weights", receipt["transactionHash"].hex(), receipt["gasUsed"]))
-            self._log_receipt(receipt, "weights")
+            logging.log_receipt(self, receipt, "weights")
         # printer._print("-----------------------------------------------------------------------------------\n")
-        
 
              
     def give_feedback(self, feedbackGiver, target, score):
@@ -247,8 +264,7 @@ class FLChallenge(FLManager):
                                     pre,
                                     self.get_global_reputation_of_user(feedbackGiver.address)), col))
         return txHash
-        
-            
+
     
     def return_stats(self):
         print("\n==================================================================================\n")
@@ -283,7 +299,7 @@ class FLChallenge(FLManager):
             
             self.gas_feedback.append(receipt["gasUsed"])
             self.txHashes.append(("feedback", receipt["transactionHash"].hex(), receipt["gasUsed"]))
-            self._log_receipt(receipt, "feedback")
+            logging.log_receipt(self, receipt, "feedback")
         for user in self.pytorch_model.participants:
             user._roundrep.append(self.get_round_reputation_of_user(user.address))
 
@@ -291,6 +307,7 @@ class FLChallenge(FLManager):
             user._roundrep.append(self.get_round_reputation_of_user(user.address))
         # printer._print("                                                   ")
         # print("\n-----------------------------------------------------------------------------------")
+
 
     def build_feedback_bytes(self, a, v):
         fbb = ""  # keep as string
@@ -306,8 +323,7 @@ class FLChallenge(FLManager):
 
         return fbb
 
-                
-    
+
     def quick_feedback_round(self, fbm, am = None, lm = None, prev_accs = None, prev_losses = None):
         print("Users exchanging feedback...")
         txs = []
@@ -428,7 +444,7 @@ class FLChallenge(FLManager):
         self.txHashes.append((receipt_type, receipt["transactionHash"].hex(), receipt["gasUsed"]))
         # Writer (old logger) uses this to log
 
-        self._log_receipt(receipt, receipt_type)
+        logging.log_receipt(self, receipt, receipt_type)
         # New logger log this way
 
 
@@ -458,26 +474,6 @@ class FLChallenge(FLManager):
                 raise
         return tx_hash
 
-    # Not used
-    # def call_close_feedback_round(self, force):
-    #     if self.fork:
-    #         tx = super().build_tx(self.w3.eth.default_account, self.modelAddress, 0)
-    #         txHash = self.model.functions.closeFeedBackRound(force).transact(tx)
-    #
-    #     else:
-    #         nonce = self.w3.eth.get_transaction_count(self.pytorch_model.participants[0].address)
-    #         cl = super().build_non_fork_tx(self.pytorch_model.participants[0].address,
-    #                                     nonce,
-    #                                     self.modelAddress,
-    #                                     0)
-    #         cl =  self.model.functions.closeFeedBackRound(force).buildTransaction(cl)
-    #         pk = self.pytorch_model.participants[0].privateKey
-    #         signed = self.w3.eth.account.signTransaction(cl, private_key=pk)
-    #         txHash = self.w3.eth.sendRawTransaction(signed.rawTransaction)
-    #
-    #     return self.w3.eth.wait_for_transaction_receipt(txHash,
-    #                                                     timeout=600,
-    #                                                     poll_latency=1)
 
     def close_round(self):
         if "inactive" in [acc.attitude for acc in self.pytorch_model.participants]:
@@ -524,13 +520,14 @@ class FLChallenge(FLManager):
 
         self.txHashes.append(("close", receipt["transactionHash"].hex(), receipt["gasUsed"]))
         self.gas_close.append(receipt["gasUsed"])
-        self._log_receipt(receipt, "close")
+        logging.log_receipt(self, receipt, "close")
         if len(receipt.logs) == 0:
             print("Warning: closeFeedBackRound() emitted no logs")
         self.pytorch_model.round += 1
         self._reward_balance.append(self.get_reward_left())
         printer._print("\n-----------------------------------------------------------------------------------\n")
         return receipt
+
 
     def user_register_slot(self):
         txs = []
@@ -572,12 +569,11 @@ class FLChallenge(FLManager):
             
             self.gas_slot.append(receipt["gasUsed"])
             self.txHashes.append(("slot", receipt["transactionHash"].hex(), receipt["gasUsed"]))
-            self._log_receipt(receipt, "slot")
+            logging.log_receipt(self, receipt, "slot")
         # printer._print("-----------------------------------------------------------------------------------\n")
         return 
     
-    
-    
+
     def exit_system(self):
       
         print(b(f"Terminating Model..."))
@@ -610,8 +606,9 @@ class FLChallenge(FLManager):
             
             self.gas_exit.append(receipt["gasUsed"])
             self.txHashes.append(("exit", receipt["transactionHash"].hex(), receipt["gasUsed"]))
-            self._log_receipt(receipt, "exit")
+            logging.log_receipt(self, receipt, "exit")
         printer._print("-----------------------------------------------------------------------------------\n")
+
 
     def get_events(self, w3, contract, receipt, event_names):
         """
@@ -639,7 +636,8 @@ class FLChallenge(FLManager):
                     results[name].append(decoded)
 
         return results
-    
+
+
     def print_round_summary(self, receipt):
         for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
             user.temporary_grs_evaluation = None
@@ -765,6 +763,8 @@ class FLChallenge(FLManager):
                 print(red(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
             print("-----------------------------------------------------------------------------------\n")
 
+        logging.log_punishments(self, events)
+        logging.log_evaluation_voting_rewards(self, events)
 
         # round grs summary print
         print(b(f"Round {self.pytorch_model.round - 1} completed:"))
@@ -781,378 +781,6 @@ class FLChallenge(FLManager):
                 j = f"{eval_grs:,.0f}"
             i, k = user._globalrep[-2:]
             print(b("{:>20}  {:>25,.0f} -> {:>25} -> {:>25,.0f}".format(user.address[0:16] + "...", i, j, k)))
-
-
-    def contribution_score(self, _users):
-        """
-        Compute contribution scores for all merging users, submit them to the
-        contract, and log them. Strategy is chosen by _get_contribution_score_calculator:
-          - legacy: simple dot-product
-          - mad: MAD-based outlier filtering of weights
-          - naive: equal-share (1 / num_mergers)
-        """
-
-        # Guard: no users → nothing to score
-        if not _users:
-            print("-----------------------------------------------------------------------------------")
-            print("No users passed to contribution_score – skipping.")
-            print("-----------------------------------------------------------------------------------")
-            return
-
-        print("Calculating contribution scores and evaluation rewards...\n")
-    
-
-        if len(_users) <= 3:
-            share = 1.0 / len(_users)
-            msg = f"[Round {self.pytorch_model.round}] Too few contributors ({len(_users)}) for contribution scoring – using equal shares({share: .4f} each)"
-            print(colored(msg, "yellow"))
-            self._log_warning(msg)
-            scores = [share] * len(_users)
-            self._log_contribution_scores(_users, scores, None, None, None)
-            for u in _users: u.evaluation_reward = 1
-        else:
-            calculator = self._get_contribution_score_calculator() # Choose scoring algorithm based on configured strategy
-            scores = calculator(_users)
-
-        self.scores = scores
-
-        txs = []
-        for u, score in zip(_users, self.scores):
-            u.contribution_score = score
-            if self.fork:
-                tx = super().build_tx(u.address, self.modelAddress)
-                tx_hash = self.model.functions.submitContributionScoreAndVotingEvaluation(
-                    int(Decimal(score) * Decimal('1e18')), int(Decimal(u.evaluation_reward) * Decimal('1e18'))
-                ).transact(tx)
-            else:
-                nonce = self.w3.eth.get_transaction_count(u.address)
-                cl = super().build_non_fork_tx(
-                    u.address,
-                    nonce,
-                )
-                cl = self.model.functions.submitContributionScore(
-                    int(Decimal(score) * Decimal('1e18')),int(Decimal(u.evaluation_reward) * Decimal('1e18'))
-                ).build_transaction(cl)
-                pk = u.privateKey
-                signed = self.w3.eth.account.sign_transaction(cl, private_key=pk)
-                tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
-            txs.append(tx_hash)
-
-        for i, txHash in enumerate(txs):
-            self.track_transaction(i, txHash, len(txs), "contrib")
-
-
-        for u in _users:
-            print(green(f"\nUSER @ {u.address}"))
-            print(green(f"{'CONTRIBUTION SCORE:':25}{u.contribution_score}"))
-            print(green(f"{'EVALUATION REWARD:':25}{u.evaluation_reward}")) if u.evaluation_reward is not None else None
-        print("-----------------------------------------------------------------------------------\n")
-
-
-    def _calculate_scores_dotproduct(self, users):
-        """
-        MAD-based scoring: robust per-weight outlier filtering before scoring.
-        """
-        merged_model = users[0].model
-        global_update = torch.cat([p.data.view(-1) for p in merged_model.parameters()])
-        local_updates = [
-            torch.cat([p.data.view(-1) for p in u.previousModel.parameters()]) for u in users
-        ]
-        local_updates = torch.stack(local_updates)
-
-        use_outlier_detection = self.experiment_config.use_outlier_detection
-
-        if use_outlier_detection:
-            print("using mad")
-            filtered_global_update, per_user_outlier_info = self.trim_global_update_using_mad(local_updates, global_update)
-            scores = calc_contribution_scores_dotproduct(local_updates, filtered_global_update)
-
-            # Raw dot product per user (pre-normalization), analogous to avg_acc/avg_loss in other strategies
-            dots = torch.mv(local_updates, filtered_global_update)
-            raw_values = [float(d.item()) for d in dots]
-            self._log_contribution_scores(users, scores, raw_values, per_user_outlier_info, None)
-        else:
-            print("not using mad")
-            scores = calc_contribution_scores_dotproduct(local_updates, global_update)
-            self._log_contribution_scores(users, scores, None, None, None)
-
-        return scores
-
-
-    def _calculate_scores_naive(self, users):
-        """
-        Equal-share scoring: everyone contributing gets 1 / num_mergers.
-        """  # unused; included for signature consistency
-        num_mergers = len(users)
-        scores = [calc_contribution_score_naive(num_mergers) for _ in users]
-
-        self._log_contribution_scores(users, scores, None, None, None)
-
-        return scores
-
-
-    def _calculate_scores_accuracy_loss(self, users, mad_threshold = 1.1):
-        """
-        Accuracy-Loss-based scoring: use accuracy and loss directly as contribution score.
-        """
-
-        # accuracies: 1d array
-        # losses: 1d array
-        # prev_acc, prev_loss: int
-
-        # Array of previous accuracies and losses from all users: A tuple of arrays
-        prev_accuracies, prev_losses = self.get_all_previous_accuracies_and_losses()
-
-        # use mad on these and average them
-
-        mad_prev_accuracies = remove_outliers_mad(prev_accuracies, mad_threshold)
-        mad_prev_losses = remove_outliers_mad(prev_losses, mad_threshold)
-
-        avg_prev_acc = np.mean(mad_prev_accuracies)
-        avg_prev_loss = np.mean(mad_prev_losses)
-
-        avg_accuracies = [] # after loop: [30, 20, 30, 40]
-        avg_losses = [] # after loop: [60, 70, 50, 80]
-
-        for u in users: # For loop to extract accuracies and loses.
-
-            # All accuracies and loses per user
-            _, accuracies, losses = self.model.functions.getAllAccuraciesLossesAbout(u.address).call()
-
-            try:
-                # Multiple accuracies and losses per user
-                mad_accuracies = remove_outliers_mad(accuracies, mad_threshold)
-                mad_losses = remove_outliers_mad(losses, mad_threshold)
-
-                # One average accuracy and loss per user
-                avg_acc = np.mean(mad_accuracies)
-                avg_loss = np.mean(mad_losses)
-
-                avg_accuracies.append(avg_acc) # int
-                avg_losses.append(avg_loss) # int
-            except ValueError:
-                print("An error occured")
-
-
-        scores = []
-
-        norm_accuracies = normalize_contribution_scores_old(avg_accuracies, avg_prev_acc)
-        print(f"normalized accuracies: {norm_accuracies}")
-
-        norm_losses = normalize_contribution_scores_old(avg_losses, avg_prev_loss)
-        print(f"normalized losses: {norm_losses}")
-
-        sum_na = sum(norm_accuracies)
-        sum_nl = sum(norm_losses)
-
-        print(f"sum_na: {sum_na}")
-        print(f"sum_nl: {sum_nl}")
-
-        for i in range(len(norm_accuracies)):
-            res = (norm_accuracies[i] + norm_losses[i]) / (sum_na + sum_nl)
-            score = res
-            scores.append(score)
-
-        print(f"scores = {scores}")
-        return scores
-    # Output: An array of user scores
-    # Find out who was merged
-
-
-    def _calculate_scores_accuracy_only(self, users, mad_threshold = 1.1):
-        """
-        Accuracy-based scoring: use accuracy directly as contribution score.
-        """
-
-        # accuracies: 1d array
-        # prev_acc: int
-
-        # Array of previous accuracies from all users: A tuple of arrays
-        prev_accuracies, _ = self.get_all_previous_accuracies_and_losses()
-
-        # use mad on these and average them
-        prev_info = {}
-        mad_prev_accuracies = remove_outliers_mad(prev_accuracies, mad_threshold, collector=prev_info, label="previous")
-        avg_prev_acc = np.mean(mad_prev_accuracies)
-        avg_accuracies = [] # after loop: [30, 20, 30, 40]
-        per_user_outlier_info = []
-
-        for u in users: # For loop to extract accuracies.
-            # All accuracies per user
-            _, accuracies = self.model.functions.getAllAccuraciesAbout(u.address).call()
-
-            try:
-                # Multiple accuracies per user
-                info = {}
-                mad_accuracies = remove_outliers_mad(accuracies, mad_threshold, collector=info, label="current")
-                # One average accuracy per user
-                if len(mad_accuracies) == 0:
-                    raise ValueError("No accuracies left after MAD filtering for user {}".format(u.address))
-                avg_acc = np.mean(mad_accuracies)
-                avg_accuracies.append(avg_acc) # int
-                per_user_outlier_info.append({**prev_info, **info}) # Merge prev (global baseline) and current (per-user) MAD info into one dict; keys are prefixed ("previous_*" / "current_*") so they don't collide
-            except Exception as e:
-                per_user_outlier_info.append({})
-                raise type(e)(f"Failed while processing user data: {e}") from e
-
-        norm_accuracies = normalize_contribution_scores_new(avg_accuracies, avg_prev_acc, 'accuracy')
-        print(f"normalized accuracies: {norm_accuracies}")
-
-        # Validating Shapley Axioms (Runtime Guard)
-        diffs = [v - avg_prev_acc for v in avg_accuracies]
-        success, errors = check_shapley_compliance(diffs, norm_accuracies)
-
-        if not success:
-            msg = f"[Round {self.pytorch_model.round}] Axiom Violation: {errors}"
-            runtime_warnings.append(msg)
-            print(colored(f"{msg}", "yellow"))
-            self._log_warning(msg)
-
-        scores = norm_accuracies
-        print(f"scores = {scores}")
-
-        self._log_contribution_scores(users, scores, avg_accuracies, per_user_outlier_info, avg_prev_acc)
-
-        return scores
-
-
-    def _calculate_scores_loss_only(self, users, mad_threshold = 1.1):
-        """
-        Loss-based scoring: use loss directly as contribution score.
-        """
-
-        # losses: 1d array
-        # prev_loss: int
-
-        # Array of previous losses from all users: A tuple of arrays
-        _, prev_losses = self.get_all_previous_accuracies_and_losses()
-
-        # use mad on these and average them
-        prev_info = {}
-        mad_prev_losses = remove_outliers_mad(prev_losses, mad_threshold, collector=prev_info, label="previous")
-        avg_prev_loss = np.mean(mad_prev_losses)
-        avg_losses = [] # after loop: [60, 70, 50, 80]
-        per_user_outlier_info = []
-        user_map = {u.address: u for u in users}
-        for u in users: u.evaluation_reward = 0
-
-        for u in users: # For loop to extract losses.
-            # All loses per user
-            voters, losses = self.model.functions.getAllLossesAbout(u.address).call()
-
-            try:
-                # Multiple accuracies and losses per user
-                info = {}
-                mad_losses = remove_outliers_mad(losses, mad_threshold, collector=info, label="current")
-                # One average accuracy and loss per user
-                if len(mad_losses) == 0:
-                    raise ValueError("No losses left after MAD filtering for user {}".format(u.address))
-                avg_loss = np.mean(mad_losses)
-                avg_losses.append(avg_loss) # int
-                per_user_outlier_info.append({**prev_info, **info}) # Merge prev (global baseline) and current (per-user) MAD info into one dict; keys are prefixed ("previous_*" / "current_*") so they don't collide
-            except Exception as e:
-                per_user_outlier_info.append({})
-                raise type(e)(f"Failed while processing user data: {e}") from e
-
-
-            rewards = softmax_rewards(losses, avg_loss, 1, 0.01)
-            for voter, reward in zip(voters, rewards):
-                if voter in user_map:
-                    user_map[voter].evaluation_reward += reward
-                else:
-                    warnings.warn("Voter {} not found among merging users".format(voter))
-
-
-
-        norm_losses = normalize_contribution_scores_new(avg_losses, avg_prev_loss, 'loss')
-        # print(f"normalized losses: {norm_losses}")
-
-        sum_nl = sum(norm_losses)
-
-        # print(f"sum_nl: {sum_nl}")
-
-        # Validating Shapley Axioms (Runtime Guard)
-        diffs = [v - avg_prev_loss for v in avg_losses]
-        diffs = [-1 * d for d in diffs]
-        success, errors = check_shapley_compliance(diffs, norm_losses)
-
-        if not success:
-            msg = f"[Round {self.pytorch_model.round}] Axiom Violation: {errors}"
-            runtime_warnings.append(msg)
-            print(colored(f"{msg}", "yellow"))
-            self._log_warning(msg)
-
-        scores = norm_losses
-
-        # print(f"scores = {scores}")
-
-        self._log_contribution_scores(users, scores, avg_losses, per_user_outlier_info, avg_prev_loss)
-
-        return scores
-
-
-
-    def trim_global_update_using_mad(self,
-                                     local_updates: torch.Tensor,
-                                     global_update: torch.Tensor,
-                                     mad_thresh: float = 3.5,
-                                     eps: float = 1e-12):
-        """
-        Trim the global update by removing (zeroing) weights where
-        all clients are outliers according to MAD filtering.
-
-        Args:
-            local_updates: Tensor (num_mergers, D)
-            global_update: Tensor (D,)
-            mad_thresh: MAD robust z-score threshold
-            eps: avoid divide-by-zero
-
-        Returns:
-            filtered_global_update: Tensor (D,)
-            per_user_outlier_info: list of dicts (one per user) with MAD stats
-        """
-
-        num_mergers, D = local_updates.shape
-
-        # Per-weight median
-        median = local_updates.median(dim=0).values  # (D,)
-
-        # Per-weight absolute deviation
-        abs_dev = (local_updates - median).abs()  # (num_mergers, D)
-
-        # MAD per weight
-        mad = abs_dev.median(dim=0).values  # (D,)
-        safe_mad = mad.clone()
-        safe_mad[safe_mad < eps] = eps
-
-        # Per weight/user robust z-score
-        robust_z = 0.6745 * abs_dev / safe_mad
-
-        # Non-outlier mask (True = keep)
-        mask = robust_z <= mad_thresh  # (num_mergers, D)
-
-        # Collapse user dimension: keep weight if ANY user is non-outlier
-        global_mask = mask.any(dim=0)  # (D,)
-
-        # Zero out outlier-only weights in global update
-        filtered_global_update = global_update * global_mask
-
-        # Per-user summary stats for logging
-        mad_mean = float(mad.mean().item())
-        median_mean = float(median.mean().item())
-        per_user_outlier_info = [
-            {
-                "current_median": median_mean,
-                "current_mad": mad_mean,
-                "current_boundary": mad_thresh,
-                # Weight-space outlier counts (not scalar value lists — stored under distinct keys)
-                "dotproduct_outlier_weight_count": int((~mask[i]).sum().item()),
-                "dotproduct_outlier_weight_fraction": float((~mask[i]).float().mean().item()),
-            }
-            for i in range(num_mergers)
-        ]
-
-        return filtered_global_update, per_user_outlier_info
 
 
     def get_round_rewards(self, receipt):
@@ -1177,186 +805,6 @@ class FLChallenge(FLManager):
                     )
                 )
         return result
-
-
-
-    # ---- logging helpers ----
-
-    def _log_receipt(self, receipt, receipt_type, round=None):  # delegates to ExperimentLogger
-        if self._logger is None:
-            return
-        self._logger.log_receipt(
-            round=self.pytorch_model.round if round is None else round,
-            tx_type=receipt_type,
-            tx_hash=receipt["transactionHash"].hex(),
-            gas_used=receipt["gasUsed"],
-        )
-
-    def _log_warning(self, msg):
-        if self._logger is None:
-            return
-        self._logger.log_warning(self.pytorch_model.round, msg)
-
-    def _log_contribution_scores(self, users, scores, raw_values, outlier_info, previous_avg):
-        if self._logger is None:
-            return
-        self._logger.log_contribution_scores(
-            round=self.pytorch_model.round,
-            user_ids=[u.id for u in users],
-            user_addresses=[u.address for u in users],
-            scores=scores,
-            raw_values=raw_values,
-            outlier_info=outlier_info,
-            previous_avg=previous_avg,
-        )
-
-    def _log_round_zero(self):
-        if self._logger is None:
-            return
-        self._logger.log_global_round(
-            round=0,
-            round_time=0.0,
-            obj_global_acc=self.pytorch_model.accuracy[-1] if self.pytorch_model.accuracy else None,
-            obj_global_loss=self.pytorch_model.loss[-1]    if self.pytorch_model.loss     else None,
-            reward_pool=self._reward_balance[-1],
-            punishment_pool=0,
-        )
-        all_users = self.pytorch_model.participants + self.pytorch_model.disqualified
-        for _user in all_users:
-            self._logger.log_user_round(
-                round=0,
-                user_id=_user.id,
-                state="active",
-                behavior=_user.attitude,
-                role=_user.futureAttitude,
-                grs=_user._globalrep[-1],
-                sub_personal_acc=None,
-                sub_personal_loss=None,
-                sub_global_acc=None,
-                sub_global_loss=None,
-                round_reputation_assigned=None,
-                reward_delta=None,
-                is_reward=None,
-                merged=None,
-                merge_weight=None
-            )
-
-    def _log_global_round(self, round, round_time, punishment_pool, agg_switch_collector=None):
-        if self._logger is None:
-            return
-        self._logger.log_global_round(
-            round=round,
-            round_time=round_time,
-            obj_global_acc=self.pytorch_model.accuracy[-1] if self.pytorch_model.accuracy else 0,
-            obj_global_loss=self.pytorch_model.loss[-1] if self.pytorch_model.loss else 0,
-            reward_pool=self._reward_balance[-1],
-            punishment_pool=punishment_pool,
-            agg_func_1=agg_switch_collector.get("func_1")   if agg_switch_collector else None,
-            agg_weight_1=agg_switch_collector.get("weight_1") if agg_switch_collector else None,
-            agg_func_2=agg_switch_collector.get("func_2")   if agg_switch_collector else None,
-            agg_weight_2=agg_switch_collector.get("weight_2") if agg_switch_collector else None,
-        )
-
-    def _log_round(self, current_round, round_time,
-                   accuracy_matrix, loss_matrix, prev_accs, prev_losses,
-                   contributors, receipt, users_weight_collector, agg_switch_collector=None):
-        if self._logger is None:
-            return
-
-        # ---- votes ----
-        fbm = self.feedback_matrix
-        for _idx, _giver in enumerate(self.pytorch_model.participants):
-            _user_acc  = prev_accs[_idx]  if prev_accs  and _idx < len(prev_accs)  else None
-            _user_loss = prev_losses[_idx] if prev_losses and _idx < len(prev_losses) else None
-            for _receiver in self.pytorch_model.participants:
-                if _giver.id == _receiver.id:
-                    continue
-                try:
-                    _feedback_vote = int(fbm[_giver.id][_receiver.id])
-                except (IndexError, TypeError):
-                    continue
-                self._logger.log_vote(
-                    round=current_round,
-                    giver_id=_giver.id,
-                    receiver_id=_receiver.id,
-                    giver_address=_giver.address,
-                    receiver_address=_receiver.address,
-                    vote_feedback_score=_feedback_vote,
-                    vote_prev_accuracy=_user_acc,
-                    vote_prev_loss=_user_loss,
-                    vote_accuracy=accuracy_matrix[_giver.id][_receiver.id] if accuracy_matrix is not None else None,
-                    vote_loss=loss_matrix[_giver.id][_receiver.id]         if loss_matrix     is not None else None,
-                )
-
-        # ---- per-user round ----
-        _round_rewards  = self.get_round_rewards(receipt) if receipt is not None else []
-        _addr_to_reward = {addr: win for addr, _rs, win, _nr, _ir in _round_rewards}
-        _addr_to_ir     = {addr: _ir  for addr, _rs, win, _nr, _ir in _round_rewards}
-
-        for _user in self.pytorch_model.participants:
-            self._logger.log_user_round(
-                round=current_round, user_id=_user.id, state="active",
-                behavior=_user.attitude, role=_user.futureAttitude,
-                grs=_user._globalrep[-1],
-                sub_personal_acc=_user.currentAcc,
-                sub_personal_loss=_user.currentLoss,
-                sub_global_acc=_user._accuracy[-1],
-                sub_global_loss=_user._loss[-1],
-                round_reputation_assigned=_user._roundrep[-1] if _user._roundrep else None,
-                reward_delta=_addr_to_reward.get(_user.address, None),
-                is_reward=_addr_to_ir.get(_user.address, None),
-                merged=any(u.id == _user.id for u in contributors),
-                merge_weight=users_weight_collector.get(_user.address, None),
-                attack_type=_user.last_attack_type,
-            )
-        for _user in self.pytorch_model.disqualified:
-            self._logger.log_user_round(
-                round=current_round, user_id=_user.id, state="disqualified",
-                behavior=_user.attitude, role=_user.futureAttitude,
-                grs=_user._globalrep[-1],
-                sub_personal_acc=_user.currentAcc,
-                sub_personal_loss=_user.currentLoss,
-                sub_global_acc=_user._accuracy[-1],
-                sub_global_loss=_user._loss[-1],
-                round_reputation_assigned=_user._roundrep[-1] if _user._roundrep else None,
-                reward_delta=_addr_to_reward.get(_user.address, None),
-                is_reward=_addr_to_ir.get(_user.address, None),
-                merged=False,
-                merge_weight=None,
-                attack_type=_user.last_attack_type,
-            )
-
-        # ---- global round ----
-        _punishment_total = sum(p[1] for p in self._punishments if p[0] == current_round)
-        self._log_global_round(current_round, round_time, _punishment_total, agg_switch_collector)
-
-
-    def get_all_n_prior_losses(self, n_rounds: int):
-        assert n_rounds >= 2, "n_rounds must be at least 2 to compute a trend"
-        contract_round = self.model.functions.round().call()
-        losses_per_round = []
-
-        for steps_back in range(1, n_rounds + 1):
-            if contract_round >= steps_back:
-                losses = self.model.functions.getAllNPriorLosses(steps_back).call()
-                mad_losses = remove_outliers_mad(losses)
-                losses_per_round.append(np.mean(mad_losses))
-        return losses_per_round  # [round-1, round-2, ..., round-n]
-
-    # returns whatever rounds are available, up to n_rounds. So:
-    #   - Round 0 or 1: returns empty list []
-    #   - Round 2: returns [round-1] — only one round back
-    #   - Round 3: returns [round-1, round-2]
-    #   - Round 5+: returns [round-1, round-2, round-3, round-4] (if n_rounds=4)
-    #
-    #   The caller checks the length and decides what to do — if fewer than 2 entries, not enough data to compute a trend, fall back to default
-    #   behavior.
-
-
-    # 'all' as in users
-    def get_all_previous_accuracies_and_losses(self):
-        prev_accuracies, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses().call()
-        return prev_accuracies, prev_losses
 
 
     def simulate(self, rounds):
@@ -1400,29 +848,29 @@ class FLChallenge(FLManager):
                 "GasTransactions": roundTx
             })
 
-        # self._log_round_zero()
+        logging.log_round_zero(self)
 
         for i in range(rounds):
             print(b(f"\n\nRound {self.pytorch_model.round} starts..."))
             _round_start = time.perf_counter()
 
-            self.pytorch_model.update_users_attitude()
+            attacks.update_users_attitude(self.pytorch_model)
 
             self.pytorch_model.federated_training()
 
-            self.pytorch_model.let_malicious_users_do_their_work()
+            attacks.let_malicious_users_do_their_work(self.pytorch_model)
 
-            self.pytorch_model.let_freerider_users_do_their_work()
+            attacks.let_freerider_users_do_their_work(self.pytorch_model)
             
             self.user_register_slot()
 
             self.users_provide_hashed_weights()
 
-            self.pytorch_model.exchange_models()
+            evaluation.exchange_models(self.pytorch_model)
             
-            self.pytorch_model.verify_models({u.id: self.get_hashed_weights_of(u) for u in self.pytorch_model.participants})
+            evaluation.verify_models(self.pytorch_model, {u.id: self.get_hashed_weights_of(u) for u in self.pytorch_model.participants})
 
-            self.feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses = self.pytorch_model.evaluation()
+            self.feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses = evaluation.evaluate_peers(self.pytorch_model)
 
             self.quick_feedback_round(fbm = self.feedback_matrix, am=accuracy_matrix, lm=loss_matrix, prev_accs=prev_accs, prev_losses=prev_losses)
 
@@ -1437,13 +885,17 @@ class FLChallenge(FLManager):
 
             users_weight_collector = {}
             agg_switch_collector = {}
+            warning_collector = []
+
 
             # Ordering of the merge. If dotproduct we merge before contribution score
             if self.experiment_config.contribution_score_strategy == "dotproduct":
-                self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector)
+                aggregation.the_merge(self.pytorch_model, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, warning_collector=warning_collector)
+                for msg in warning_collector:
+                    logging.log_warning(self, msg)
 
             print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
-            self.contribution_score(contributors)
+            contribution_score(self, contributors)
 
             receipt = self.close_round()
 
@@ -1451,7 +903,9 @@ class FLChallenge(FLManager):
             # If not dotproduct, we calculate contribution score before the merge
             if not self.experiment_config.contribution_score_strategy == "dotproduct":
                 avg_losses = self.get_all_n_prior_losses(3)
-                self.pytorch_model.the_merge(contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_losses=avg_losses)  # Only used for non-dp version. when agg_rule==partial_switch
+                aggregation.the_merge(self.pytorch_model, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_losses=avg_losses, warning_collector=warning_collector)
+                for msg in warning_collector:
+                    logging.log_warning(self, msg, round=self.pytorch_model.round - 1) # Minus 1 since close_round increments.
 
             if receipt is not None:
                 self.print_round_summary(receipt)
@@ -1459,11 +913,11 @@ class FLChallenge(FLManager):
             _round_time = time.perf_counter() - _round_start
             _current_round = self.pytorch_model.round - 1
 
-            # self._log_round(
-            #     _current_round, _round_time,
-            #     accuracy_matrix, loss_matrix, prev_accs, prev_losses,
-            #     contributors, receipt, users_weight_collector, agg_switch_collector,
-            # )
+            logging.log_round(self,
+                _current_round, _round_time,
+                accuracy_matrix, loss_matrix, prev_accs, prev_losses,
+                contributors, receipt, users_weight_collector, agg_switch_collector,
+            )
 
             grs = [(user.address, user._globalrep[-1]) for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
             round_punishment = [(punishment[0], punishment[1]) for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]
@@ -1488,17 +942,17 @@ class FLChallenge(FLManager):
                 })
 
 
-        print(f"Number of Shapley Axioms violated: {len(runtime_warnings)}\n")
-        if runtime_warnings:
-            print("\n" + red("!" * 30 + " SHAPLEY WARNINGS " + "!" * 30))
-            for warn in runtime_warnings:
-                print(colored(warn, 'yellow'))
-            print(red("!" * 78))
+        # print(f"Number of Shapley Axioms violated: {len(contribution.runtime_warnings)}\n")
+        # if contribution.runtime_warnings:
+        #     print("\n" + red("!" * 30 + " SHAPLEY WARNINGS " + "!" * 30))
+        #     for warn in contribution.runtime_warnings:
+        #         print(colored(warn, 'yellow'))
+        #     print(red("!" * 78))
+        contribution.print_shapley_warnings()
 
         self.writer.writeComment(f"$gasCosts${self.gas_feedback},{self.gas_register},{self.gas_slot},{self.gas_weights},{self.gas_close},{self.gas_deploy},{self.gas_exit}")
         self.exit_system()
-            
-            
+
     
     def visualize_simulation(self, output_folder_path):
         os.makedirs(output_folder_path, exist_ok=True)  # ensure folder exists
@@ -1633,206 +1087,3 @@ class FLChallenge(FLManager):
         plt.savefig(os.path.join(output_folder_path, f"{self.pytorch_model.DATASET}_simulation.pdf"), bbox_inches='tight')
         #plt.show()
         return plt
-
-
-# def calc_contribution_score(local_model, global_model, num_mergers, eps=1e-12) -> int:
-#     """
-#     FedAvg-normalized dot product score so that sum = 1.
-#
-#     Args:
-#         u: local model
-#         U: global model found by FedAvg
-#         num_clients: int, number of clients that merged this round
-#         eps: float, small tolerance to avoid division by zero
-#
-#     Returns:
-#         contribution score in WEI.
-#         1 * 1e18 is 100% contribution score
-#     """
-#
-#     # Flatten parameters
-#     local_update = torch.cat([p.data.view(-1) for p in local_model.parameters()])
-#     global_update = torch.cat([p.data.view(-1) for p in global_model.parameters()])
-#
-#     norm_U_sq = torch.dot(global_update, global_update)
-#
-#     if norm_U_sq.abs() < eps:
-#         score = Decimal(1) / Decimal(num_mergers)
-#         return int(score * Decimal('1e18'))
-#     score = torch.dot(local_update, global_update) / (num_mergers * norm_U_sq)
-#
-#     return int(Decimal(score.item()) * Decimal('1e18'))
-
-
-def calc_contribution_score_naive(num_mergers) -> int:
-    score = Decimal(1) / Decimal(num_mergers)
-    return int(score * Decimal('1e18'))
-
-# New function
-def calc_contribution_scores_dotproduct(local_updates: torch.Tensor,
-                                        global_update: torch.Tensor,
-                                        eps: float = 1e-12):
-    """
-    Compute contribution scores solely using dot-product similarity
-    between local updates and the global update.
-
-    Args:
-        local_updates: Tensor of shape (num_mergers, D)
-                       flattened parameters for each user's local model.
-        global_update: Tensor of shape (D,)
-                       flattened parameters for the global model.
-        eps:           Small tolerance to avoid division by zero.
-
-    Returns:
-        List[int]: contribution scores scaled by 1e18.
-    """
-
-    num_mergers, D = local_updates.shape
-
-    # ||U||^2
-    norm_U_sq = torch.dot(global_update, global_update)
-
-    if norm_U_sq.abs() < eps:
-        # If the global update has no magnitude → equal contribution
-        score = Decimal(1) / Decimal(num_mergers)
-        equal_int_score = int(score * Decimal('1e18'))
-        return [equal_int_score for _ in range(num_mergers)]
-
-    # Dot product for each user vs global update
-    dots = torch.mv(local_updates, global_update)  # (num_mergers,)
-    scores = dots / (num_mergers * norm_U_sq)
-
-    # Convert to integer fixed-point (×1e18)
-    return [
-        int(Decimal(score.item()) * Decimal('1e18'))
-        for score in scores
-    ]
-
-
-
-def normalize_contribution_scores_old(arr, prev_val):
-    # This method takes a 1d array of an array (accuracy or loss), a scalar of previous accuracy or loss
-    # Output is an array of normalized (according to sum) input array values
-    # Takes a list of values
-    # Subtracts a baseline (prev_val)
-    # Normalizes them so they sum to 1
-    # Example:
-    # -- arr - prev_val => norm_arr = [2, 1, 0]
-    # -- sum = 3
-    # -- [2/3, 1/3, 0/3]
-
-    norm_arr = []
-    sum_val = 0.0
-
-    for i in range(len(arr)):
-        norm_arr.append(arr[i] - prev_val)
-        sum_val += norm_arr[i]
-
-    if len(norm_arr) == 0:
-        raise Exception("No values to normalize")
-    for i in range(len(norm_arr)):
-        if sum_val == 0.0:
-            return [1.0 / len(norm_arr)] * len(norm_arr)
-        norm_arr[i] /= sum_val
-    return norm_arr
-
-
-def normalize_contribution_scores_new(vals: list, prev_val: float, evaluation_metric: str) -> list:
-    """
-    4-step normalization for contribution scores.
-
-    1. Subtract baseline, then negate if metric is 'loss' (lower=better → flip sign).
-    2. Edge cases: if max==0 replace zeros with 1; if all negative compute sum/val ratios.
-    3. Clamp negatives so the minimum is exactly -1.
-    4. Final normalization to sum=1: divide by sum if all-positive, otherwise
-       redistribute the excess proportionally across positive values.
-    """
-
-    # Step 1: subtract baseline, flip sign for loss
-    vals = [v - prev_val for v in vals] # Handle the subtraction of new minus prev here
-    if evaluation_metric == "loss":
-        vals = [-1 * val for val in vals]
-    sum_ = sum(vals)
-
-    # Step 2: edge cases  TODO: 0 og -0.5
-    max_val = max(vals)
-    if max_val == 0:
-        vals = [1 if val == 0 else val for val in vals]
-    elif max_val < 0:
-        vals = [sum_ / val for val in vals]
-    # elif sum_ < 0:
-    # vals = [val / -sum_ for val in vals]
-
-
-    # Step 3: clamp negatives to minimum -1
-    if min(vals) < -1:
-        divisor = -min(vals)
-        vals = [val / divisor if val < 0 else val for val in vals]
-    sum_ = sum(vals)
-
-    # Step 4: normalize to sum = 1
-    if not sum_ == 1:  #
-        if min(vals) >= 0:  # if all positive
-            vals = [val / sum_ for val in vals]
-        else:
-            sum_of_positives = sum(val for val in vals if val > 0)
-            excess_sum = sum_ - 1
-            vals = [val + (val / sum_of_positives) * -excess_sum if val > 0 else val for val in vals]
-    return vals
-
-
-def remove_outliers_mad(arr, threshold=0.70, return_mask=False, collector=None, label=None):
-    # Keep original dtype (int from contract uint256). np.median returns float64
-    # automatically, so all intermediate MAD arithmetic stays in float without
-    # needing to cast the input array.
-    arr = np.asarray(arr)
-
-    # always flatten
-    flat = arr.ravel()
-
-    median = np.median(flat)
-    abs_dev = np.abs(flat - median)
-    mad = np.median(abs_dev)
-
-    prefix = f"{label}_" if label else "" # Set label if provided else empty string
-
-    # SPECIAL CASE: MAD == 0
-    if mad == 0:
-        mask = abs_dev <= threshold
-        if collector is not None:
-            collector[f"{prefix}median"]   = float(median)
-            collector[f"{prefix}mad"]      = 0.0
-            collector[f"{prefix}removed"]  = flat[~mask].tolist()
-            collector[f"{prefix}accepted"] = flat[mask].tolist()
-            collector[f"{prefix}boundary"] = None
-        if return_mask:
-            return arr, mask
-        return flat[mask]
-
-    # proper modified z-score
-    z_val = 0.6745
-    modified_z = z_val * (flat - median) / mad
-
-    mask = np.abs(modified_z) <= threshold
-
-    if collector is not None:
-        collector[f"{prefix}median"]   = float(median)
-        collector[f"{prefix}mad"]      = float(mad)
-        collector[f"{prefix}removed"]  = flat[~mask].tolist()
-        collector[f"{prefix}accepted"] = flat[mask].tolist()
-        collector[f"{prefix}boundary"] = float(threshold * mad / z_val)
-
-    if return_mask:
-        return arr, mask
-    return flat[mask]
-
-runtime_warnings = []
-
-
-def softmax_rewards(values, true_value, total_reward, alpha):
-    distances = [abs(v - true_value) for v in values]
-    weights = [math.exp(-alpha * d) for d in distances]
-    total_weight = sum(weights)
-    rewards = [total_reward * w / total_weight for w in weights]
-    return rewards
-

@@ -3,13 +3,12 @@ import platform
 import psutil
 import time
 from pathlib import Path
-from openfl.ml import pytorch_model as PM
-from openfl.contracts import fl_manager as Manager, fl_challenge as Challenge
-from openfl.utils import require_env_var
+from ml import pytorch_model as PM
+from contracts import fl_manager as Manager, fl_challenge as Challenge
+from utils.require_env import require_env_var
 from types import SimpleNamespace
 from web3 import Web3, Account
-
-from openfl.utils.async_writer import AsyncWriter
+from utils.async_writer import AsyncWriter
 
 
 def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=None, logger=None):
@@ -156,7 +155,7 @@ def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=Non
           "dirichlet_alpha":                   cfg.dirichlet_alpha,
       }
 
-      logger.log_setup(total_experiment_time, hardware, config)
+      logger.setup(total_experiment_time, hardware, config)
 
   return Experiment(model, manager)
 

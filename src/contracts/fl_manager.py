@@ -1,6 +1,6 @@
 from web3 import Web3
-from openfl.ml.pytorch_model import b
-from openfl.api import ConnectionHelper
+from utils.colors import b
+from api import ConnectionHelper
 
 class FLManager(ConnectionHelper):
     
@@ -12,10 +12,8 @@ class FLManager(ConnectionHelper):
         self.pytorch_model = pytorch_model
         self.modelOf = {}
         self.manual_setup = manual_ganache_setup
-        
         self.gas_deploy = []
         self.txHashes   = []
-
         self.use_nobody_is_kicked = False
         
     

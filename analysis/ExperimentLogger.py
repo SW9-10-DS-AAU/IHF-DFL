@@ -17,14 +17,17 @@ class ExperimentLogger:
         self._receipt_rows = []
         self._contribution_rows = []
         self._warning_rows = []
+        self._punishment_rows = []
+        self._eval_reward_rows = []
+        self._eval_vote_rows = []
 
     # -------- GLOBAL ROUND --------
 
-    def log_global_round(self, round=None, round_time=None,
-                         obj_global_acc=None, obj_global_loss=None,
-                         reward_pool=None, punishment_pool=None,
-                         agg_func_1=None, agg_weight_1=None,
-                         agg_func_2=None, agg_weight_2=None):
+    def global_round(self, round=None, round_time=None,
+                     obj_global_acc=None, obj_global_loss=None,
+                     reward_pool=None, punishment_pool=None,
+                     agg_func_1=None, agg_weight_1=None,
+                     agg_func_2=None, agg_weight_2=None):
 
         self._global_rows.append({
             "experiment_id": self.experiment_id,
@@ -43,16 +46,15 @@ class ExperimentLogger:
 
     # -------- USER ROUND --------
 
-    def log_user_round(self, round=None, user_id=None, state=None, behavior=None, role=None,
-                       grs=None,
-                       sub_personal_acc=None, sub_personal_loss=None,
-                       sub_global_acc=None, sub_global_loss=None,
-                       round_reputation_assigned=None,
-                       reward_delta=None,
-                       is_reward=None,
-                       merged=None,
-                       merge_weight=None,
-                       attack_type=None,):
+    def user_round(self, round=None, user_id=None, state=None, behavior=None, role=None,
+                   grs=None,
+                   sub_personal_acc=None, sub_personal_loss=None,
+                   sub_global_acc=None, sub_global_loss=None,
+                   round_reputation_assigned=None,
+                   reward_delta=None,
+                   merged=None,
+                   merge_weight=None,
+                   attack_type=None):
 
         self._user_rows.append({
             "experiment_id": self.experiment_id,
@@ -69,14 +71,13 @@ class ExperimentLogger:
             "subjective_global_loss": sub_global_loss,
             "round_reputation_assigned": round_reputation_assigned,
             "reward_delta": reward_delta,
-            "is_reward": is_reward,
             "merged": merged,
-            "merge_weight": merge_weight
+            "merge_weight": merge_weight,
         })
 
     # -------- VOTE --------
 
-    def log_vote(self, round=None, giver_id=None, receiver_id=None, giver_address=None, receiver_address=None, vote_feedback_score=None, vote_prev_accuracy=None, vote_prev_loss=None, vote_accuracy=None, vote_loss=None):
+    def vote(self, round=None, giver_id=None, receiver_id=None, giver_address=None, receiver_address=None, vote_feedback_score=None, vote_prev_accuracy=None, vote_prev_loss=None, vote_accuracy=None, vote_loss=None):
         self._vote_rows.append({
             "experiment_id": self.experiment_id,
             "round": round,
@@ -93,7 +94,7 @@ class ExperimentLogger:
 
     # -------- CONTRIBUTION SCORES --------
 
-    def log_contribution_scores(self, round=None, user_ids=None, user_addresses=None, scores=None, raw_values=None, outlier_info=None, previous_avg=None):
+    def contribution_scores(self, round=None, user_ids=None, user_addresses=None, scores=None, raw_values=None, outlier_info=None, previous_avg=None):
         n = len(user_ids)
         if raw_values is None:
             raw_values = [None] * n
@@ -131,9 +132,56 @@ class ExperimentLogger:
                 row["dotproduct_outlier_weight_fraction"] = info["dotproduct_outlier_weight_fraction"]
             self._contribution_rows.append(row)
 
+    # -------- PUNISHMENT --------
+
+    def punishment(self, round=None, user_id=None, user_address=None,
+                   punishment_type=None, loss=None, round_score=None, new_reputation=None):
+        self._punishment_rows.append({
+            "experiment_id":  self.experiment_id,
+            "round":          round,
+            "user_id":        user_id,
+            "user_address":   user_address,
+            "punishment_type": punishment_type,  # "punishment" | "contribution" | "passive"
+            "loss":           loss,
+            "round_score":    round_score,
+            "new_reputation": new_reputation,
+        })
+
+    # -------- EVALUATION VOTING REWARD --------
+
+    def evaluation_voting_reward(self, round=None, user_id=None, user_address=None,
+                                 staked=None, rewarded=None, new_reputation=None):
+        self._eval_reward_rows.append({
+            "experiment_id":  self.experiment_id,
+            "round":          round,
+            "user_id":        user_id,
+            "user_address":   user_address,
+            "staked":         staked,
+            "rewarded":       rewarded,
+            "new_reputation": new_reputation,
+        })
+
+    # -------- EVALUATION VOTE (softmax) --------
+
+    def evaluation_vote(self, round=None,
+                        evaluated_user_id=None, evaluated_user_address=None,
+                        voter_user_id=None, voter_user_address=None,
+                        loss_vote=None, avg_loss_true_value=None, softmax_reward=None):
+        self._eval_vote_rows.append({
+            "experiment_id":         self.experiment_id,
+            "round":                 round,
+            "evaluated_user_id":     evaluated_user_id,
+            "evaluated_user_address": evaluated_user_address,
+            "voter_user_id":         voter_user_id,
+            "voter_user_address":    voter_user_address,
+            "loss_vote":             loss_vote,
+            "avg_loss_true_value":   avg_loss_true_value,
+            "softmax_reward":        softmax_reward,
+        })
+
     # -------- RECEIPT --------
 
-    def log_receipt(self, round=None, tx_type=None, tx_hash=None, gas_used=None):
+    def receipt(self, round=None, tx_type=None, tx_hash=None, gas_used=None):
         self._receipt_rows.append({
             "experiment_id": self.experiment_id,
             "round": round,
@@ -145,7 +193,7 @@ class ExperimentLogger:
 
     # -------- RUNTIME WARNINGS --------
 
-    def log_warning(self, round=None, message=None):
+    def warning(self, round=None, message=None):
         self._warning_rows.append({
             "experiment_id": self.experiment_id,
             "round": round,
@@ -155,7 +203,7 @@ class ExperimentLogger:
 
     # -------- SETUP --------
 
-    def log_setup(self, total_experiment_time=None, hardware=None, config=None):
+    def setup(self, total_experiment_time=None, hardware=None, config=None):
         """Capture a one-time snapshot of experiment context."""
         self._setup = {
             "total_experiment_time": total_experiment_time,
@@ -167,12 +215,15 @@ class ExperimentLogger:
 
     def finalize(self):
         return {
-            "global":        pd.DataFrame(self._global_rows),
-            "users":         pd.DataFrame(self._user_rows),
-            "votes":         pd.DataFrame(self._vote_rows),
-            "receipts":      pd.DataFrame(self._receipt_rows),
-            "contributions": pd.DataFrame(self._contribution_rows),
-            "warnings":      pd.DataFrame(self._warning_rows),
+            "global":              pd.DataFrame(self._global_rows),
+            "users":               pd.DataFrame(self._user_rows),
+            "votes":               pd.DataFrame(self._vote_rows),
+            "receipts":            pd.DataFrame(self._receipt_rows),
+            "contributions":       pd.DataFrame(self._contribution_rows),
+            "warnings":            pd.DataFrame(self._warning_rows),
+            "punishments":         pd.DataFrame(self._punishment_rows),
+            "evaluation_rewards":  pd.DataFrame(self._eval_reward_rows),
+            "evaluation_votes":    pd.DataFrame(self._eval_vote_rows),
         }
 
     # -------- SAVE --------
@@ -192,12 +243,15 @@ class ExperimentLogger:
 class NullExperimentLogger:
     """No-op logger used when no ExperimentLogger is provided."""
 
-    def log_global_round(self, round=None, round_time=None, obj_global_acc=None, obj_global_loss=None, reward_pool=None, punishment_pool=None, agg_func_1=None, agg_weight_1=None, agg_func_2=None, agg_weight_2=None): pass
-    def log_user_round(self, round=None, user_id=None, state=None, behavior=None, role=None, grs=None, sub_personal_acc=None, sub_personal_loss=None, sub_global_acc=None, sub_global_loss=None, contribution_score=None, round_reputation_assigned=None, reward_delta=None, is_reward=None, merged=None, merge_weight=None, attack_type=None): pass
-    def log_vote(self, round=None, giver_id=None, receiver_id=None, giver_address=None, receiver_address=None, vote_feedback_score=None, vote_prev_accuracy=None, vote_prev_loss=None, vote_accuracy=None, vote_loss=None): pass
-    def log_contribution_scores(self, round=None, user_ids=None, user_addresses=None, scores=None, raw_values=None, outlier_info=None, previous_avg=None): pass
-    def log_receipt(self, round=None, tx_type=None, tx_hash=None, gas_used=None): pass
-    def log_warning(self, round=None, message=None): pass
-    def log_setup(self, total_experiment_time=None, hardware=None, config=None): pass
+    def global_round(self, round=None, round_time=None, obj_global_acc=None, obj_global_loss=None, reward_pool=None, punishment_pool=None, agg_func_1=None, agg_weight_1=None, agg_func_2=None, agg_weight_2=None): pass
+    def user_round(self, round=None, user_id=None, state=None, behavior=None, role=None, grs=None, sub_personal_acc=None, sub_personal_loss=None, sub_global_acc=None, sub_global_loss=None, round_reputation_assigned=None, reward_delta=None, merged=None, merge_weight=None, attack_type=None): pass
+    def vote(self, round=None, giver_id=None, receiver_id=None, giver_address=None, receiver_address=None, vote_feedback_score=None, vote_prev_accuracy=None, vote_prev_loss=None, vote_accuracy=None, vote_loss=None): pass
+    def contribution_scores(self, round=None, user_ids=None, user_addresses=None, scores=None, raw_values=None, outlier_info=None, previous_avg=None): pass
+    def punishment(self, round=None, user_id=None, user_address=None, punishment_type=None, loss=None, round_score=None, new_reputation=None): pass
+    def evaluation_voting_reward(self, round=None, user_id=None, user_address=None, staked=None, rewarded=None, new_reputation=None): pass
+    def evaluation_vote(self, round=None, evaluated_user_id=None, evaluated_user_address=None, voter_user_id=None, voter_user_address=None, loss_vote=None, avg_loss_true_value=None, softmax_reward=None): pass
+    def receipt(self, round=None, tx_type=None, tx_hash=None, gas_used=None): pass
+    def warning(self, round=None, message=None): pass
+    def setup(self, total_experiment_time=None, hardware=None, config=None): pass
     def finalize(self): pass
     def save(self, path=None): pass

@@ -7,9 +7,9 @@ from matplotlib.lines import Line2D
 import numpy as np
 from parser import *
 from parser.helpers.setLegendLocation import LegendPosition
+from utils.paths import repo_root
 
-#RESULTDATAFOLDER = Path(__file__).resolve().parents[1].joinpath("experiment/data/experimentData")
-RESULTDATAFOLDER = Path(__file__).resolve().parents[1].joinpath("experiment/data/experimentData")
+RESULTDATAFOLDER = repo_root(Path(__file__)) / "data" / "runs" / "experiments"
 
 LISTOFALLMETHODS = [
     Method.ACCURACY_ONLY, Method.DOTPRODUCT, Method.DOTPRODUCTANDOUTLIER, Method.NAIVE, Method.ACCURACY_LOSS, Method.LOSS_ONLY]

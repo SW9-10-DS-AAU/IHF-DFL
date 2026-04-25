@@ -9,16 +9,18 @@ from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, call
 from web3.exceptions import ContractLogicError
+from contracts import contribution
+from contracts.fl_challenge import FLChallenge
+from utils.shapley import check_shapley_compliance
 
-from openfl.contracts.fl_challenge import (
-    FLChallenge,
+from contracts.contribution import (
     calc_contribution_scores_dotproduct,
     remove_outliers_mad,
+    normalize_contribution_scores_new,
+    contribution_score,
     # calc_contribution_score,
     # calc_contribution_scores_accuracy,
-    normalize_contribution_scores_new,
 )
-from openfl.utils.shapley import check_shapley_compliance
 
 
 
@@ -201,11 +203,11 @@ class TestCalcContributionScore:
         self.aggregator.pytorch_model = MagicMock()
         self.aggregator.pytorch_model.round = 1
         self.aggregator._calculate_scores_accuracy_loss = lambda users, mad_threshold=1.1: \
-            FLChallenge._calculate_scores_accuracy_loss(self.aggregator, users, mad_threshold)
+            contribution._calculate_scores_accuracy_loss(self.aggregator, users, mad_threshold)
         self.aggregator._calculate_scores_accuracy_only = lambda users, mad_threshold=1.1: \
-            FLChallenge._calculate_scores_accuracy_only(self.aggregator, users, mad_threshold)
+            contribution._calculate_scores_accuracy_only(self.aggregator, users, mad_threshold)
         self.aggregator._calculate_scores_loss_only = lambda users, mad_threshold=1.1: \
-            FLChallenge._calculate_scores_loss_only(self.aggregator, users, mad_threshold)
+            contribution._calculate_scores_loss_only(self.aggregator, users, mad_threshold)
 
     # Basic test case with non-zero global model
     # def test_calc_contribution_score_basic(self):
@@ -326,14 +328,11 @@ class TestCalcContributionScore:
 
         def mock_get_accuracies_losses(address):
             user = next(u for u in users if u.address == address)
-            m = MagicMock()
-            m.call.return_value = (None, user._accuracies, user._losses)
-            return m
+            return ([], user._accuracies, user._losses)
 
-        self.aggregator.model.functions \
-            .getAllAccuraciesLossesAbout.side_effect = mock_get_accuracies_losses
+        self.aggregator.get_all_accuracies_and_losses_about.side_effect = mock_get_accuracies_losses
 
-        scores = FLChallenge._calculate_scores_accuracy_loss(
+        scores = contribution._calculate_scores_accuracy_loss(
             self.aggregator, users, mad_threshold=1.1
         )
         print(f"scores = {scores}")
@@ -438,14 +437,11 @@ class TestCalcContributionScore:
 
         def mock_get_accuracies(address):
             user = next(u for u in users if u.address == address)
-            m = MagicMock()
-            m.call.return_value = (None, user._accuracies)
-            return m
+            return ([], user._accuracies)
 
-        self.aggregator.model.functions \
-            .getAllAccuraciesAbout.side_effect = mock_get_accuracies
+        self.aggregator.get_all_accuracies_about.side_effect = mock_get_accuracies
 
-        scores = FLChallenge._calculate_scores_accuracy_only(
+        scores = contribution._calculate_scores_accuracy_only(
             self.aggregator, users, mad_threshold=1.1
         )
         print(f"scores = {scores}")
@@ -550,14 +546,11 @@ class TestCalcContributionScore:
 
         def mock_get_losses(address):
             user = next(u for u in users if u.address == address)
-            m = MagicMock()
-            m.call.return_value = (None, user._losses)
-            return m
+            return ([], user._losses)
 
-        self.aggregator.model.functions \
-            .getAllLossesAbout.side_effect = mock_get_losses
+        self.aggregator.get_all_losses_about.side_effect = mock_get_losses
 
-        scores = FLChallenge._calculate_scores_loss_only(
+        scores = contribution._calculate_scores_loss_only(
             self.aggregator, users, mad_threshold=1.1
         )
         print(f"scores = {scores}")
@@ -598,7 +591,7 @@ class TestCalcContributionScoresMAD:
             user.model = merged_model
             participants.append(user)
 
-        scores = fl_challenge._calculate_scores_dotproduct(participants)
+        scores = contribution._calculate_scores_dotproduct(fl_challenge, participants)
 
         expected_scores = calc_contribution_scores_dotproduct(local_updates, global_update)
 
@@ -630,9 +623,9 @@ class TestCalcContributionScoresMAD:
 
         filtered_global_update = torch.tensor([0.0, 1.0])
 
-        with patch.object(fl_challenge, 'trim_global_update_using_mad', return_value=(filtered_global_update, {})) as mock_trim:
-            with patch('openfl.contracts.fl_challenge.calc_contribution_scores_dotproduct', return_value=[10, 20, 30]) as mock_math:
-                scores = fl_challenge._calculate_scores_dotproduct(participants)
+        with patch('contracts.contribution.trim_global_update_using_mad', return_value=(filtered_global_update, {})) as mock_trim:
+            with patch('contracts.contribution.calc_contribution_scores_dotproduct', return_value=[10, 20, 30]) as mock_math:
+                scores = contribution._calculate_scores_dotproduct(fl_challenge, participants)
 
         assert scores == [10, 20, 30]
 
@@ -667,9 +660,9 @@ class TestCalcContributionScoresMAD:
             user.model = merged_model
             participants.append(user)
 
-        with patch.object(fl_challenge, 'trim_global_update_using_mad') as mock_trim:
-            with patch('openfl.contracts.fl_challenge.calc_contribution_scores_dotproduct', return_value=[1, 2, 3]) as mock_math:
-                scores = fl_challenge._calculate_scores_dotproduct(participants)
+        with patch('contracts.contribution.trim_global_update_using_mad') as mock_trim:
+            with patch('contracts.contribution.calc_contribution_scores_dotproduct', return_value=[1, 2, 3]) as mock_math:
+                scores = contribution._calculate_scores_dotproduct(fl_challenge, participants)
 
         assert scores == [1, 2, 3]
         mock_trim.assert_not_called()
@@ -705,10 +698,10 @@ class TestCalcContributionScoresMAD:
     #     fl_challenge.model.functions.getAllAccuraciesAbout.return_value.call.side_effect = user_metrics
     #
     #     with patch( # Temorarily replace the following functions from fl_challenge module
-    #         "openfl.contracts.fl_challenge.calc_contribution_scores_accuracy",
+    #         "dfl.contracts.fl_challenge.calc_contribution_scores_accuracy",
     #         side_effect=[[0.6, 0.3, 0.1], [0.2, 0.5, 0.3]], # Mock normalized accuracy and loss returned from function, per user
     #     ) as mock_normalize, patch(
-    #         "openfl.contracts.fl_challenge.remove_outliers_mad", # Outlier removal is mocked to do nothing
+    #         "dfl.contracts.fl_challenge.remove_outliers_mad", # Outlier removal is mocked to do nothing
     #         side_effect=lambda arr, z_threshold, return_mask=False: ( # Lambda function to return the original array unchanged. If return mask is true, return mask of all true elements, so all data is kept
     #                 (arr, np.ones_like(arr, dtype=bool)) if return_mask else arr
     #         ),
@@ -760,7 +753,7 @@ class TestCalcContributionScoresMAD:
     #     )
     #
     #     with patch(
-    #         "openfl.contracts.fl_challenge.remove_outliers_mad",
+    #         "dfl.contracts.fl_challenge.remove_outliers_mad",
     #         side_effect=lambda arr, _: arr,
     #     ):
     #         scores = fl_challenge._calculate_scores_accuracy(mock_participants[:2])
@@ -786,7 +779,7 @@ class TestCalcContributionScoresMAD:
     #     fl_challenge.model.functions.getAllAccuraciesAbout.return_value.call.side_effect = user_metrics
     #
     #     with patch(
-    #         "openfl.contracts.fl_challenge.remove_outliers_mad",
+    #         "dfl.contracts.fl_challenge.remove_outliers_mad",
     #         side_effect=lambda arr, _: arr,
     #     ):
     #         scores = fl_challenge._calculate_scores_accuracy(mock_participants[:2])
@@ -954,10 +947,10 @@ class TestFLChallengeFeatures:
             user.previousModel = DummyModel(float(i + 1))
             user.model = merged_model
 
-        with patch('openfl.contracts.fl_challenge.calc_contribution_scores_dotproduct') as mock_math:
+        with patch('contracts.contribution.calc_contribution_scores_dotproduct') as mock_math:
             mock_math.return_value = [1000, 2000, 3000]
 
-            scores = fl_challenge._calculate_scores_dotproduct(mock_participants)
+            scores = contribution._calculate_scores_dotproduct(fl_challenge, mock_participants)
 
             assert scores == [1000, 2000, 3000]
 
@@ -988,9 +981,8 @@ class TestFLChallengeWorkflow:
 
         challenge = FLChallenge(manager, configs, pytorch_model, experiment_config)
 
-        assert challenge._contribution_score_strategy == 'dotproduct'
+        assert challenge.experiment_config.contribution_score_strategy == 'dotproduct'
         assert challenge.experiment_config.use_outlier_detection is True
-        assert challenge._get_contribution_score_calculator() == challenge._calculate_scores_dotproduct
 
     # Test strategy selection for naive mode
     def test_strategy_selection_naive(self, mock_w3, mock_contract):
@@ -1004,8 +996,7 @@ class TestFLChallengeWorkflow:
 
         challenge = FLChallenge(manager, configs, pytorch_model, experiment_config)
 
-        assert challenge._contribution_score_strategy == 'naive'
-        assert challenge._get_contribution_score_calculator() == challenge._calculate_scores_naive
+        assert challenge.experiment_config.contribution_score_strategy == 'naive'
 
     # Test invalid strategy selection
     def test_strategy_selection_invalid(self, mock_w3, mock_contract):
@@ -1020,7 +1011,7 @@ class TestFLChallengeWorkflow:
         challenge = FLChallenge(manager, configs, pytorch_model, experiment_config)
 
         with pytest.raises(ValueError) as excinfo:
-            challenge._get_contribution_score_calculator()
+            contribution_score(challenge, [MagicMock() for _ in range(4)])
         assert "Unknown contribution score strategy" in str(excinfo.value)
 
     # Test hashed weights provision filtering inactive users
@@ -1075,35 +1066,22 @@ class TestFLChallengeWorkflow:
         extra.secret = 103
         mock_participants.append(extra)
 
-        mock_strategy_fn = MagicMock(return_value=[100, 200, 300, 400])
-
-        fl_challenge._get_contribution_score_calculator = MagicMock(return_value=mock_strategy_fn)
-
-        # Mock model / contract calls:
-        # getAllAccuraciesAbout(address).call() -> (voters, accuracies, losses)
-        fl_challenge.model.functions.getAllAccuraciesAbout.return_value.call.return_value = (
-            ["0xvoter1", "0xvoter2"],  # voters
-            [90, 95],  # accuracies
-            [1, 2],  # losses
-        )
-
-        # getAllPreviousAccuraciesAndLosses().call() -> (prev_accs, prev_losses)
-        fl_challenge.model.functions.getAllPreviousAccuraciesAndLosses.call.return_value = (
-            [],  # prev_accs
-            [],  # prev_losses
-        )
-
         for u in mock_participants:
             u.model = DummyModel(1.0)
             u.previousModel = DummyModel(1.0)
+            u.evaluation_reward = 1
 
-        fl_challenge.contribution_score(mock_participants)
+        mock_strategy_fn = MagicMock(return_value=[100, 200, 300, 400])
 
-        assert fl_challenge.model.functions.submitContributionScore.call_count == 4
+        with patch('contracts.contribution._STRATEGIES', {'dotproduct': mock_strategy_fn}):
+            contribution_score(fl_challenge, mock_participants)
+
+        assert fl_challenge.model.functions.submitContributionScoreAndVotingEvaluation.call_count == 4
 
         # contribution_score scales raw score by 1e18 before submitting (WEI fixed-point)
-        fl_challenge.model.functions.submitContributionScore.assert_any_call(
-            int(Decimal(400) * Decimal('1e18'))
+        fl_challenge.model.functions.submitContributionScoreAndVotingEvaluation.assert_any_call(
+            int(Decimal(400) * Decimal('1e18')),
+            int(Decimal(1) * Decimal('1e18')),
         )
 
         assert mock_participants[0].contribution_score == 100
@@ -1111,7 +1089,7 @@ class TestFLChallengeWorkflow:
 
     # Test naive score calculation wrapper
     def test_calculate_scores_naive_helper(self, fl_challenge, mock_participants):
-        scores = fl_challenge._calculate_scores_naive(mock_participants)
+        scores = contribution._calculate_scores_naive(fl_challenge, mock_participants)
         expected_val = int((Decimal(1) / Decimal(len(mock_participants))) * Decimal('1e18'))
         assert scores == [expected_val] * len(mock_participants)
 
@@ -1169,7 +1147,7 @@ class TestNonForkInteractions:
         mock_w3.eth.account.sign_transaction.return_value = mock_signed_tx
         mock_w3.eth.send_raw_transaction.return_value = b'\x09' * 32
 
-        with patch('openfl.contracts.fl_challenge.FLManager.build_non_fork_tx') as mock_build_nf:
+        with patch('api.connection_helper.ConnectionHelper.build_non_fork_tx') as mock_build_nf:
             mock_build_nf.return_value = {'gas': 100000, 'nonce': 1}
 
             challenge = FLChallenge(manager, configs, pytorch_model, experiment_config)
@@ -1231,14 +1209,16 @@ class TestReporting:
                 "args": {
                     "round": 1,
                     "validVotes": 10,
-                    # Change 'sumOfWeights' to 'sumOfWeightedContribScore'
                     "sumOfWeightedContribScore": 500,
                     "totalPunishment": 0
                 }
             }],
             "Reward": [{"args": {"user": "0xUser", "roundScore": 100, "win": 50, "newReputation": 1050}}],
             "Punishment": [],
-            "Disqualification": []
+            "ContributionPunishment": [],
+            "PassivePunishment": [],
+            "Disqualification": [],
+            "EvaluationVotingReward": [],
         }
 
         with patch.object(fl_challenge, 'get_events', return_value=expected_events):
