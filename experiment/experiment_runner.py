@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from ml import pytorch_model as PM
 from contracts import fl_manager as Manager, fl_challenge as Challenge
-from utils import require_env_var
+from utils.require_env import require_env_var
 from types import SimpleNamespace
 from web3 import Web3, Account
 from utils.async_writer import AsyncWriter

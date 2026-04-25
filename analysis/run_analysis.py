@@ -1,10 +1,21 @@
 import sys
 from pathlib import Path
-from utils.paths import repo_root
 
-# Add the repo root to sys.path so `analysis` package is importable from here
-REPO_ROOT = repo_root(Path(__file__))
+# Add the repo root and src to sys.path so root/src packages are importable
+# when this file is run directly.
+def _repo_root_from_file(path: Path) -> Path:
+    for parent in [path.resolve(), *path.resolve().parents]:
+        if (parent / "pyproject.toml").exists():
+            return parent
+    raise RuntimeError("pyproject.toml not found - not in a repo")
+
+
+REPO_ROOT = _repo_root_from_file(Path(__file__))
 sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
+from utils.paths import repo_root
+REPO_ROOT = repo_root(Path(__file__))
 
 import matplotlib.pyplot as plt
 from analysis import load_runs_recursive, normalize_runs, merge_runs, aggregations as agg, plots

@@ -10,8 +10,8 @@ from web3 import Web3
 from termcolor import colored
 from subprocess import Popen, PIPE
 from utils.colors import gb, rb, b, green, red
-from utils import require_env_var
 from utils.paths import repo_root
+from utils.require_env import require_env_var
 
 class ConnectionHelper:
     # Start Ganache client with connection to infura
