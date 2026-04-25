@@ -191,9 +191,9 @@ contract OpenFLModel {
         uint newReputation
     );
 
-    event Reward                (address user, int256 roundScore, uint win,    uint newReputation);
-    event ContributionPunishment(address user, int256 roundScore, uint loss,   uint newReputation);
-    event EvaluationVotingReward(address user, uint rewarded,     uint staked, uint newReputation);
+    event Reward                (address user, int256 roundScore, uint win, uint newReputation);
+    event ContributionPunishment(address user, int256 roundScore, uint loss, uint newReputation);
+    event EvaluationVotingReward(address user, uint rewarded, uint staked, uint newReputation);
 
     constructor(
         bytes32 _modelHash,
@@ -239,7 +239,7 @@ contract OpenFLModel {
             msg.value >= min_collateral && msg.value <= max_collateral,
             "NWR"
         );
-        registrationProcess(msg.sender);
+        _registrationProcess(msg.sender);
     }
 
     // Register initiator of model
@@ -251,11 +251,11 @@ contract OpenFLModel {
             "NWR"
         );
         // Require Staking here
-        registrationProcess(initiator);
+        _registrationProcess(initiator);
     }
 
     // Registration helper
-    function registrationProcess(address userAddr) internal {
+    function _registrationProcess(address userAddr) internal {
         User storage user = users[userAddr];
         user.isRegistered = true;
         user.globalReputationScore = msg.value;
@@ -436,22 +436,11 @@ contract OpenFLModel {
                             user.globalReputationScore
                         );
                     } else {
-                        user.isPunished = true;
-                        user.isRegistered = false;
                         punishedAddresses.push(participants[i]);
                         user.whitelistedForRewards = false;
 
                         totalPunishment += user.globalReputationScore;
-
-                        emit Disqualification(
-                            user.addr,
-                            user.roundReputation,
-                            user.globalReputationScore,
-                            0
-                        );
-                        user.globalReputationScore = 0;
-                        nrOfActiveParticipants -= 1;
-                        user.isDisqualified = true;
+                        _disqualifyUser(user);
                     }
                 } else {
                     user.whitelistedForRewards = true;
@@ -513,15 +502,14 @@ contract OpenFLModel {
                 uint staking_min_grs = min_collateral / punishfactorContrib;
                 uint evaluation_reward = (evaluationScore[round][user.addr] * staking_min_grs) / 1e18;
 
-                // Disqualification
+                // 2nd - Disqualification
                 if (user.globalReputationScore + evaluation_reward <= staking_min_grs) {
+
+                    user.whitelistedForRewards = false;
+
                     evaluation_disqualification_pool += user.globalReputationScore;
-                    emit Disqualification(user.addr, user.roundReputation, user.globalReputationScore, 0);
-                    user.globalReputationScore = 0;
-                    nrOfActiveParticipants -= 1;
-                    user.isDisqualified = true;
-                    user.isPunished = true;
-                    user.isRegistered = false;
+                    _disqualifyUser(user);
+
                     continue;
                 }
 
@@ -540,24 +528,12 @@ contract OpenFLModel {
 
                 if (user.globalReputationScore <= staking_min_grs) {
                     evaluation_disqualification_pool += user.globalReputationScore;
-
-                    emit Disqualification(
-                        user.addr,
-                        user.roundReputation,
-                        user.globalReputationScore,
-                        0
-                    );
-
-                    user.globalReputationScore = 0;
-                    nrOfActiveParticipants -= 1;
-                    user.isDisqualified = true;
-                    user.isPunished = true;
-                    user.isRegistered = false;
+                    _disqualifyUser(user);
                 }
             }
         }
 
-        // Devide reward between every user who provided (non-malicious) feedback
+        // Divide reward between every user who provided (non-malicious) feedback
         // Pay back freeriderLock(totalpunishment) funds to good users
         int256 sumOfWeightedContribScore = 0;
         uint256 positiveSumOfWeightedContribScore;
@@ -591,19 +567,7 @@ contract OpenFLModel {
                     punishment /= 1e18;
                     if (user.globalReputationScore <= min_collateral / punishfactorContrib || user.globalReputationScore <= punishment) {
                         reward += user.globalReputationScore;
-
-                        emit Disqualification(
-                            participants[i],
-                            user.roundReputation,
-                            user.globalReputationScore,
-                            0
-                        );
-
-                        user.globalReputationScore = 0;
-                        nrOfActiveParticipants -= 1;
-                        user.isDisqualified = true;
-                        user.isPunished = true;
-                        user.isRegistered = false;
+                        _disqualifyUser(user);
                     }
                     else { // this is a punishment
                         user.globalReputationScore -= punishment;
@@ -670,41 +634,55 @@ contract OpenFLModel {
         delete punishedAddresses;
     }
 
+    function _disqualifyUser(User storage user) internal {
+        emit Disqualification(
+            user.addr,
+            user.roundReputation,
+            user.globalReputationScore,
+            0
+        );
+        user.globalReputationScore = 0;
+        nrOfActiveParticipants -= 1;
+        user.isDisqualified = true;
+        user.isPunished = true;
+        user.isRegistered = false;
+    }
+
     // Exit contract - Not safe, gaurds exists but will crash the contract if not met, exits should be queued?
     function exitModel() public {
-    User storage user = users[msg.sender];
-    if (!user.isRegistered) {
-        return; // Do nothing if not registered
-    }
+        User storage user = users[msg.sender];
+        if (!user.isRegistered) {
+            return; // Do nothing if not registered
+        }
 
-    uint val = user.globalReputationScore;
-    if (address(this).balance < val) {
-        val = address(this).balance;
-    }
+        uint val = user.globalReputationScore;
+        if (address(this).balance < val) {
+            val = address(this).balance;
+        }
 //    require(address(this).balance >= val, "Insufficient contract balance");
-    user.globalReputationScore = 0;
-    user.isRegistered = false;
-    nrOfActiveParticipants -= 1;
+        user.globalReputationScore = 0;
+        user.isRegistered = false;
+        nrOfActiveParticipants -= 1;
 
-    // Clean up participant array
-    for (uint i = 0; i < participants.length; i++) {
-        if (participants[i] == msg.sender) {
-            participants[i] = address(0);
-            break;
+        // Clean up participant array
+        for (uint i = 0; i < participants.length; i++) {
+            if (participants[i] == msg.sender) {
+                participants[i] = address(0);
+                break;
+            }
+        }
+
+        if (val > 0) {
+            (bool success,) = payable(msg.sender).call{value: val}("");
+            require(success, "Transfer failed");
         }
     }
-
-    if (val > 0) {
-        (bool success, ) = payable(msg.sender).call{value: val}("");
-        require(success, "Transfer failed");
-    }
-}
 
     function submitFeedbackBytes(bytes calldata raw) external {
         address[] memory ads;
         int16[] memory ints;
 
-        (ads, ints) = parseRaw(raw);
+        (ads, ints) = _parseRaw(raw);
 
         // EXACT same for-loop as fallback
         for (uint i = 0; i < ads.length; i++) {
@@ -724,7 +702,7 @@ contract OpenFLModel {
         address[] memory ads;
         int16[] memory ints;
 
-        (ads, ints) = parseRaw(raw);
+        (ads, ints) = _parseRaw(raw);
 
         require(
             accuracies.length == ads.length,
@@ -760,7 +738,7 @@ contract OpenFLModel {
         address[] memory ads;
         int16[] memory ints;
 
-        (ads, ints) = parseRaw(raw);
+        (ads, ints) = _parseRaw(raw);
 
         require(
             accuracies.length == ads.length,
@@ -793,7 +771,7 @@ contract OpenFLModel {
         address[] memory ads;
         int16[] memory ints;
 
-        (ads, ints) = parseRaw(raw);
+        (ads, ints) = _parseRaw(raw);
 
         require(
             losses.length == ads.length, "INVALID_LENGTH OF LOSS ARRAY");
@@ -816,7 +794,7 @@ contract OpenFLModel {
         }
     }
 
-    function parseRaw(bytes calldata raw)
+    function _parseRaw(bytes calldata raw)
     internal
     pure
     returns (address[] memory ads, int16[] memory ints)
