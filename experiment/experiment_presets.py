@@ -74,7 +74,7 @@ PRESETS = {
         malicious_start_round=[2],
         malicious_attack_type= None,
         freerider_attack_type= None,
-        aggregation_rule=["binary_switch[positives_only,FedAVG]"],
+        aggregation_rule=["binary_switch[positives_only,FedAVG]", "partial_switch[loss, positives_only, FedAVG]", "partial_switch[acc, positives_only, FedAVG]", "partial_switch[retro, positives_only, FedAVG]"],
         data_distribution= ["random_split_42"],
         dirichlet_alpha= None,
     ),
