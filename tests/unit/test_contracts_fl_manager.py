@@ -1,6 +1,5 @@
 from types import SimpleNamespace
-
-import openfl.contracts.fl_manager as fl_manager
+import contracts.fl_manager as fl_manager
 
 
 # Maybe delete these tests

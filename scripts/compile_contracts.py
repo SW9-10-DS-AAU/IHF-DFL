@@ -3,6 +3,7 @@ import platform
 from solcx import install_solc, set_solc_version, compile_standard, get_installed_solc_versions
 from pathlib import Path
 import json
+from utils.paths import repo_root
 
 print(get_installed_solc_versions())
 
@@ -21,7 +22,7 @@ else:
     set_solc_version(SOLC_VERSION)
 
 # 2) Load sources
-root = Path(__file__).parents[1]
+root = repo_root(Path(__file__))
 contracts_dir = root / "contracts"
 harnesses_contracts_dir = root / "contracts" / "harnesses"
 sources = {

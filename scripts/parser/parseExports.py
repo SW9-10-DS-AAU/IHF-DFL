@@ -2,8 +2,7 @@ from pathlib import Path
 from enum import Enum
 from datetime import datetime, timedelta
 from typing import Any, Callable
-
-from openfl.ml.pytorch_model import Participant
+from ml.pytorch_model import Participant
 from .experiment_specs import ExperimentSpec
 from .gasCosts import GasStats
 from .types.round import Round

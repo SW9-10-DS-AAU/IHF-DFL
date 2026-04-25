@@ -2,8 +2,8 @@ import sys
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from openfl.ml.runtime import NON_BLOCKING
-from openfl.ml.cnn_models import Net_CIFAR, Net_MNIST
+from ml.runtime import NON_BLOCKING
+from ml.cnn_models import Net_CIFAR, Net_MNIST
 from typing import Tuple
 
 

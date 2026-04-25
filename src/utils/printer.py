@@ -1,6 +1,6 @@
 import yaml
 import sys
-from openfl.utils.config import get_print_config
+from utils.config import get_print_config
 
 
 config = get_print_config()

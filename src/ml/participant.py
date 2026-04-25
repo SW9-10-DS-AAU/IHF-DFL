@@ -1,7 +1,7 @@
 import numpy as np
 import copy
 from web3 import Web3
-from openfl.ml.visualization import get_color
+from ml.visualization import get_color
 
 RNG = np.random.default_rng()
 

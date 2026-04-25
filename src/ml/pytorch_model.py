@@ -5,13 +5,13 @@ import torch.optim as optim
 import torch.multiprocessing as mp
 import os
 import time
-from openfl.utils.colors import green, red, yellow, b
-from openfl.ml.cnn_models import Net_CIFAR, Net_MNIST
-from openfl.ml.runtime import DEVICE, PIN_MEMORY, print_training_mode
-from openfl.ml.participant import Participant
-import openfl.ml.training as training
-import openfl.ml.data as data
-import openfl.ml.evaluation as evaluation
+import ml.training as training
+import ml.data as data
+import ml.evaluation as evaluation
+from utils.colors import green, red, yellow, b
+from ml.cnn_models import Net_CIFAR, Net_MNIST
+from ml.runtime import DEVICE, PIN_MEMORY, print_training_mode
+from ml.participant import Participant
 
 debugging = sys.gettrace() is not None
 

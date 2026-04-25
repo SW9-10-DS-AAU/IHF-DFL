@@ -2,6 +2,7 @@ import os
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
+from utils.paths import repo_root
 
 env_loaded = False
 
@@ -21,7 +22,7 @@ def load_env():
     print("Loading environment")
     # Choose env file dynamically
     env = os.getenv("ENV", "ganache")  # defaults to dev if ENV not set
-    env_file = Path(__file__).parents[3] / ".env" / f".env.{env}"
+    env_file = repo_root(Path(__file__)) / ".env" / f".env.{env}"
 
     print(env_file)
 

@@ -1,10 +1,11 @@
 import logging
 import os
+from pathlib import Path
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from openfl.utils import repo_root
-from openfl.utils.colors import green, red, yellow
+from utils.paths import repo_root
+from utils.colors import green, red, yellow
 
 logging.getLogger("torch._inductor").setLevel(logging.ERROR)
 logging.getLogger("torch._dynamo").setLevel(logging.ERROR)
@@ -15,7 +16,7 @@ NON_BLOCKING = USE_CUDA
 NUM_WORKERS = min(4, os.cpu_count() // 2) if torch.cuda.is_available() else 0
 PERSISTENT_WORKERS = USE_CUDA and NUM_WORKERS > 0
 AMP = USE_CUDA  # Optional: mixed precision on CUDA
-DATASET_ROOT = repo_root() / "data" / "datasets"
+DATASET_ROOT = repo_root(Path(__file__)) / "data" / "datasets"
 # cuDNN autotune for fixed-size inputs (both MNIST 28x28 and CIFAR-10 32x32)
 torch._dynamo.config.cache_size_limit = 512
 torch.backends.cudnn.benchmark = USE_CUDA

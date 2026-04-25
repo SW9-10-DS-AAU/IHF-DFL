@@ -1,15 +1,14 @@
 import csv
+import os
+import threading
+import platform
+import psutil
 from datetime import datetime
 from pathlib import Path
 from io import TextIOWrapper
-import os
-import threading
 from queue import Queue, Full
 from typing import List
-import platform
-import psutil
-
-from openfl.ml.pytorch_model import Participant
+from ml.pytorch_model import Participant
 
 def _time_handler(item):
     return datetime.now().strftime("%H:%M:%S.%f")[:-3]

@@ -1,14 +1,14 @@
 import yaml
 from pathlib import Path
 from types import SimpleNamespace
+from utils.paths import repo_root
 
 _config = None  # cache
 
 def get_config():
     global _config
     if _config is None:
-        path = Path(__file__).resolve()
-        config_path = path.parent.parent.parent.parent / "config" / "config.yaml"
+        config_path = repo_root(Path(__file__)) / "config" / "config.yaml"
         with open(config_path) as f:
             data = yaml.safe_load(f)
             _config = _to_namespace(data)

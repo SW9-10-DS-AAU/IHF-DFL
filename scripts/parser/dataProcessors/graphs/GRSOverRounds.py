@@ -1,6 +1,6 @@
 from typing import Callable
 import numpy as np
-from openfl.ml.pytorch_model import Participant
+from ml.pytorch_model import Participant
 from parser.helpers.mehods import Method
 from parser.types.participant import Attitude, MetaAttitude
 from parser.dataProcessors.plotter import line_graph

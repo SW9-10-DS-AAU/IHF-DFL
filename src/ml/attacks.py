@@ -1,11 +1,11 @@
 import torch
 import random
 import copy
-from openfl.ml.visualization import get_color
-from openfl.utils.colors import green, red, yellow, rb
-import openfl.ml.training as training
-import openfl.ml.evaluation as evaluation
-from openfl.ml.runtime import DEVICE
+import ml.training as training
+import ml.evaluation as evaluation
+from ml.visualization import get_color
+from utils.colors import green, red, yellow, rb
+from ml.runtime import DEVICE
 from collections import OrderedDict
 
 

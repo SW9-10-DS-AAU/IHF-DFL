@@ -1,17 +1,22 @@
 from datetime import datetime
 import sys
 import multiprocessing as mp
+from pathlib import Path
+from utils.paths import repo_root
+
+# Running this file directly puts experiment/ on sys.path. Add the repo root
+# before importing repo-root packages such as experiment and analysis.
+REPO_ROOT = repo_root(Path(__file__))
+sys.path.insert(0, str(REPO_ROOT))
+
 import experiment.experiment_runner as ExperimentRunner
 from experiment.experiment_configuration import ExperimentConfiguration
 from experiment.helper import getPath
-from openfl.utils import repo_root
-from openfl.utils.async_writer import AsyncWriter
+from utils.async_writer import AsyncWriter
 
-# Add the repo root to sys.path so `analysis` package is importable from here
-sys.path.insert(0, str(repo_root()))
 from analysis import ExperimentLogger
 
-DATA_ROOT = repo_root() / "data"
+DATA_ROOT = REPO_ROOT / "data"
 
 preset = "test"
 _use_defaults = True
@@ -21,7 +26,7 @@ config = ExperimentConfiguration(preset=preset, use_defaults=_use_defaults)
 
 DATASETSLOW = "cifar.10"
 DATASETFAST = "mnist"
-RESULTDATAFOLDER = repo_root() / "data" / "runs" / "sample"
+RESULTDATAFOLDER = REPO_ROOT / "data" / "runs" / "sample"
 
 DATASET = DATASETFAST
 

@@ -2,10 +2,10 @@ import copy
 import math
 import torch
 import numpy as np
-from openfl.utils import aggregation_strategy_parser
-from openfl.utils.colors import yellow, red, b
-from openfl.ml.runtime import DEVICE
-import openfl.ml.training as training
+import ml.training as training
+from utils import aggregation_strategy_parser
+from utils.colors import yellow, red, b
+from ml.runtime import DEVICE
 from typing import Callable
 
 

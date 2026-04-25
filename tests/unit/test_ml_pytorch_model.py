@@ -1,11 +1,11 @@
 import random
 import pytest
 import torch
-import openfl.ml.attacks as attacks
-import openfl.ml.visualization as visualization
-import openfl.ml.training as training
-import openfl.ml.data as data
-from openfl.ml.pytorch_model import PytorchModel
+import ml.attacks as attacks
+import ml.visualization as visualization
+import ml.training as training
+import ml.data as data
+from ml.pytorch_model import PytorchModel
 
 
 def test_manipulate_adds_noise():

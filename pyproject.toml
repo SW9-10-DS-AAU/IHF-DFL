@@ -1,7 +1,7 @@
 [project]
-name = "openfl2.0"
+name = "FedCBA"
 version = "0.1.0"
-description = "OpenFL 2.0"
+description = "FedCBA"
 readme = "README.md"
 requires-python = "==3.10.*"
 license = { text = "MIT" }
@@ -45,7 +45,7 @@ ci = [
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-pythonpath = ["tests"]
+pythonpath = ["src", "tests"]
 
 [build-system]
 requires = ["setuptools>=69", "wheel"]

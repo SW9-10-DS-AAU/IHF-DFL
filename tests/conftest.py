@@ -1,6 +1,6 @@
-import os
 import sys
 import types
+from utils.paths import repo_root
 
 # Provide a lightweight yaml stub to avoid external dependency during tests
 if "yaml" not in sys.modules:
@@ -19,9 +19,8 @@ if "yaml" not in sys.modules:
     yaml_stub.safe_load = _safe_load
     sys.modules["yaml"] = yaml_stub
 
-# Add src and tests folders to path for imports
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+# Add tests folder to path for imports
+sys.path.insert(0, str(repo_root() / "tests"))
 
 # Stub artifacts package used during contract imports
 if "artifacts" not in sys.modules:

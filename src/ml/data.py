@@ -3,10 +3,8 @@ import torch
 from torch.utils.data import DataLoader, random_split, Subset
 from torchvision import transforms
 from torchvision.datasets import CIFAR10, MNIST
-from openfl.utils import repo_root
-from openfl.ml.runtime import PIN_MEMORY, NUM_WORKERS, PERSISTENT_WORKERS, DATASET_ROOT
+from ml.runtime import PIN_MEMORY, NUM_WORKERS, PERSISTENT_WORKERS, DATASET_ROOT
 from collections import Counter
-
 
 
 def load_data(pm, NUM_CLIENTS, _print=False):

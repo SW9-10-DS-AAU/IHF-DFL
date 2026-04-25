@@ -4,20 +4,20 @@ import time
 import warnings
 import numpy as np
 import matplotlib.pyplot as plt
+import ml.attacks as attacks
+import ml.evaluation as evaluation
+import ml.aggregation as aggregation
 from eth_abi import encode
 from web3 import Web3
 from termcolor import colored
 from web3.exceptions import ContractLogicError
-from openfl.utils.colors import rb, b, green, red
-from openfl.utils import printer, config
-from openfl.api.connection_helper import ConnectionHelper
-from openfl.utils.async_writer import AsyncWriter, NullWriter
-from openfl.contracts import contribution
-from openfl.contracts import challenge_logging
-from openfl.contracts.contribution import contribution_score
-import openfl.ml.attacks as attacks
-import openfl.ml.evaluation as evaluation
-import openfl.ml.aggregation as aggregation
+from utils.colors import rb, b, green, red
+from utils import printer, config
+from api.connection_helper import ConnectionHelper
+from utils.async_writer import AsyncWriter, NullWriter
+from contracts import contribution
+from contracts import logging
+from contracts.contribution import contribution_score
 
 UINT256_MAX = 2**256 - 1
 
@@ -100,7 +100,7 @@ class FLChallenge(ConnectionHelper):
             
             self.gas_register.append(receipt["gasUsed"])
             self.txHashes.append(("register",receipt["transactionHash"].hex(), receipt["gasUsed"]))
-            challenge_logging.log_receipt(self, receipt, "register", round=0)
+            logging.log_receipt(self, receipt, "register", round=0)
         printer._print("-----------------------------------------------------------------------------------", "\n")
         
     
@@ -200,7 +200,7 @@ class FLChallenge(ConnectionHelper):
             
             self.gas_weights.append(receipt["gasUsed"])
             self.txHashes.append(("weights", receipt["transactionHash"].hex(), receipt["gasUsed"]))
-            challenge_logging.log_receipt(self, receipt, "weights")
+            logging.log_receipt(self, receipt, "weights")
         # printer._print("-----------------------------------------------------------------------------------\n")
 
              
@@ -298,7 +298,7 @@ class FLChallenge(ConnectionHelper):
             
             self.gas_feedback.append(receipt["gasUsed"])
             self.txHashes.append(("feedback", receipt["transactionHash"].hex(), receipt["gasUsed"]))
-            challenge_logging.log_receipt(self, receipt, "feedback")
+            logging.log_receipt(self, receipt, "feedback")
         for user in self.pytorch_model.participants:
             user._roundrep.append(self.get_round_reputation_of_user(user.address))
 
@@ -443,7 +443,7 @@ class FLChallenge(ConnectionHelper):
         self.txHashes.append((receipt_type, receipt["transactionHash"].hex(), receipt["gasUsed"]))
         # Writer (old logger) uses this to log
 
-        challenge_logging.log_receipt(self, receipt, receipt_type)
+        logging.log_receipt(self, receipt, receipt_type)
         # New logger log this way
 
 
@@ -519,7 +519,7 @@ class FLChallenge(ConnectionHelper):
 
         self.txHashes.append(("close", receipt["transactionHash"].hex(), receipt["gasUsed"]))
         self.gas_close.append(receipt["gasUsed"])
-        challenge_logging.log_receipt(self, receipt, "close")
+        logging.log_receipt(self, receipt, "close")
         if len(receipt.logs) == 0:
             print("Warning: closeFeedBackRound() emitted no logs")
         self.pytorch_model.round += 1
@@ -568,7 +568,7 @@ class FLChallenge(ConnectionHelper):
             
             self.gas_slot.append(receipt["gasUsed"])
             self.txHashes.append(("slot", receipt["transactionHash"].hex(), receipt["gasUsed"]))
-            challenge_logging.log_receipt(self, receipt, "slot")
+            logging.log_receipt(self, receipt, "slot")
         # printer._print("-----------------------------------------------------------------------------------\n")
         return 
     
@@ -605,7 +605,7 @@ class FLChallenge(ConnectionHelper):
             
             self.gas_exit.append(receipt["gasUsed"])
             self.txHashes.append(("exit", receipt["transactionHash"].hex(), receipt["gasUsed"]))
-            challenge_logging.log_receipt(self, receipt, "exit")
+            logging.log_receipt(self, receipt, "exit")
         printer._print("-----------------------------------------------------------------------------------\n")
 
 
@@ -844,7 +844,7 @@ class FLChallenge(ConnectionHelper):
                 "GasTransactions": roundTx
             })
 
-        # challenge_logging.log_round_zero(self)
+        # logging.log_round_zero(self)
 
         for i in range(rounds):
             print(b(f"\n\nRound {self.pytorch_model.round} starts..."))
@@ -888,7 +888,7 @@ class FLChallenge(ConnectionHelper):
             if self.experiment_config.contribution_score_strategy == "dotproduct":
                 aggregation.the_merge(self.pytorch_model, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, warning_collector=warning_collector)
                 for msg in warning_collector:
-                    challenge_logging.log_warning(self, msg)
+                    logging.log_warning(self, msg)
 
             print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
             contribution_score(self, contributors)
@@ -901,7 +901,7 @@ class FLChallenge(ConnectionHelper):
                 avg_losses = self.get_all_n_prior_losses(3)
                 aggregation.the_merge(self.pytorch_model, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_losses=avg_losses, warning_collector=warning_collector)
                 for msg in warning_collector:
-                    challenge_logging.log_warning(self, msg, round=self.pytorch_model.round - 1) # Minus 1 since close_round increments.
+                    logging.log_warning(self, msg, round=self.pytorch_model.round - 1) # Minus 1 since close_round increments.
 
             if receipt is not None:
                 self.print_round_summary(receipt)
@@ -909,7 +909,7 @@ class FLChallenge(ConnectionHelper):
             _round_time = time.perf_counter() - _round_start
             _current_round = self.pytorch_model.round - 1
 
-            # challenge_logging.log_round(self,
+            # logging.log_round(self,
             #     _current_round, _round_time,
             #     accuracy_matrix, loss_matrix, prev_accs, prev_losses,
             #     contributors, receipt, users_weight_collector, agg_switch_collector,

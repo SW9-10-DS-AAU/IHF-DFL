@@ -1,14 +1,11 @@
 import os
 import random
 import sys
-from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
 import pytest
 import types
-
-
-
-from openfl.contracts.fl_challenge import FLChallenge
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+from contracts.fl_challenge import FLChallenge
 
 
 @pytest.fixture
@@ -126,11 +123,11 @@ def fl_challenge(request, mock_w3, mock_contract, mock_participants):
         )
     )
 
-    with patch("openfl.api.connection_helper.ConnectionHelper.build_tx") as mock_build_tx:
+    with patch("api.connection_helper.ConnectionHelper.build_tx") as mock_build_tx:
         mock_build_tx.return_value = {"gas": 100000, "gasPrice": 1, "nonce": 1}
 
         with patch(
-            "openfl.api.connection_helper.ConnectionHelper.build_non_fork_tx"
+            "api.connection_helper.ConnectionHelper.build_non_fork_tx"
         ) as mock_build_nf_tx:
             mock_build_nf_tx.return_value = {"gas": 100000, "nonce": 1}
 

@@ -1,6 +1,6 @@
 from web3 import Web3
-from openfl.utils.colors import b
-from openfl.api import ConnectionHelper
+from utils.colors import b
+from api import ConnectionHelper
 
 class FLManager(ConnectionHelper):
     

@@ -1,8 +1,9 @@
 import sys
 from pathlib import Path
+from utils.paths import repo_root
 
-# Repo root is one level above this script (analysis/)
-REPO_ROOT = Path(__file__).resolve().parent.parent
+# Add the repo root to sys.path so `analysis` package is importable from here
+REPO_ROOT = repo_root(Path(__file__))
 sys.path.insert(0, str(REPO_ROOT))
 
 import matplotlib.pyplot as plt

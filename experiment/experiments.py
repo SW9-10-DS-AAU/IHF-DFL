@@ -1,28 +1,32 @@
 from datetime import datetime
 import json
 import multiprocessing as mp
+from pathlib import Path
 import re
 import sys
 import traceback
+import argparse
+from utils.paths import repo_root
+
+# Running this file directly puts experiment/ on sys.path. Add the repo root
+# before importing repo-root packages such as experiment and analysis.
+REPO_ROOT = repo_root(Path(__file__))
+sys.path.insert(0, str(REPO_ROOT))
+
+import experiment.experiment_runner as ExperimentRunner
 from itertools import product
 from dataclasses import dataclass
 from experiment.helper import getPath
-import argparse
-import experiment.experiment_runner as ExperimentRunner
 from experiment.experiment_configuration import ExperimentConfiguration
 from experiment.experiment_presets import PRESETS
-from openfl.utils import repo_root
-from openfl.utils.async_writer import AsyncWriter
+from utils.async_writer import AsyncWriter
 from selector import choose_from_list
-
-# Add the repo root to sys.path so `analysis` package is importable from here
-sys.path.insert(0, str(repo_root()))
 from analysis import ExperimentLogger
 
-DATA_ROOT = repo_root() / "data"
+DATA_ROOT = REPO_ROOT / "data"
 DATASETSLOW = "cifar.10"
 DATASETFAST = "mnist"
-RESULTDATAFOLDER = repo_root() / "data" / "runs" / "experiments"
+RESULTDATAFOLDER = REPO_ROOT / "data" / "runs" / "experiments"
 
 # ---------------- PRESET SEARCH SPACE ----------------
 

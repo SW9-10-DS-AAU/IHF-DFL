@@ -4,9 +4,9 @@ import torch
 import warnings
 from termcolor import colored
 from decimal import Decimal
-from openfl.utils.colors import green, red
-from openfl.utils.shapley import check_shapley_compliance
-from openfl.contracts import challenge_logging
+from utils.colors import green, red
+from utils.shapley import check_shapley_compliance
+from contracts import logging
 
 _runtime_warnings = []
 
@@ -33,9 +33,9 @@ def contribution_score(challenge, _users):
         share = 1.0 / len(_users)
         msg = f"[Round {challenge.pytorch_model.round}] Too few contributors ({len(_users)}) for contribution scoring – using equal shares({share: .4f} each)"
         print(colored(msg, "yellow"))
-        challenge_logging.log_warning(challenge, msg)
+        logging.log_warning(challenge, msg)
         scores = [share] * len(_users)
-        challenge_logging.log_contribution_scores(challenge, _users, scores, None, None, None)
+        logging.log_contribution_scores(challenge, _users, scores, None, None, None)
         for u in _users: u.evaluation_reward = 1
     else:
         strategy = challenge.experiment_config.contribution_score_strategy
@@ -109,11 +109,11 @@ def _calculate_scores_dotproduct(challenge, users):
         # Raw dot product per user (pre-normalization), analogous to avg_acc/avg_loss in other strategies
         dots = torch.mv(local_updates, filtered_global_update)
         raw_values = [float(d.item()) for d in dots]
-        challenge_logging.log_contribution_scores(challenge, users, scores, raw_values, per_user_outlier_info, None)
+        logging.log_contribution_scores(challenge, users, scores, raw_values, per_user_outlier_info, None)
     else:
         print("not using mad")
         scores = calc_contribution_scores_dotproduct(local_updates, global_update)
-        challenge_logging.log_contribution_scores(challenge, users, scores, None, None, None)
+        logging.log_contribution_scores(challenge, users, scores, None, None, None)
 
     return scores
 
@@ -125,7 +125,7 @@ def _calculate_scores_naive(challenge, users):
     num_mergers = len(users)
     scores = [calc_contribution_score_naive(num_mergers) for _ in users]
 
-    challenge_logging.log_contribution_scores(challenge, users, scores, None, None, None)
+    logging.log_contribution_scores(challenge, users, scores, None, None, None)
 
     return scores
 
@@ -249,12 +249,12 @@ def _calculate_scores_accuracy_only(challenge, users, mad_threshold=1.1):
         msg = f"[Round {challenge.pytorch_model.round}] Axiom Violation: {errors}"
         _runtime_warnings.append(msg)
         print(colored(f"{msg}", "yellow"))
-        challenge_logging.log_warning(challenge, msg)
+        logging.log_warning(challenge, msg)
 
     scores = norm_accuracies
     print(f"scores = {scores}")
 
-    challenge_logging.log_contribution_scores(challenge, users, scores, avg_accuracies, per_user_outlier_info, avg_prev_acc)
+    logging.log_contribution_scores(challenge, users, scores, avg_accuracies, per_user_outlier_info, avg_prev_acc)
 
     return scores
 
@@ -321,13 +321,13 @@ def _calculate_scores_loss_only(challenge, users, mad_threshold=1.1):
         msg = f"[Round {challenge.pytorch_model.round}] Axiom Violation: {errors}"
         _runtime_warnings.append(msg)
         print(colored(f"{msg}", "yellow"))
-        challenge_logging.log_warning(challenge, msg)
+        logging.log_warning(challenge, msg)
 
     scores = norm_losses
 
     # print(f"scores = {scores}")
 
-    challenge_logging.log_contribution_scores(challenge, users, scores, avg_losses, per_user_outlier_info, avg_prev_loss)
+    logging.log_contribution_scores(challenge, users, scores, avg_losses, per_user_outlier_info, avg_prev_loss)
 
     return scores
 

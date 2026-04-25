@@ -1,9 +1,9 @@
 import numpy as np
-from openfl.utils.colors import green, red, yellow, b, rb
-from web3 import Web3
-import openfl.ml.training as training
-from openfl.ml.runtime import DEVICE
+import ml.training as training
 import math
+from utils.colors import green, red, yellow, b, rb
+from web3 import Web3
+from ml.runtime import DEVICE
 
 
 def exchange_models(pm):
