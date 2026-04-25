@@ -3,12 +3,15 @@ import sys
 import multiprocessing as mp
 from pathlib import Path
 
-from utils.paths import repo_root
+# Running this file directly puts experiment/ on sys.path.
+# Insert src/ and repo root before any project imports so they resolve
+# regardless of whether the editable install is present.
+_repo = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_repo / "src"))
+sys.path.insert(0, str(_repo))
 
-# Running this file directly puts experiment/ on sys.path; add repo root so
-# that `import experiment.*` and `import analysis` resolve correctly.
+from utils.paths import repo_root
 REPO_ROOT = repo_root(Path(__file__))
-sys.path.insert(0, str(REPO_ROOT))
 
 import experiment.experiment_runner as ExperimentRunner
 from experiment.experiment_configuration import ExperimentConfiguration

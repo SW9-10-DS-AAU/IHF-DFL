@@ -43,8 +43,8 @@ _CONTRIB_LIST_COLS = [
     "previous_accepted_values",
 ]
 
-# Punishments table — Wei columns
-_PUNISHMENT_WEI_COLS = ["loss", "new_reputation"]
+# Punishments table — Wei columns (round_score is int256 roundReputation, same scale as round_reputation_assigned)
+_PUNISHMENT_WEI_COLS = ["loss", "new_reputation", "round_score"]
 
 # Evaluation rewards table — Wei columns
 _EVAL_REWARD_WEI_COLS = ["staked", "rewarded", "new_reputation"]
