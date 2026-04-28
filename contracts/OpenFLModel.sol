@@ -391,7 +391,7 @@ contract OpenFLModel {
     }
 
     function settle() public virtual {
-        uint totalPunishment;
+        uint totalPunishment = punishMaliciousUsers();
         uint freeriderLock; // A global total of sum of freerider penalties
         uint disq_threshold = min_collateral / punishfactor;
 
@@ -406,46 +406,6 @@ contract OpenFLModel {
             }
             user.isPunished = false;
             user.isPassivePunished = false;
-        }
-
-        // Punish malicious users
-        for (uint i = 0; i < participants.length; i++) {
-            User storage user = users[participants[i]];
-            if (user.isRegistered && !user.isDisqualified) {
-                if (user.roundReputation < 0) {
-                    votesPerRound -= user.nrOfVotesFromUser;
-                    user.nrOfVotesFromUser = 0;
-
-                    uint punishment = uint(user.globalReputationScore / punishfactor);
-                    if (user.globalReputationScore - punishment >= disq_threshold) {
-                        user.isPunished = true;
-                        punishedAddresses.push(user.addr);
-                        user.whitelistedForRewards = false;
-
-                        user.globalReputationScore =
-                            user.globalReputationScore -
-                            punishment;
-                        user.roundReputation =
-                            user.roundReputation -
-                            int(punishment);
-                        totalPunishment += punishment;
-                        emit Punishment(
-                            participants[i],
-                            user.roundReputation,
-                            punishment,
-                            user.globalReputationScore
-                        );
-                    } else {
-                        punishedAddresses.push(user.addr);
-                        user.whitelistedForRewards = false;
-
-                        totalPunishment += user.globalReputationScore;
-                        _disqualifyUser(user);
-                    }
-                } else {
-                    user.whitelistedForRewards = true;
-                }
-            }
         }
 
         // Punish helpers of malicious users
@@ -622,6 +582,44 @@ contract OpenFLModel {
         votesPerRound = 0;
         nrOfProvidedHashedWeights = 0;
         delete punishedAddresses;
+    }
+
+    function punishMaliciousUsers() internal returns (uint totalPunishment) {
+        for (uint i = 0; i < participants.length; i++) {
+            User storage user = users[participants[i]];
+            if (user.isRegistered && !user.isDisqualified) {
+                if (user.roundReputation < 0) {
+                    votesPerRound -= user.nrOfVotesFromUser;
+                    user.nrOfVotesFromUser = 0;
+
+                    uint punishment = uint(user.globalReputationScore / punishfactor);
+
+                    if (user.globalReputationScore > min_collateral / punishfactor) {
+                        user.isPunished = true;
+                        punishedAddresses.push(participants[i]);
+                        user.whitelistedForRewards = false;
+
+                        user.globalReputationScore -= punishment;
+                        user.roundReputation -= int(punishment);
+                        totalPunishment += punishment;
+                        emit Punishment(
+                            participants[i],
+                            user.roundReputation,
+                            punishment,
+                            user.globalReputationScore
+                        );
+                    } else {
+                        punishedAddresses.push(participants[i]);
+                        user.whitelistedForRewards = false;
+                        totalPunishment += user.globalReputationScore;
+                        _disqualifyUser(user);
+                    }
+                } else {
+                    user.whitelistedForRewards = true;
+                }
+            }
+        }
+        return totalPunishment;
     }
 
     function _disqualifyUser(User storage user) internal {
