@@ -393,6 +393,7 @@ contract OpenFLModel {
     function settle() public virtual {
         uint totalPunishment;
         uint freeriderLock; // A global total of sum of freerider penalties
+        uint disq_threshold = min_collateral / punishfactor;
 
         // First round users pay their anti-freerider fee
         for (uint i = 0; i < participants.length; i++) {
@@ -416,10 +417,9 @@ contract OpenFLModel {
                     user.nrOfVotesFromUser = 0;
 
                     uint punishment = uint(user.globalReputationScore / punishfactor);
-
-                    if (user.globalReputationScore > min_collateral / punishfactor) {
+                    if (user.globalReputationScore - punishment >= disq_threshold) {
                         user.isPunished = true;
-                        punishedAddresses.push(participants[i]);
+                        punishedAddresses.push(user.addr);
                         user.whitelistedForRewards = false;
 
                         user.globalReputationScore =
@@ -436,7 +436,7 @@ contract OpenFLModel {
                             user.globalReputationScore
                         );
                     } else {
-                        punishedAddresses.push(participants[i]);
+                        punishedAddresses.push(user.addr);
                         user.whitelistedForRewards = false;
 
                         totalPunishment += user.globalReputationScore;
@@ -498,35 +498,25 @@ contract OpenFLModel {
             User storage user = users[participants[i]];
 
             if (_isEligibleForRewards(user)) { // && evaluationScore[round][user.addr] != 0
-                require(evaluationScore[round][user.addr] >= 0, "Evaluation score is <= 0 in settle!");
+                require(evaluationScore[round][user.addr] > 0, "Evaluation score is <= 0 in settle!");  // TODO: 0 betyder ingen værdi. Aldrig sæt 0 i python
                 uint staking_min_grs = min_collateral / punishfactorContrib;
                 uint evaluation_reward = (evaluationScore[round][user.addr] * staking_min_grs) / 1e18;
+                uint new_global_rep = user.globalReputationScore + evaluation_reward - staking_min_grs;
 
-                // 2nd - Disqualification
-                if (user.globalReputationScore + evaluation_reward <= staking_min_grs) {
+                if (new_global_rep >= disq_threshold) { // reward (can be smaller than what participant staked)
+                    if (user.isPassivePunished && evaluation_reward > staking_min_grs) { // if users with passive punishment get rewarded, strip that reward and add surplus to pool.
+                        evaluation_disqualification_pool += evaluation_reward - staking_min_grs;
+                        evaluation_reward = staking_min_grs;
+                    }
+                    user.globalReputationScore = new_global_rep;
 
-                    user.whitelistedForRewards = false;
-
-                    evaluation_disqualification_pool += user.globalReputationScore;
-                    _disqualifyUser(user);
-
-                    continue;
-                }
-
-                if (user.isPassivePunished && evaluation_reward > staking_min_grs) { // if users with passive punishment get rewarded, strip that reward and add surplus to pool.
-                    evaluation_disqualification_pool += evaluation_reward - staking_min_grs;
-                    evaluation_reward = staking_min_grs;
-                }
-                user.globalReputationScore = user.globalReputationScore + evaluation_reward - staking_min_grs;
-
-                emit EvaluationVotingReward(
-                    user.addr,
-                    evaluation_reward,
-                    staking_min_grs,
-                    user.globalReputationScore
-                );
-
-                if (user.globalReputationScore <= staking_min_grs) {
+                    emit EvaluationVotingReward(
+                        user.addr,
+                        evaluation_reward,
+                        staking_min_grs,
+                        user.globalReputationScore
+                    );
+                } else { // disqualify
                     evaluation_disqualification_pool += user.globalReputationScore;
                     _disqualifyUser(user);
                 }
@@ -565,7 +555,7 @@ contract OpenFLModel {
                     uint punishment = (user.globalReputationScore / punishfactorContrib) * absUint((contributionScore[round][user.addr]));
                     require(punishment > 0, "punishment is <= 0 in settle!");
                     punishment /= 1e18;
-                    if (user.globalReputationScore <= min_collateral / punishfactorContrib || user.globalReputationScore <= punishment) {
+                    if (user.globalReputationScore - punishment < disq_threshold) {
                         reward += user.globalReputationScore;
                         _disqualifyUser(user);
                     }
