@@ -498,7 +498,7 @@ contract OpenFLModel {
             User storage user = users[participants[i]];
 
             if (_isEligibleForRewards(user)) { // && evaluationScore[round][user.addr] != 0
-                require(evaluationScore[round][user.addr] > 0, "Evaluation score is <= 0 in settle!");  // TODO: 0 betyder ingen værdi. Aldrig sæt 0 i python
+                require(evaluationScore[round][user.addr] > 0, "Evaluation score is <= 0 in settle!"); // 0 means no evaluationn score submitted.
                 uint staking_min_grs = min_collateral / punishfactorContrib;
                 uint evaluation_reward = (evaluationScore[round][user.addr] * staking_min_grs) / 1e18;
                 uint new_global_rep = user.globalReputationScore + evaluation_reward - staking_min_grs;

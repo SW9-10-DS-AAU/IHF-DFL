@@ -48,6 +48,9 @@ def contribution_score(challenge, _users):
     txs = []
     for u, score in zip(_users, challenge.scores):
         u.contribution_score = score
+        if u.evaluation_reward == 0:
+            raise ValueError(f"Evaluation reward for user {u.address} is zero, which will fail a require on the smart contract. User data: {u.__dict__}")
+
         if challenge.fork:
             tx = challenge.build_tx(u.address, challenge.modelAddress)
             tx_hash = challenge.model.functions.submitContributionScoreAndVotingEvaluation(
