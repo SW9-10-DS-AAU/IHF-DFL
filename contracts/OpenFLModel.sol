@@ -412,22 +412,17 @@ contract OpenFLModel {
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             if (user.isRegistered && !user.isDisqualified) {
-                if (user.roundReputation < 0) {
+                if (user.roundReputation < 0) { // punishment
+                    user.whitelistedForRewards = false;
+                    punishedAddresses.push(user.addr);
                     votesPerRound -= user.nrOfVotesFromUser;
                     user.nrOfVotesFromUser = 0;
-
                     uint punishment = uint(user.globalReputationScore / punishfactor);
+
                     if (user.globalReputationScore - punishment >= disq_threshold) {
                         user.isPunished = true;
-                        punishedAddresses.push(user.addr);
-                        user.whitelistedForRewards = false;
-
-                        user.globalReputationScore =
-                            user.globalReputationScore -
-                            punishment;
-                        user.roundReputation =
-                            user.roundReputation -
-                            int(punishment);
+                        user.globalReputationScore = user.globalReputationScore - punishment;
+                        user.roundReputation = user.roundReputation - int(punishment);
                         totalPunishment += punishment;
                         emit Punishment(
                             participants[i],
@@ -435,10 +430,7 @@ contract OpenFLModel {
                             punishment,
                             user.globalReputationScore
                         );
-                    } else {
-                        punishedAddresses.push(user.addr);
-                        user.whitelistedForRewards = false;
-
+                    } else { //disqualify
                         totalPunishment += user.globalReputationScore;
                         _disqualifyUser(user);
                     }
