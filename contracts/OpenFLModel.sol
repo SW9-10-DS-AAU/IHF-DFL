@@ -31,6 +31,7 @@ contract OpenFLModel {
     uint public roundStart;
     uint public contributionStart;
     uint public freeriderPenalty;
+    uint public disq_threshold;
     uint constant ONE_DAY = 864e2;
 
     address[] public participants;
@@ -216,6 +217,7 @@ contract OpenFLModel {
         punishfactor = _punishfactor;
         punishfactorContrib = _punishfactorContrib;
         freeriderPenalty = (min_collateral * _freeriderPenalty) / 100;
+        disq_threshold = _min_collateral / _punishfactor;
         rewardPerRound = totalReward / min_rounds;
         rewardLeft = totalReward;
 
@@ -391,34 +393,82 @@ contract OpenFLModel {
     }
 
     function settle() public virtual {
+        uint freeriderLock = collectFreeriderFees(); // A global total of sum of freerider penalties
         uint totalPunishment = punishMaliciousUsers();
-        uint freeriderLock; // A global total of sum of freerider penalties
-        uint disq_threshold = min_collateral / punishfactor;
+        punishHelpers();
+        totalPunishment += paybackFreeriders(freeriderLock);
+        uint evaluation_disqualification_pool = settleEvaluationScores();
+        uint positiveSumOfWeightedContribScore = settleContributionScores(
+            totalPunishment,
+            evaluation_disqualification_pool
+        );
 
-        // First round users pay their anti-freerider fee
+        emit EndRound(round,
+            votesPerRound,
+            positiveSumOfWeightedContribScore,
+            totalPunishment
+        );
+        roundReset();
+    }
+
+    // Punish malicious users
+    function punishMaliciousUsers() internal returns (uint totalPunishment) {
+        for (uint i = 0; i < participants.length; i++) {
+            User storage user = users[participants[i]];
+            if (user.isRegistered && !user.isDisqualified) {
+                if (user.roundReputation < 0) { // punishment
+                    user.whitelistedForRewards = false;
+                    punishedAddresses.push(user.addr);
+                    votesPerRound -= user.nrOfVotesFromUser;
+                    user.nrOfVotesFromUser = 0;
+
+                    uint punishment = uint(user.globalReputationScore / punishfactor);
+
+                    if (user.globalReputationScore - punishment >= disq_threshold) {
+                        user.isPunished = true;
+                        user.globalReputationScore = user.globalReputationScore - punishment;
+                        user.roundReputation = user.roundReputation - int(punishment);
+                        totalPunishment += punishment;
+                        emit Punishment(
+                            participants[i],
+                            user.roundReputation,
+                            punishment,
+                            user.globalReputationScore
+                        );
+                    } else { //disqualify
+                        totalPunishment += user.globalReputationScore;
+                        _disqualifyUser(user);
+                    }
+                } else {
+                    user.whitelistedForRewards = true;
+                }
+            }
+        }
+        return totalPunishment;
+    }
+
+    // First round users pay their anti-freerider fee
+    function collectFreeriderFees() internal returns (uint freeriderLock) {
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             if (user.nrOfRoundsParticipated == 1) {
-                user.globalReputationScore =
-                    user.globalReputationScore -
-                    freeriderPenalty;
+                user.globalReputationScore -= freeriderPenalty;
                 freeriderLock += freeriderPenalty;
             }
             user.isPunished = false;
             user.isPassivePunished = false;
         }
+        return freeriderLock;
+    }
 
-        // Punish helpers of malicious users
+    // Punish helpers of malicious users
+    function punishHelpers() internal {
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             if (user.isRegistered && !user.isDisqualified) {
                 for (uint j = 0; j < punishedAddresses.length; j++) {
-                    if (
-                        votedPositiveFor[user.addr][punishedAddresses[j]]
-                    ) {
-                        votedPositiveFor[user.addr][
-                        punishedAddresses[j]
-                        ] = false;
+                    if (votedPositiveFor[user.addr][punishedAddresses[j]]) {
+                        votedPositiveFor[user.addr][punishedAddresses[j]] = false;
                         user.isPassivePunished = true;
                         votesPerRound -= user.nrOfVotesFromUser;
                         user.nrOfVotesFromUser = 0;
@@ -432,33 +482,30 @@ contract OpenFLModel {
                 }
             }
         }
+    }
 
-        // Pay back freerider 1st round stake to good users
+    // Pay back freerider 1st round stake to good users
+    function paybackFreeriders(uint freeriderLock) internal returns (uint additionalPunishment) {
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
-            if (user.isRegistered && !user.isDisqualified) {
-                if (user.nrOfRoundsParticipated == 1) {
-                    if (user.whitelistedForRewards) {
-                        user.globalReputationScore =
-                            user.globalReputationScore +
-                            freeriderPenalty;
-                        freeriderLock -= freeriderPenalty;
-                    } else {
-                        totalPunishment += freeriderPenalty;
-                        freeriderLock -= freeriderPenalty;
-                    }
+            if (user.isRegistered && !user.isDisqualified && user.nrOfRoundsParticipated == 1) {
+                if (user.whitelistedForRewards) {
+                    user.globalReputationScore += freeriderPenalty;
+                } else {
+                    additionalPunishment += freeriderPenalty;
                 }
+                freeriderLock -= freeriderPenalty;
             }
         }
+        return additionalPunishment;
+    }
 
-        // Evaluation scores based on evaluation votes.
-        uint evaluation_disqualification_pool = 0;
-
+    // Evaluation scores based on evaluation votes.
+    function settleEvaluationScores() internal returns (uint evaluation_disqualification_pool) {
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
-
-            if (_isEligibleForRewards(user)) { // && evaluationScore[round][user.addr] != 0
-                require(evaluationScore[round][user.addr] > 0, "Evaluation score is <= 0 in settle!"); // 0 means no evaluationn score submitted.
+            if (_isEligibleForRewards(user)) {
+                require(evaluationScore[round][user.addr] > 0, "Evaluation score is <= 0 in settle!"); // 0 means no evaluation score submitted.
                 uint staking_min_grs = min_collateral / punishfactorContrib;
                 uint evaluation_reward = (evaluationScore[round][user.addr] * staking_min_grs) / 1e18;
                 uint new_global_rep = user.globalReputationScore + evaluation_reward - staking_min_grs;
@@ -476,96 +523,93 @@ contract OpenFLModel {
                         staking_min_grs,
                         user.globalReputationScore
                     );
-                } else { // disqualify
+                }
+                else { // disqualify
                     evaluation_disqualification_pool += user.globalReputationScore;
                     _disqualifyUser(user);
                 }
             }
         }
+        return evaluation_disqualification_pool;
+    }
 
-        // Divide reward between every user who provided (non-malicious) feedback
-        // Pay back freeriderLock(totalpunishment) funds to good users
+    // Divide reward between every user who provided (non-malicious) feedback
+    // Pay back freeriderLock(totalpunishment) funds to good users
+    function settleContributionScores(
+        uint totalPunishment,
+        uint evaluation_disqualification_pool
+    ) internal returns (uint256 positiveSumOfWeightedContribScore) {
+        if (votesPerRound == 0 || rewardLeft < rewardPerRound) {
+            return 0;
+        }
+
+        rewardLeft -= rewardPerRound;
+        uint reward = rewardPerRound + totalPunishment + evaluation_disqualification_pool; // surplus grs from disqualifications in evaluation voting, punishments and <= 0 RRS users
+
         int256 sumOfWeightedContribScore = 0;
-        uint256 positiveSumOfWeightedContribScore;
-        if (votesPerRound > 0 && rewardLeft >= rewardPerRound) {
-            rewardLeft -= rewardPerRound;
 
-            uint reward = rewardPerRound;
-            reward += totalPunishment; // surplus grs from punishments and <= 0 RRS users
-            reward += evaluation_disqualification_pool; // surplus grs from disqualifications in evaluation voting
-
-            // Compute weights
-            for (uint i = 0; i < participants.length; i++) {
-                User storage user = users[participants[i]];
-
-                if (_isEligibleForRewards(user) && contributionScore[round][user.addr] > 0) {
-                    int256 weight = int256(uint(user.nrOfVotesFromUser)) * contributionScore[round][user.addr];   // implicitly handles users with passive punishments, as their nrOfVotesFromUser is set to 0 already.
-                    user.weightedContribScore = weight;
-                    sumOfWeightedContribScore += weight;
-                }
-            }
-            require(sumOfWeightedContribScore > 0, "sumOfWeightedContribScore is <= 0 in settle!");
-            positiveSumOfWeightedContribScore = uint256(sumOfWeightedContribScore);
-
-            // check if a user should be disqualified or punished
-            for (uint i = 0; i < participants.length; i++) {
-                User storage user = users[participants[i]];
-
-                if (_isEligibleForRewards(user) && contributionScore[round][user.addr] < 0) {
-                    uint punishment = (user.globalReputationScore / punishfactorContrib) * absUint((contributionScore[round][user.addr]));
-                    require(punishment > 0, "punishment is <= 0 in settle!");
-                    punishment /= 1e18;
-                    if (user.globalReputationScore - punishment < disq_threshold) {
-                        reward += user.globalReputationScore;
-                        _disqualifyUser(user);
-                    }
-                    else { // this is a punishment
-                        user.globalReputationScore -= punishment;
-                        reward += punishment;
-                        user.isPunished = true;
-
-                        emit ContributionPunishment(
-                            user.addr,
-                            user.roundReputation,
-                            punishment,
-                            user.globalReputationScore
-                        );
-
-                        delete user.whitelistedForRewards;
-                        delete user.weightedContribScore;
-                    }
-                }
-            }
-
-            // Give rewards based on positive contribution score
-            for (uint i = 0; i < participants.length; i++) {
-                User storage user = users[participants[i]];
-
-                if (_isEligibleForRewards(user) && contributionScore[round][user.addr] >= 0) { // NOTE: This refactor adds the case of !user.Disqualified, in contrast to before)
-                    uint personalReward = (reward * uint(user.weightedContribScore)) / positiveSumOfWeightedContribScore;
-
-                    user.globalReputationScore += personalReward;
-
-                    emit Reward(
-                        user.addr,
-                        user.roundReputation,
-                        personalReward,
-                        user.globalReputationScore
-                    );
-                }
-
-                delete user.whitelistedForRewards;
-                delete user.weightedContribScore;
+        // Compute weights
+        for (uint i = 0; i < participants.length; i++) {
+            User storage user = users[participants[i]];
+            if (_isEligibleForRewards(user) && contributionScore[round][user.addr] > 0) {
+                int256 weight = int256(uint(user.nrOfVotesFromUser)) * contributionScore[round][user.addr]; // implicitly handles users with passive punishments, as their nrOfVotesFromUser is set to 0 already.
+                user.weightedContribScore = weight;
+                sumOfWeightedContribScore += weight;
             }
         }
-        emit EndRound(
-            round,
-            votesPerRound,
-            positiveSumOfWeightedContribScore,
-            totalPunishment
-        );
+        require(sumOfWeightedContribScore > 0, "sumOfWeightedContribScore is <= 0 in settle!");
+        positiveSumOfWeightedContribScore = uint256(sumOfWeightedContribScore);
+
+        // check if a user should be disqualified or punished
+        for (uint i = 0; i < participants.length; i++) {
+            User storage user = users[participants[i]];
+            if (_isEligibleForRewards(user) && contributionScore[round][user.addr] < 0) {
+                uint punishment = (user.globalReputationScore / punishfactorContrib) * absUint(contributionScore[round][user.addr]);
+                require(punishment > 0, "punishment is <= 0 in settle!");
+                punishment /= 1e18;
+                if (user.globalReputationScore - punishment < disq_threshold) {
+                    reward += user.globalReputationScore;
+                    _disqualifyUser(user);
+                }
+                else { // this is a punishment
+                    user.globalReputationScore -= punishment;
+                    reward += punishment;
+                    user.isPunished = true;
+
+                    emit ContributionPunishment(
+                        user.addr,
+                        user.roundReputation,
+                        punishment,
+                        user.globalReputationScore
+                    );
+
+                    delete user.whitelistedForRewards;
+                    delete user.weightedContribScore;
+                }
+            }
+        }
+
+        for (uint i = 0; i < participants.length; i++) {
+            User storage user = users[participants[i]];
+            if (_isEligibleForRewards(user) && contributionScore[round][user.addr] >= 0) {
+                uint personalReward = (reward * uint(user.weightedContribScore)) / positiveSumOfWeightedContribScore;
+                user.globalReputationScore += personalReward;
+
+                emit Reward(
+                    user.addr,
+                    user.roundReputation,
+                    personalReward,
+                    user.globalReputationScore
+                );
+            }
+
+            delete user.whitelistedForRewards;
+            delete user.weightedContribScore;
+        }
+    }
 
         // Reset variables
+    function roundReset() internal {
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             if (user.isRegistered && !user.isDisqualified) {
@@ -582,44 +626,6 @@ contract OpenFLModel {
         votesPerRound = 0;
         nrOfProvidedHashedWeights = 0;
         delete punishedAddresses;
-    }
-
-    function punishMaliciousUsers() internal returns (uint totalPunishment) {
-        for (uint i = 0; i < participants.length; i++) {
-            User storage user = users[participants[i]];
-            if (user.isRegistered && !user.isDisqualified) {
-                if (user.roundReputation < 0) {
-                    votesPerRound -= user.nrOfVotesFromUser;
-                    user.nrOfVotesFromUser = 0;
-
-                    uint punishment = uint(user.globalReputationScore / punishfactor);
-
-                    if (user.globalReputationScore > min_collateral / punishfactor) {
-                        user.isPunished = true;
-                        punishedAddresses.push(participants[i]);
-                        user.whitelistedForRewards = false;
-
-                        user.globalReputationScore -= punishment;
-                        user.roundReputation -= int(punishment);
-                        totalPunishment += punishment;
-                        emit Punishment(
-                            participants[i],
-                            user.roundReputation,
-                            punishment,
-                            user.globalReputationScore
-                        );
-                    } else {
-                        punishedAddresses.push(participants[i]);
-                        user.whitelistedForRewards = false;
-                        totalPunishment += user.globalReputationScore;
-                        _disqualifyUser(user);
-                    }
-                } else {
-                    user.whitelistedForRewards = true;
-                }
-            }
-        }
-        return totalPunishment;
     }
 
     function _disqualifyUser(User storage user) internal {
