@@ -104,8 +104,8 @@ def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, d
     # Rebuild dataloaders inside the process
     train_loader = DataLoader(train_ds, batch_size=batchsize, shuffle=shuffle,
                               pin_memory=pin_memory)
-    val_loader = DataLoader(val_ds, batch_size=batchsize, shuffle=False,
-                            pin_memory=pin_memory)  # TODO: Investigate if this breaks something
+    val_loader = DataLoader(val_ds, batch_size=batchsize, shuffle=shuffle,
+                            pin_memory=pin_memory)
 
     train(model, train_loader, epochs, device)  # Line 285 in original code
     val_loss, val_acc = test(model, val_loader, device)  # Line 286 in original code
