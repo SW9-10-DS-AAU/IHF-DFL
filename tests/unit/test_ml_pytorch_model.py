@@ -43,12 +43,12 @@ def test_device_label_formats_output():
     assert training.device_label(torch.device("cpu")) == "CPU"
     assert training.device_label(torch.device("cuda"), 2) == "GPU 2"
 
-@pytest.mark.parametrize("dataset", ["mnist", "cifar"])
+@pytest.mark.parametrize("dataset", ["mnist", "cifar-10"])
 @pytest.mark.parametrize("split", ["random_split", "stratified_split", "dirichlet_split"])
 def test_equal_data_distribution(dataset, split):
     print(f"\nTesting {dataset} with {split}...")
 
-    # test id 0 // None
+    # test id 0 should be same as None
     model1 = PytorchModel(dataset, 4, 1, 1, epochs=1, batchsize=128,
                           default_collateral=1, max_collateral=1,
                           data_distribution=split, run_id=0)
@@ -76,7 +76,7 @@ def test_equal_data_distribution(dataset, split):
     assert data.get_client_data_distribution(model1) != data.get_client_data_distribution(model2)
 
 
-@pytest.mark.parametrize("dataset", ["mnist", "cifar"])
+@pytest.mark.parametrize("dataset", ["mnist", "cifar-10"])
 @pytest.mark.parametrize(
     "alpha1, alpha2",
     [
