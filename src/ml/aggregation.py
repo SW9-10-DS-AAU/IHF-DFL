@@ -9,11 +9,13 @@ from ml.runtime import DEVICE
 from typing import Callable
 
 
-def the_merge(pm, _users, aggregation_rule: str, merge_weight_collector=None, agg_switch_collector=None,
+def the_merge(pm, _current_round_no, _users, aggregation_rule: str, merge_weight_collector=None, agg_switch_collector=None,
               avg_prior_losses=None, warning_collector=None):
+
+
     # No qualified users → skip merge this round
     if not _users:
-        msg = f"[Round {pm.round - 1}] No participants qualified for merge – skipping aggregation"
+        msg = f"[Round {_current_round_no}] No participants qualified for merge – skipping aggregation"
         print("-----------------------------------------------------------------------------------")
         print(red(msg))
         print("-----------------------------------------------------------------------------------\n")
@@ -56,7 +58,7 @@ def the_merge(pm, _users, aggregation_rule: str, merge_weight_collector=None, ag
     _low_contributor_fallback = len(_users) <= 3 and aggregation_rule != "FedAVG"
     # Note: We include FedAVG here so in case of partial/binary_switch paired with GRS_agg. don't become 2xGRS_agg.
     if _low_contributor_fallback:
-        msg = f"[Round {pm.round - 1}] Too few contributors ({len(_users)}) – defaulting to GRS_aggregation"
+        msg = f"[Round {_current_round_no}] Too few contributors ({len(_users)}) – defaulting to GRS_aggregation"
         print(yellow(msg))
         if warning_collector is not None:
             warning_collector.append(msg)
@@ -86,7 +88,7 @@ def the_merge(pm, _users, aggregation_rule: str, merge_weight_collector=None, ag
         func2 = agg_rules[func2_name]
 
         if switch_type == "binary_switch":
-            users_merge_weights = binary_switch(pm, users_contribution_scores, func1, func2, agg_switch_collector)
+            users_merge_weights = binary_switch(pm, users_contribution_scores, func1, func2, agg_switch_collector, _current_round_no)
 
         elif switch_type.startswith("partial_switch"):
             users_merge_weights = invoke_partial_switch(pm, users_contribution_scores,
@@ -189,17 +191,17 @@ def invoke_partial_switch(pm, users_contrib_scores, switch_type: str, func1: Cal
     raise ValueError(f"Unknown partial switch type: {switch_type}")
 
 
-def binary_switch(pm, users_contrib_scores, func_1, func_2, agg_switch_collector):
-    if not pm.has_switched and pm.round > 1 and pm.two_previous_global_model is not None:
+def binary_switch(pm, users_contrib_scores, func_1, func_2, agg_switch_collector, _current_round_no):
+    if not pm.has_switched and _current_round_no > 1 and pm.two_previous_global_model is not None: # Here pm.round has incremented so at least 0+1.
         if models_are_equal(pm.previous_global_model, pm.two_previous_global_model):
             pm.has_switched = True
             print(
-                f"  [binary_switch] Convergence detected at round {pm.round - 1}: Switching from {func_1.__name__} to {func_2.__name__}")
+                f"  [binary_switch] Convergence detected at round {_current_round_no}: Switching from {func_1.__name__} to {func_2.__name__}") # TODO - should this be round-1?
 
     use_func_2 = pm.has_switched
     active_func = func_2 if use_func_2 else func_1
 
-    print(f"  [binary_switch] At round {pm.round - 1}: Using {active_func.__name__}")
+    print(f"  [binary_switch] At round {_current_round_no}: Using {active_func.__name__}") # TODO - should this be round-1?
 
     if agg_switch_collector is not None:
         agg_switch_collector.update({
