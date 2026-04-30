@@ -898,7 +898,7 @@ class FLChallenge(ConnectionHelper):
                     logging.log_warning(self, msg, round=_current_round)
 
             print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
-            contribution_score(self, contributors)
+            contribution_score(self, contributors, _current_round)
 
             receipt = self.close_round() # Increments round number by 1
             _current_round = self.pytorch_model.round - 1 # Minus 1 since close_round increments. Reassign _current_round
