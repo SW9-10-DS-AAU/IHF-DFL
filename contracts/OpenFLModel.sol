@@ -924,7 +924,7 @@ contract OpenFLModel {
                     ][j];
 
                 for (uint k = 0; k < sub.adrs.length; k++) {
-                    if (sub.adrs[k] == target && _isEligibleVoter(sender)) { // TODO: GØR whitelisted eller lign. ACCESSIBLE OG CLEAR DEN EFTER ROUND END!
+                    if (sub.adrs[k] == target && _isEligibleVoter(sender)) {
                         totalCount++;
                     }
                 }

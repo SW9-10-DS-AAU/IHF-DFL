@@ -350,7 +350,7 @@ class FLChallenge(ConnectionHelper):
                 votee = [_u for _u in self.pytorch_model.participants if _u.id == ix][0]
                 addrs.append(votee.address)
                 votes.append(int(vote))
-                votee.roundRep = votee.roundRep + self.get_global_reputation_of_user(user.address) * int(vote) # TODO: fix?
+                votee.roundRep = votee.roundRep + self.get_global_reputation_of_user(user.address) * int(vote)
                 votee._roundrep.append(self.get_global_reputation_of_user(user.address) * int(vote))
                 filtered_accs.append(accs[ix])
                 filtered_losses.append(min(UINT256_MAX, losses[ix]))
@@ -874,7 +874,7 @@ class FLChallenge(ConnectionHelper):
 
             self.quick_feedback_round(fbm = self.feedback_matrix, am=accuracy_matrix, lm=loss_matrix, prev_accs=prev_accs, prev_losses=prev_losses)
 
-            for user in self.pytorch_model.participants: # TODO: remove after test?
+            for user in self.pytorch_model.participants:
                 user._roundrep.append(self.get_round_reputation_of_user(user.address))
                 print(f"model participant: {user.address} gets {user._roundrep[-1]} round reputation")
             for user in self.pytorch_model.disqualified:
