@@ -435,8 +435,6 @@ def agg_round_kicked_by_strategy(
     Mirrors the kickedGraph() chart from scripts/processData.py.
     """
 
-    # TODO: Check this works
-
     df = _with_meta(merged_users, metadata, ["contribution_score_strategy", "freerider_start_round"])
 
     if freerider_start_round is not None:

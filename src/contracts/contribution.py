@@ -434,7 +434,7 @@ def normalize_contribution_scores_new(vals: list, prev_val: float, evaluation_me
         vals = [-1 * val for val in vals]
     sum_ = sum(vals)
 
-    # Step 2: edge cases  TODO: 0 og -0.5
+    # Step 2: edge cases
     max_val = max(vals)
     if max_val == 0:
         vals = [1 if val == 0 else val for val in vals]
