@@ -73,10 +73,10 @@ PRESETS = {
         freerider_start_round=[2],
         malicious_noise_scale=[0.1],
         malicious_start_round=[2],
-        malicious_attack_type=["noise", "byzantine"],
-        freerider_attack_type=["noise", "delta_weight"],
+        malicious_attack_type=["byzantine"],
+        freerider_attack_type=["delta_weight"],
         aggregation_rule=["binary_switch[positives_only,FedAVG]"],
-        data_distribution=["random_split", "stratified_split", "dirichlet_split"],
+        data_distribution=["dirichlet_split"],
         dirichlet_alpha=[0.5],
         number_of_runs=3
     ),

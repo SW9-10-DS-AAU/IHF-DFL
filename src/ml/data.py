@@ -125,9 +125,9 @@ def dirichlet_split(dataset, num_clients, alpha=0.5, generator=None):
 
     # Get labels
     if hasattr(actual_dataset, "targets"):
-        targets = torch.tensor(actual_dataset.targets)[indices]
+        targets = torch.as_tensor(actual_dataset.targets).clone().detach()[indices]
     elif hasattr(actual_dataset, "labels"):
-        targets = torch.tensor(actual_dataset.labels)[indices]
+        targets = torch.as_tensor(actual_dataset.labels).clone().detach()[indices]
     else:
         raise AttributeError("Dataset must have targets or labels attribute")
 
