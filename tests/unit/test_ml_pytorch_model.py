@@ -44,10 +44,10 @@ def test_device_label_formats_output():
     assert training.device_label(torch.device("cuda"), 2) == "GPU 2"
 
 
-def test_data_destribution_properties():
+def test_data_distribution_properties():
     model1 = PytorchModel("mnist", 4, 6, 1, epochs=32, batchsize=1,
                           default_collateral=1, max_collateral=1,
-                          force_merge_all=False, use_nobody_is_kicked=False, data_distribution="random_split_42",)
+                          force_merge_all=False, use_nobody_is_kicked=False, data_distribution="random_split_42")
     model2 = PytorchModel("mnist", 4, 6, 1, epochs=32, batchsize=1,
                           default_collateral=1, max_collateral=1,
                           data_distribution="random_split_42")

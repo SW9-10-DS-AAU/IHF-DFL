@@ -49,6 +49,7 @@ class ExperimentConfiguration:
             self.freerider_attack_type = _unwrap_first(p.freerider_attack_type) if p.freerider_attack_type is not None else "noise"
             self.data_distribution = _unwrap_first(p.data_distribution)
             self.dirichlet_alpha = _unwrap_first(p.dirichlet_alpha) if _unwrap_first(p.dirichlet_alpha) is not None else None
+            self.number_of_runs = _unwrap_first(p.number_of_runs)
 
         else:
 

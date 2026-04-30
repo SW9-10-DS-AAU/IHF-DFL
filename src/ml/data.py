@@ -4,10 +4,12 @@ from torch.utils.data import DataLoader, random_split, Subset
 from torchvision import transforms
 from torchvision.datasets import CIFAR10, MNIST
 from ml.runtime import PIN_MEMORY, NUM_WORKERS, PERSISTENT_WORKERS, DATASET_ROOT
-from collections import Counter
+import data.seeds as seeds
 
 
-def load_data(pm, NUM_CLIENTS, _print=False):
+
+
+def load_data(pm, _print=False):
     if pm.DATA:
         return pm.DATA
 
@@ -35,10 +37,17 @@ def load_data(pm, NUM_CLIENTS, _print=False):
         print("Nr. of images for testing:  {:,.0f}\n".format(len(testset)))
 
     # Split training set into partitions to simulate the individual dataset
-    partition_size = len(trainset) // NUM_CLIENTS
-    lengths = [partition_size] * NUM_CLIENTS
-    gen = torch.Generator().manual_seed(42) if "42" in str(pm.data_distribution) else None
-    images_needed = partition_size * NUM_CLIENTS
+    partition_size = len(trainset) // pm.NUMBER_OF_CONTRIBUTORS
+    lengths = [partition_size] * pm.NUMBER_OF_CONTRIBUTORS
+    if pm.run_id == 0:
+        gen = torch.Generator().manual_seed(42)
+        print("DATA DISTRIBUTION: Using fixed seed 42 for sample (single run) for reproducibility")
+    else:
+        gen = torch.Generator().manual_seed(seeds.seeds[str(pm.run_id)])
+        print(f"DATA DISTRIBUTION: Using seed {seeds.seeds[str(pm.run_id)]} for run_id {pm.run_id} for reproducibility")
+
+
+    images_needed = partition_size * pm.NUMBER_OF_CONTRIBUTORS
     if images_needed < len(trainset):
         trainset, _ = random_split(trainset, [images_needed, len(trainset) - images_needed], generator=gen)
 
@@ -48,10 +57,10 @@ def load_data(pm, NUM_CLIENTS, _print=False):
         datasets = random_split(trainset, lengths, generator=gen)
 
     elif dist.startswith("stratified_split"):
-        datasets = stratified_split(trainset, NUM_CLIENTS, generator=gen)
+        datasets = stratified_split(trainset, pm.NUMBER_OF_CONTRIBUTORS, generator=gen)
 
     elif dist.startswith("dirichlet_split"):
-        datasets = dirichlet_split(trainset, NUM_CLIENTS, alpha=pm.dirichlet_alpha, generator=gen)
+        datasets = dirichlet_split(trainset, pm.NUMBER_OF_CONTRIBUTORS, alpha=pm.dirichlet_alpha, generator=gen)
 
     else:
         raise ValueError(f"Data distribution {pm.data_distribution} not recognized")

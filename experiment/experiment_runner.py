@@ -11,223 +11,223 @@ from web3 import Web3, Account
 from utils.async_writer import AsyncWriter
 
 
-def run_experiment(dataset_name: str, experiment_config, writer: AsyncWriter=None, logger=None):
+def run_experiment(dataset_name: str, experiment_config, _run_id: int,  writer: AsyncWriter = None, logger=None):
+    dataset_name = dataset_name.replace(".", "-")
+    experiment_config.dataset = dataset_name
+    experiment_start = time.perf_counter()
+    RPC_ENDPOINT = require_env_var("RPC_URL")
 
-  dataset_name = dataset_name.replace(".", "-")
-  experiment_config.dataset = dataset_name
-  experiment_start = time.perf_counter()
-  RPC_ENDPOINT = require_env_var("RPC_URL")
-    
-# Only for the real-net simulation
-# In order to use a non-locally forked blockchain, 
-# private keys are required to unlock accounts
-  if experiment_config.fork == False:
-    w3 = Web3(Web3.HTTPProvider(RPC_ENDPOINT))
+    # Only for the real-net simulation
+    # In order to use a non-locally forked blockchain,
+    # private keys are required to unlock accounts
+    if experiment_config.fork == False:
+        w3 = Web3(Web3.HTTPProvider(RPC_ENDPOINT))
 
-    raw_keys = require_env_var("PRIVATE_KEYS")
-    privKeys = [k.strip() for k in raw_keys.splitlines() if k.strip()]
+        raw_keys = require_env_var("PRIVATE_KEYS")
+        privKeys = [k.strip() for k in raw_keys.splitlines() if k.strip()]
 
-    # Convert to Web3 Account objects
-    loaded_accounts = [Account.from_key(k) for k in privKeys]
+        # Convert to Web3 Account objects
+        loaded_accounts = [Account.from_key(k) for k in privKeys]
 
-    # Wrap for compatibility with older code expecting `.privateKey`
-    PRIVKEYS = [
-        SimpleNamespace(privateKey=acc._private_key, address=acc.address)
-        for acc in loaded_accounts
-    ]
+        # Wrap for compatibility with older code expecting `.privateKey`
+        PRIVKEYS = [
+            SimpleNamespace(privateKey=acc._private_key, address=acc.address)
+            for acc in loaded_accounts
+        ]
 
-    print(f"Loaded {len(PRIVKEYS)} private keys.")
-  else:
-    PRIVKEYS = None
+        print(f"Loaded {len(PRIVKEYS)} private keys.")
+    else:
+        PRIVKEYS = None
 
+    if experiment_config.number_of_runs == 1:
+        run_id = 0
+    else:
+        run_id = _run_id
 
+    pytorch_model = PM.PytorchModel(dataset_name,
+                                    experiment_config.number_of_good_contributors,
+                                    experiment_config.number_of_bad_contributors,
+                                    experiment_config.number_of_freerider_contributors,
+                                    experiment_config.epochs,
+                                    experiment_config.batch_size,
+                                    experiment_config.standard_buy_in,
+                                    experiment_config.max_buy_in,
+                                    experiment_config.freerider_noise_scale,
+                                    experiment_config.freerider_start_round,
+                                    experiment_config.malicious_start_round,
+                                    experiment_config.malicious_noise_scale,
+                                    experiment_config.force_merge_all,
+                                    experiment_config.use_nobody_is_kicked,
+                                    experiment_config.data_distribution,
+                                    experiment_config.dirichlet_alpha,
+                                    experiment_config.malicious_attack_type,
+                                    experiment_config.freerider_attack_type,
+                                    run_id)
 
-  pytorch_model = PM.PytorchModel(dataset_name,
-                              experiment_config.number_of_good_contributors,
-                              experiment_config.number_of_bad_contributors,
-                              experiment_config.number_of_freerider_contributors,
-                              experiment_config.epochs,
-                              experiment_config.batch_size,
-                              experiment_config.standard_buy_in,
-                              experiment_config.max_buy_in,
-                              experiment_config.freerider_noise_scale,
-                              experiment_config.freerider_start_round,
-                              experiment_config.malicious_start_round,
-                              experiment_config.malicious_noise_scale,
-                              experiment_config.force_merge_all,
-                              experiment_config.use_nobody_is_kicked,
-                              experiment_config.data_distribution,
-                              experiment_config.dirichlet_alpha,
-                              experiment_config.malicious_attack_type,
-                              experiment_config.freerider_attack_type)
+    manager = Manager.FLManager(pytorch_model, True).init(
+        experiment_config.number_of_good_contributors,
+        experiment_config.number_of_bad_contributors,
+        experiment_config.number_of_freerider_contributors,
+        experiment_config.number_of_inactive_contributors,
+        experiment_config.minimum_rounds,
+        RPC_ENDPOINT,
+        experiment_config.fork,
+        PRIVKEYS,
+        experiment_config.use_nobody_is_kicked,
+    )
+    manager.build_contract()
 
+    configs = manager.deploy_challenge_contract(experiment_config.min_buy_in,
+                                                experiment_config.max_buy_in,
+                                                experiment_config.reward,
+                                                experiment_config.minimum_rounds,
+                                                experiment_config.punish_factor,
+                                                experiment_config.punish_factor_contrib,
+                                                experiment_config.first_round_fee,
+                                                experiment_config.use_nobody_is_kicked)
+    writer.writeComment(f"$startingUserConfig${[p.getStatus() for p in pytorch_model.participants]}")
 
-  manager = Manager.FLManager(pytorch_model, True).init(
-      experiment_config.number_of_good_contributors,
-      experiment_config.number_of_bad_contributors,
-      experiment_config.number_of_freerider_contributors,
-      experiment_config.number_of_inactive_contributors,
-      experiment_config.minimum_rounds,
-      RPC_ENDPOINT,
-      experiment_config.fork,
-      PRIVKEYS,
-      experiment_config.use_nobody_is_kicked,
-      )
-  manager.build_contract()
+    extra_configs = {}
+    if experiment_config.contribution_score_strategy is not None:
+        extra_configs["contribution_score_strategy"] = (
+            experiment_config.contribution_score_strategy
+        )
 
-  configs = manager.deploy_challenge_contract(experiment_config.min_buy_in,
-                                          experiment_config.max_buy_in,
-                                          experiment_config.reward, 
-                                          experiment_config.minimum_rounds,
-                                          experiment_config.punish_factor,
-                                          experiment_config.punish_factor_contrib,
-                                          experiment_config.first_round_fee,
-                                          experiment_config.use_nobody_is_kicked)
-  writer.writeComment(f"$startingUserConfig${[p.getStatus() for p in pytorch_model.participants]}")
+    model = Challenge.FLChallenge(manager,
+                                  configs,
+                                  pytorch_model,
+                                  experiment_config,
+                                  writer,
+                                  logger)
 
-  extra_configs = {}
-  if experiment_config.contribution_score_strategy is not None:
-      extra_configs["contribution_score_strategy"] = (
-          experiment_config.contribution_score_strategy
-      )
+    model.simulate(rounds=experiment_config.minimum_rounds)
+    experiment_end = time.perf_counter()
+    total_experiment_time = experiment_end - experiment_start
 
-  model = Challenge.FLChallenge(manager,
-                      configs,
-                      pytorch_model,
-                      experiment_config,
-                      writer,
-                      logger)
+    print("\n" + "=" * 75)
+    print(f"TOTAL EXPERIMENT TIME: {total_experiment_time:.2f} seconds")
+    writer.writeComment(f"TOTAL EXPERIMENT TIME: {total_experiment_time:.2f} seconds")
+    print("=" * 75 + "\n")
 
+    if logger is not None:
+        try:
+            import torch
+            gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "None"
+        except (ImportError, Exception):
+            gpu_name = "Unknown"
 
-  model.simulate(rounds=experiment_config.minimum_rounds)
-  experiment_end = time.perf_counter()
-  total_experiment_time = experiment_end - experiment_start
+        hardware = {
+            "cpu_name": platform.processor(),
+            "cpu_cores": psutil.cpu_count(logical=False),
+            "ram_gb": round(psutil.virtual_memory().total / (1024 ** 3), 2),
+            "gpu_name": gpu_name,
+            "os_name": platform.system(),
+        }
 
-  print("\n" + "="*75)
-  print(f"TOTAL EXPERIMENT TIME: {total_experiment_time:.2f} seconds")
-  writer.writeComment(f"TOTAL EXPERIMENT TIME: {total_experiment_time:.2f} seconds")
-  print("="*75 + "\n")
+        cfg = experiment_config
+        config = {
+            "contribution_score_strategy": cfg.contribution_score_strategy,
+            "use_outlier_detection": cfg.use_outlier_detection,
+            "number_of_good_contributors": cfg.number_of_good_contributors,
+            "number_of_bad_contributors": cfg.number_of_bad_contributors,
+            "number_of_freerider_contributors": cfg.number_of_freerider_contributors,
+            "number_of_inactive_contributors": cfg.number_of_inactive_contributors,
+            "reward": cfg.reward,
+            "minimum_rounds": cfg.minimum_rounds,
+            "min_buy_in": cfg.min_buy_in,
+            "max_buy_in": cfg.max_buy_in,
+            "standard_buy_in": cfg.standard_buy_in,
+            "epochs": cfg.epochs,
+            "batch_size": cfg.batch_size,
+            "punish_factor": cfg.punish_factor,
+            "punish_factor_contrib": cfg.punish_factor_contrib,
+            "first_round_fee": cfg.first_round_fee,
+            "fork": cfg.fork,
+            "dataset": cfg.dataset,
+            "freerider_start_round": cfg.freerider_start_round,
+            "freerider_noise_scale": cfg.freerider_noise_scale,
+            "freerider_attack_type": cfg.freerider_attack_type,
+            "malicious_start_round": cfg.malicious_start_round,
+            "malicious_noise_scale": cfg.malicious_noise_scale,
+            "malicious_attack_type": cfg.malicious_attack_type,
+            "force_merge_all": cfg.force_merge_all,
+            "aggregation_rule": cfg.aggregation_rule,
+            "data_distribution": cfg.data_distribution,
+            "dirichlet_alpha": cfg.dirichlet_alpha,
+        }
 
-  if logger is not None:
-      try:
-          import torch
-          gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "None"
-      except (ImportError, Exception):
-          gpu_name = "Unknown"
+        logger.setup(total_experiment_time, hardware, config)
 
-      hardware = {
-          "cpu_name":  platform.processor(),
-          "cpu_cores": psutil.cpu_count(logical=False),
-          "ram_gb":    round(psutil.virtual_memory().total / (1024**3), 2),
-          "gpu_name":  gpu_name,
-          "os_name":   platform.system(),
-      }
-
-      cfg = experiment_config
-      config = {
-          "contribution_score_strategy":       cfg.contribution_score_strategy,
-          "use_outlier_detection":             cfg.use_outlier_detection,
-          "number_of_good_contributors":       cfg.number_of_good_contributors,
-          "number_of_bad_contributors":        cfg.number_of_bad_contributors,
-          "number_of_freerider_contributors":  cfg.number_of_freerider_contributors,
-          "number_of_inactive_contributors":   cfg.number_of_inactive_contributors,
-          "reward":                            cfg.reward,
-          "minimum_rounds":                    cfg.minimum_rounds,
-          "min_buy_in":                        cfg.min_buy_in,
-          "max_buy_in":                        cfg.max_buy_in,
-          "standard_buy_in":                   cfg.standard_buy_in,
-          "epochs":                            cfg.epochs,
-          "batch_size":                        cfg.batch_size,
-          "punish_factor":                     cfg.punish_factor,
-          "punish_factor_contrib":             cfg.punish_factor_contrib,
-          "first_round_fee":                   cfg.first_round_fee,
-          "fork":                              cfg.fork,
-          "dataset":                           cfg.dataset,
-          "freerider_start_round":             cfg.freerider_start_round,
-          "freerider_noise_scale":             cfg.freerider_noise_scale,
-          "freerider_attack_type":             cfg.freerider_attack_type,
-          "malicious_start_round":             cfg.malicious_start_round,
-          "malicious_noise_scale":             cfg.malicious_noise_scale,
-          "malicious_attack_type":             cfg.malicious_attack_type,
-          "force_merge_all":                   cfg.force_merge_all,
-          "aggregation_rule":                  cfg.aggregation_rule,
-          "data_distribution":                 cfg.data_distribution,
-          "dirichlet_alpha":                   cfg.dirichlet_alpha,
-      }
-
-      logger.setup(total_experiment_time, hardware, config)
-
-  return Experiment(model, manager)
+    return Experiment(model, manager)
 
 
 def visualizeModel(model):
-  model.visualize_simulation("figures")
-
+    model.visualize_simulation("figures")
 
 
 def print_transactions(experiment):
-  model = experiment.model
-  print("{:<10} - {:^64} -    Gas Used - {}".format("Function", "Transaction Hash", "Success"))
-  print("------------------------------------------------------------------------------------------")
-  for f, txhash, gasUsed in model.txHashes:
-      r = model.w3.eth.wait_for_transaction_receipt(txhash)
-      if r["status"] == 1:
-          success = "✅"
-      else:
-          success = "FAIL"
-      
-      gas = r["gasUsed"]
-      print("{:<10} - {} - {:>9,.0f} -   {}".format(f, txhash, gas, success))
+    model = experiment.model
+    print("{:<10} - {:^64} -    Gas Used - {}".format("Function", "Transaction Hash", "Success"))
+    print("------------------------------------------------------------------------------------------")
+    for f, txhash, gasUsed in model.txHashes:
+        r = model.w3.eth.wait_for_transaction_receipt(txhash)
+        if r["status"] == 1:
+            success = "✅"
+        else:
+            success = "FAIL"
+
+        gas = r["gasUsed"]
+        print("{:<10} - {} - {:>9,.0f} -   {}".format(f, txhash, gas, success))
 
 
 def print_latex(experiment):
-  model = experiment.model
-  manager = experiment.manager
-  print("\\renewcommand{\\arraystretch}{1.3}")
-  print("\\begin{center}")
-  print("\\begin{tabular}{ c|c }")
+    model = experiment.model
+    manager = experiment.manager
+    print("\\renewcommand{\\arraystretch}{1.3}")
+    print("\\begin{center}")
+    print("\\begin{tabular}{ c|c }")
 
-  print("Contract & Address (Ropsten Testnet) \\\\")
-  print("\\hline")
-  print("Ma-1 & {} \\ ".format(manager.manager.address))
-  print("Ch-1 & {} \\ ".format(model.model.address))
-  for i, p in enumerate(model.pytorch_model.participants[:-1] + \
-                            model.pytorch_model.disqualified + \
-                            [model.pytorch_model.participants[-1]]):
-      print("P-{}  & {} \\ ".format(i+1, p.address))
+    print("Contract & Address (Ropsten Testnet) \\\\")
+    print("\\hline")
+    print("Ma-1 & {} \\ ".format(manager.manager.address))
+    print("Ch-1 & {} \\ ".format(model.model.address))
+    for i, p in enumerate(model.pytorch_model.participants[:-1] + \
+                          model.pytorch_model.disqualified + \
+                          [model.pytorch_model.participants[-1]]):
+        print("P-{}  & {} \\ ".format(i + 1, p.address))
 
-  print("\\end{tabular}")
-  print("\\end{center}")
+    print("\\end{tabular}")
+    print("\\end{center}")
 
 
 def table_with_gas_and_transactions_latex(experiment):
-  model = experiment.model
-  manager = experiment.manager
-  reg = model.gas_register, "register"
-  fed = model.gas_feedback, "feedback"
-  clo = model.gas_close, "settle round"
-  slo = model.gas_slot, "reserve slot"
-  wei = model.gas_weights, "provide weights**"
-  dep = manager.gas_deploy, "deployment"
-  dep = manager.gas_deploy, "deployment"
-  ext = model.gas_exit, "exit"
+    model = experiment.model
+    manager = experiment.manager
+    reg = model.gas_register, "register"
+    fed = model.gas_feedback, "feedback"
+    clo = model.gas_close, "settle round"
+    slo = model.gas_slot, "reserve slot"
+    wei = model.gas_weights, "provide weights**"
+    dep = manager.gas_deploy, "deployment"
+    dep = manager.gas_deploy, "deployment"
+    ext = model.gas_exit, "exit"
 
-  tot  = 0
-  tot2 = 0
+    tot = 0
+    tot2 = 0
 
-  print("\\begin{tabular}{ |c|c|c| }\n\\hline\nFunction & Gas Amount & Gas Costs*\\\\ \n\\hline")
-  for i, f in [reg,slo,wei,fed,clo]:
-      print("{} & {:,.0f} & {:.5f} ETH \\\\".format(f, sum(i)/len(i), sum(i)/len(i) * 20e9 / 1e18 ))
-      tot += sum(i)/len(i)
-      if i != clo[0]:
-              tot2 += sum(i)/len(i)
-          
-  print("\\hline\n\\hline")
-  print("complete round & {:,.0f} & {:.5f} \\ ".format(tot, tot * 20e9 / 1e18))
-  print("\\hline\n\\end{tabular}")
-    
+    print("\\begin{tabular}{ |c|c|c| }\n\\hline\nFunction & Gas Amount & Gas Costs*\\\\ \n\\hline")
+    for i, f in [reg, slo, wei, fed, clo]:
+        print("{} & {:,.0f} & {:.5f} ETH \\\\".format(f, sum(i) / len(i), sum(i) / len(i) * 20e9 / 1e18))
+        tot += sum(i) / len(i)
+        if i != clo[0]:
+            tot2 += sum(i) / len(i)
+
+    print("\\hline\n\\hline")
+    print("complete round & {:,.0f} & {:.5f} \\ ".format(tot, tot * 20e9 / 1e18))
+    print("\\hline\n\\end{tabular}")
+
 
 class Experiment:
-  def __init__(self, model, manager):
-    self.model = model
-    self.manager = manager
+    def __init__(self, model, manager):
+        self.model = model
+        self.manager = manager
