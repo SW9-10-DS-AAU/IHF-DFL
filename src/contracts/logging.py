@@ -161,21 +161,20 @@ def log_round(challenge, current_round, round_time,
     log_global_round(challenge, current_round, round_time, _punishment_total, agg_switch_collector)
 
 
-def log_punishments(challenge, events):
+def log_punishments(challenge, events, current_round_no):
     """Forward Punishment/ContributionPunishment/PassivePunishment events to the logger.
 
     Takes the pre-parsed events dict from print_round_summary to avoid parsing twice.
     """
     if challenge._logger is None:
         return
-    r = challenge.pytorch_model.round
     user_map = {u.address: u for u in challenge.pytorch_model.participants + challenge.pytorch_model.disqualified}
 
     for ev in events.get("Punishment", []):
         args = ev["args"]
         u = user_map.get(args["victim"])
         challenge._logger.punishment(
-            round=r, user_id=u.id if u else None, user_address=args["victim"],
+            round=current_round_no, user_id=u.id if u else None, user_address=args["victim"],
             punishment_type="punishment",
             loss=args["loss"], round_score=args["roundScore"], new_reputation=args["newReputation"],
         )
@@ -184,7 +183,7 @@ def log_punishments(challenge, events):
         args = ev["args"]
         u = user_map.get(args["user"])
         challenge._logger.punishment(
-            round=r, user_id=u.id if u else None, user_address=args["user"],
+            round=current_round_no, user_id=u.id if u else None, user_address=args["user"],
             punishment_type="contribution",
             loss=args["loss"], round_score=args["roundScore"], new_reputation=args["newReputation"],
         )
@@ -193,23 +192,22 @@ def log_punishments(challenge, events):
         args = ev["args"]
         u = user_map.get(args["victim"])
         challenge._logger.punishment(
-            round=r, user_id=u.id if u else None, user_address=args["victim"],
+            round=current_round_no, user_id=u.id if u else None, user_address=args["victim"],
             punishment_type="passive",
             loss=args.get("loss"), round_score=args["roundScore"], new_reputation=None,
         )
 
 
-def log_evaluation_voting_rewards(challenge, events):
+def log_evaluation_voting_rewards(challenge, events, current_round_no):
     """Forward EvaluationVotingReward contract events to the logger."""
     if challenge._logger is None:
         return
-    r = challenge.pytorch_model.round
     user_map = {u.address: u for u in challenge.pytorch_model.participants + challenge.pytorch_model.disqualified}
     for ev in events.get("EvaluationVotingReward", []):
         args = ev["args"]
         u = user_map.get(args["user"])
         challenge._logger.evaluation_voting_reward(
-            round=r, user_id=u.id if u else None, user_address=args["user"],
+            round=current_round_no, user_id=u.id if u else None, user_address=args["user"],
             staked=args["staked"], rewarded=args["rewarded"], new_reputation=args["newReputation"],
         )
 
