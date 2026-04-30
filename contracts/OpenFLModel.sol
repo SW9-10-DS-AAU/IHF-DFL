@@ -423,10 +423,9 @@ contract OpenFLModel {
                     punishedAddresses.push(user.addr);
                     votesPerRound -= user.nrOfVotesFromUser;
                     user.nrOfVotesFromUser = 0;
-
                     uint punishment = uint(user.globalReputationScore / punishfactor);
 
-                    if (user.globalReputationScore - punishment >= disq_threshold) {
+                    if (user.globalReputationScore - punishment >= disq_threshold) { //punish
                         user.isPunished = true;
                         user.globalReputationScore = user.globalReputationScore - punishment;
                         user.roundReputation = user.roundReputation - int(punishment);
@@ -485,7 +484,6 @@ contract OpenFLModel {
             }
         }
     }
-
     // Pay back freerider 1st round stake to good users
     function paybackFreeriders(uint freeriderLock) internal returns (uint additionalPunishment) {
         for (uint i = 0; i < participants.length; i++) {
@@ -590,7 +588,7 @@ contract OpenFLModel {
                 }
             }
         }
-
+        // Give rewards based on positive contribution score
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             if (_isEligibleForRewards(user) && contributionScore[round][user.addr] >= 0) {

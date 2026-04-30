@@ -29,6 +29,8 @@ def contribution_score(challenge, _users):
 
     print("Calculating contribution scores and evaluation rewards...\n")
 
+    strategy = challenge.experiment_config.contribution_score_strategy
+
     if len(_users) <= 3:
         share = 1.0 / len(_users)
         msg = f"[Round {challenge.pytorch_model.round}] Too few contributors ({len(_users)}) for contribution scoring – using equal shares({share: .4f} each)"
@@ -38,7 +40,6 @@ def contribution_score(challenge, _users):
         logging.log_contribution_scores(challenge, _users, scores, None, None, None)
         for u in _users: u.evaluation_reward = 1
     else:
-        strategy = challenge.experiment_config.contribution_score_strategy
         if strategy not in _STRATEGIES:
             raise ValueError(f"Unknown contribution score strategy '{strategy}'. Available: {sorted(_STRATEGIES)}")
         scores = _STRATEGIES[strategy](challenge, _users)
@@ -48,13 +49,15 @@ def contribution_score(challenge, _users):
     txs = []
     for u, score in zip(_users, challenge.scores):
         u.contribution_score = score
+        scaled_contribution_score = int(Decimal(score) * Decimal("1e18"))
+        scaled_evaluation_score = int(Decimal(str(u.evaluation_reward)) * Decimal("1e18"))
         if u.evaluation_reward == 0:
             raise ValueError(f"Evaluation reward for user {u.address} is zero, which will fail a require on the smart contract. User data: {u.__dict__}")
 
         if challenge.fork:
             tx = challenge.build_tx(u.address, challenge.modelAddress)
             tx_hash = challenge.model.functions.submitContributionScoreAndVotingEvaluation(
-                int(Decimal(score) * Decimal('1e18')), int(Decimal(u.evaluation_reward) * Decimal('1e18'))
+                scaled_contribution_score, scaled_evaluation_score
             ).transact(tx)
         else:
             nonce = challenge.w3.eth.get_transaction_count(u.address)
@@ -63,7 +66,7 @@ def contribution_score(challenge, _users):
                 nonce,
             )
             cl = challenge.model.functions.submitContributionScore(
-                int(Decimal(score) * Decimal('1e18')), int(Decimal(u.evaluation_reward) * Decimal('1e18'))
+                scaled_contribution_score, scaled_evaluation_score
             ).build_transaction(cl)
             pk = u.privateKey
             signed = challenge.w3.eth.account.sign_transaction(cl, private_key=pk)

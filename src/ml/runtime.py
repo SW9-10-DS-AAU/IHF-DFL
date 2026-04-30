@@ -22,7 +22,8 @@ torch._dynamo.config.cache_size_limit = 512
 torch.backends.cudnn.benchmark = USE_CUDA
 
 if DEVICE.type == "cuda":
-    torch.set_float32_matmul_precision("high")
+    torch.backends.cuda.matmul.fp32_precision = "tf32"
+    torch.backends.cudnn.conv.fp32_precision = "tf32"
 
 
 def model_to_device(net: nn.Module) -> nn.Module:
