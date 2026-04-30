@@ -213,7 +213,7 @@ def binary_switch(pm, users_contrib_scores, func_1, func_2, agg_switch_collector
 
 def partial_switch_accuracy(pm, users_contrib_scores, func_1, func_2, agg_switch_collector):
 
-    accuracy_measure = pm.accuracy[-1]  # latest accuracy TODO Fix med rigtig accuracy
+    accuracy_measure = pm.accuracy[-1]  # latest accuracy
     # Weight for func_2 (e.g. 0.47 → 47% func_2, 53% func_1)
 
     weights_1 = func_1(users_contrib_scores)
