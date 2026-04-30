@@ -194,12 +194,12 @@ def binary_switch(pm, users_contrib_scores, func_1, func_2, agg_switch_collector
         if models_are_equal(pm.previous_global_model, pm.two_previous_global_model):
             pm.has_switched = True
             print(
-                f"  [binary_switch] Convergence detected at round {pm.round}: Switching from {func_1.__name__} to {func_2.__name__}") # TODO - should this be round-1?
+                f"  [binary_switch] Convergence detected at round {pm.round - 1}: Switching from {func_1.__name__} to {func_2.__name__}")
 
     use_func_2 = pm.has_switched
     active_func = func_2 if use_func_2 else func_1
 
-    print(f"  [binary_switch] At round {pm.round}: Using {active_func.__name__}") # TODO - should this be round-1?
+    print(f"  [binary_switch] At round {pm.round - 1}: Using {active_func.__name__}")
 
     if agg_switch_collector is not None:
         agg_switch_collector.update({
@@ -213,7 +213,7 @@ def binary_switch(pm, users_contrib_scores, func_1, func_2, agg_switch_collector
 
 def partial_switch_accuracy(pm, users_contrib_scores, func_1, func_2, agg_switch_collector):
 
-    accuracy_measure = pm.accuracy[-1]  # latest accuracy TODO Fix med rigtig accuracy
+    accuracy_measure = pm.accuracy[-1]  # latest accuracy
     # Weight for func_2 (e.g. 0.47 → 47% func_2, 53% func_1)
 
     weights_1 = func_1(users_contrib_scores)

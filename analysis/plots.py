@@ -67,8 +67,8 @@ def plot_accuracy_loss_over_rounds(agg_global: pd.DataFrame) -> plt.Figure:
         )
 
     ax1.set_xlabel("Round")
-    ax1.set_ylabel("Global Accuracy", color="#2196F3") # TODO: Check values
-    ax2.set_ylabel("Global Loss", color="#FF5722") # TODO: Check values
+    ax1.set_ylabel("Global Accuracy", color="#2196F3")
+    ax2.set_ylabel("Global Loss", color="#FF5722")
     ax1.tick_params(axis="y", labelcolor="#2196F3")
     ax2.tick_params(axis="y", labelcolor="#FF5722")
 
@@ -303,7 +303,7 @@ def plot_global_acc_by_aggregation_strategy(acc_by_strategy: pd.DataFrame) -> pl
             )
 
     ax.set_xlabel("Round")
-    ax.set_ylabel("Global Accuracy") # TODO: Not a percentage
+    ax.set_ylabel("Global Accuracy (%)")
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax.legend(title="Agg. Strategy")
     ax.grid(True, alpha=0.3)
@@ -334,7 +334,7 @@ def plot_global_loss_by_aggregation_strategy(loss_by_strategy: pd.DataFrame) -> 
             )
 
     ax.set_xlabel("Round")
-    ax.set_ylabel("Global Loss") # TODO: Not a percentage
+    ax.set_ylabel("Global Loss")
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax.legend(title="Agg. Strategy")
     ax.grid(True, alpha=0.3)

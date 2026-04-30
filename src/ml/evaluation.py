@@ -157,9 +157,9 @@ def evaluate_peers(pm):
 
 
 def finalize_user_evaluation(pm, user): # Same as lines 294-296,306 in original code.
-    loss, acc = training.test(user.model, pm.test, DEVICE) # TODO: Investigate if this should be user.val instead.
-    user._accuracy.append(acc) # Line 295 in original code # TODO: Investigate if this should be test and not validation accuracy.
-    user._loss.append(loss) # Line 296 in original code # TODO: Investigate if this should be test and not validation loss.
+    loss, acc = training.test(user.model, pm.test, DEVICE)
+    user._accuracy.append(acc) # Line 295 in original code
+    user._loss.append(loss) # Line 296 in original code
     user.hashedModel = get_hash(user.model.state_dict())
 
 

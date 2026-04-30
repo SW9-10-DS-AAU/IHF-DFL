@@ -188,17 +188,17 @@ class ExperimentLogger:
             "tx_type": tx_type,
             "tx_hash": tx_hash,
             "gas_used": gas_used,
-            # TODO: Maybe an address or user_id?
         })
 
     # -------- RUNTIME WARNINGS --------
 
-    def warning(self, round=None, message=None):
+    def warning(self, round=None, message=None, user_id=None, user_address=None):
         self._warning_rows.append({
             "experiment_id": self.experiment_id,
             "round": round,
             "message": message,
-            # TODO: Maybe an address or user_id?
+            "user_id": user_id,
+            "user_address": user_address,
         })
 
     # -------- SETUP --------
