@@ -46,6 +46,9 @@ def contribution_score(challenge, _users):
 
     challenge.scores = scores
 
+    if challenge.experiment_config.contribution_score_strategy != "loss_only":
+        for u in _users: u.evaluation_reward = 1
+
     txs = []
     for u, score in zip(_users, challenge.scores):
         u.contribution_score = score
