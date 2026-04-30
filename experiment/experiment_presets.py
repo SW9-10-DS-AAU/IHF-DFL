@@ -64,7 +64,7 @@ PRESETS = {
         number_of_good_contributors=2,
         number_of_bad_contributors=1,
         number_of_freerider_contributors=0,
-        minimum_rounds=3,
+        minimum_rounds=10,
         epochs=1,
         batch_size=32,
         use_outlier_detection=[True],
@@ -73,12 +73,12 @@ PRESETS = {
         freerider_start_round=[2],
         malicious_noise_scale=[0.1],
         malicious_start_round=[2],
-        malicious_attack_type=["noise"],
-        freerider_attack_type=["noise"],
+        malicious_attack_type=["noise", "byzantine"],
+        freerider_attack_type=["noise", "delta_weight"],
         aggregation_rule=["binary_switch[positives_only,FedAVG]"],
-        data_distribution=["random_split"],
-        dirichlet_alpha=None,
-        number_of_runs=2
+        data_distribution=["random_split", "stratified_split", "dirichlet_split"],
+        dirichlet_alpha=[0.5],
+        number_of_runs=3
     ),
 
     "mnist_openfl_w_outlier": ExperimentPreset(
