@@ -638,8 +638,7 @@ class FLChallenge(ConnectionHelper):
         return results
 
 
-    def print_round_summary(self, receipt, _current_round_no):
-
+    def print_round_summary(self, receipt):
         for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
             user.temporary_grs_evaluation = None
 
@@ -713,7 +712,7 @@ class FLChallenge(ConnectionHelper):
             for ev in punish_events:
                 args = ev["args"]
                 self._punishments.append((
-                    _current_round_no,
+                    self.pytorch_model.round - 1, 
                     args["loss"],
                     next((i + 1 for i, x in enumerate(self.pytorch_model.participants) if x.address == args["victim"]), 0),
                     ))
@@ -746,7 +745,7 @@ class FLChallenge(ConnectionHelper):
                 print("Disqualifying a user")
                 args = ev["args"]
                 self._punishments.append((
-                    _current_round_no,
+                    self.pytorch_model.round - 1,
                     args["loss"],
                     next((i + 1 for i, x in enumerate(self.pytorch_model.participants) if x.address == args["victim"]), 0)),
                     )
@@ -768,7 +767,7 @@ class FLChallenge(ConnectionHelper):
         logging.log_evaluation_voting_rewards(self, events)
 
         # round grs summary print
-        print(b(f"Round {_current_round_no} completed:"))
+        print(b(f"Round {self.pytorch_model.round - 1} completed:"))
         print(b("Round Rewards (per user):"))
         print(b("{:>20}  {:>25} -> {:>25} -> {:>25}".format("address" + "...", "previous grs",
                                                             "evaluation votes grs",
@@ -828,9 +827,7 @@ class FLChallenge(ConnectionHelper):
         self.register_all_users()
         
         grs = [(user.address, user._globalrep[-1]) for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
-
-        _current_round = self.pytorch_model.round
-
+        
         roundTx = self.txHashes[self.writeTxProgress:]
         self.writeTxProgress = len(self.txHashes)
 
@@ -854,7 +851,7 @@ class FLChallenge(ConnectionHelper):
         logging.log_round_zero(self)
 
         for i in range(rounds):
-            print(b(f"\n\nRound {_current_round} starts..."))
+            print(b(f"\n\nRound {self.pytorch_model.round} starts..."))
             _round_start = time.perf_counter()
 
             attacks.update_users_attitude(self.pytorch_model)
@@ -893,28 +890,28 @@ class FLChallenge(ConnectionHelper):
 
             # Ordering of the merge. If dotproduct we merge before contribution score
             if self.experiment_config.contribution_score_strategy == "dotproduct":
-                aggregation.the_merge(self.pytorch_model, _current_round, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, warning_collector=warning_collector)
+                aggregation.the_merge(self.pytorch_model, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, warning_collector=warning_collector)
                 for msg in warning_collector:
-                    logging.log_warning(self, msg, round=_current_round)
+                    logging.log_warning(self, msg)
 
             print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
             contribution_score(self, contributors)
 
-            receipt = self.close_round() # Increments round number by 1
+            receipt = self.close_round()
 
-            _current_round = self.pytorch_model.round - 1 # Minus 1 since close_round increments. Reassign _current_round
 
             # If not dotproduct, we calculate contribution score before the merge
             if not self.experiment_config.contribution_score_strategy == "dotproduct":
                 avg_losses = self.get_all_n_prior_losses(3)
-                aggregation.the_merge(self.pytorch_model, _current_round, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_losses=avg_losses, warning_collector=warning_collector)
+                aggregation.the_merge(self.pytorch_model, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_losses=avg_losses, warning_collector=warning_collector)
                 for msg in warning_collector:
-                    logging.log_warning(self, msg, round=_current_round)
+                    logging.log_warning(self, msg, round=self.pytorch_model.round - 1) # Minus 1 since close_round increments.
 
             if receipt is not None:
-                self.print_round_summary(receipt, _current_round)
+                self.print_round_summary(receipt)
 
             _round_time = time.perf_counter() - _round_start
+            _current_round = self.pytorch_model.round - 1
 
             logging.log_round(self,
                 _current_round, _round_time,
@@ -923,12 +920,12 @@ class FLChallenge(ConnectionHelper):
             )
 
             grs = [(user.address, user._globalrep[-1]) for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
-            round_punishment = [(punishment[0], punishment[1]) for punishment in self._punishments if punishment[0] == _current_round]
-            round_kicked = [punishment[2] for punishment in self._punishments if punishment[0] == _current_round]
+            round_punishment = [(punishment[0], punishment[1]) for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]
+            round_kicked = [punishment[2] for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]
             roundTx = self.txHashes[self.writeTxProgress:]
             self.writeTxProgress = len(self.txHashes) - 1
             self.writer.writeResult({
-                "round": _current_round,
+                "round": self.pytorch_model.round - 1,
                 "GRS": grs,
                 "globalAcc": self.pytorch_model.accuracy[-1] or 0, # Checks out
                 "globalLoss": self.pytorch_model.loss[-1] or 0, # Checks out
