@@ -61,6 +61,7 @@ contract OpenFLModel {
     mapping(address => mapping(uint8 => bytes32)) public weightsOf;
     mapping(uint8 => mapping(address => int256)) public contributionScore; // round => user => score
     mapping(uint8 => mapping(address => uint256)) public evaluationScore; // round => user => score
+    mapping(uint8 => mapping(address => bool)) public hasSubmittedEvaluationScore; // round => user => has submitted evaluation score
     mapping(uint8 => uint16) public nrOfContributionScores; // round => number of submissions
     mapping(uint8 => uint16) public nrOfEvaluationScores; // round => number of submissions
 
@@ -344,6 +345,7 @@ contract OpenFLModel {
         nrOfContributionScores[round] += 1;
 
         evaluationScore[round][msg.sender] = evalScore;
+        hasSubmittedEvaluationScore[round][msg.sender] = true;
         nrOfEvaluationScores[round] += 1;
 
         emit ContributionScoreAndEvalSubmitted(msg.sender, contribScore, evalScore);
@@ -419,7 +421,7 @@ contract OpenFLModel {
                     user.nrOfVotesFromUser = 0;
                     uint punishment = uint(user.globalReputationScore / punishfactor);
 
-                    if (user.globalReputationScore - punishment >= disq_threshold) { // punish
+                    if (user.globalReputationScore - punishment >= disq_threshold) { //punish
                         user.isPunished = true;
                         user.globalReputationScore = user.globalReputationScore - punishment;
                         user.roundReputation = user.roundReputation - int(punishment);
@@ -482,6 +484,7 @@ contract OpenFLModel {
                 }
             }
         }
+
         // Evaluation scores based on evaluation votes.
         uint evaluation_disqualification_pool = 0;
 
@@ -489,7 +492,7 @@ contract OpenFLModel {
             User storage user = users[participants[i]];
 
             if (_isEligibleForRewards(user)) { // && evaluationScore[round][user.addr] != 0
-                require(evaluationScore[round][user.addr] > 0, "Evaluation score is <= 0 in settle!"); // 0 means no evaluation score submitted.
+                require(hasSubmittedEvaluationScore[round][user.addr], "Evaluation score not submitted for user"); // 0 means no evaluation score submitted.
                 uint staking_min_grs = min_collateral / punishfactorContrib;
                 uint evaluation_reward = (evaluationScore[round][user.addr] * staking_min_grs) / 1e18;
                 uint new_global_rep = user.globalReputationScore + evaluation_reward - staking_min_grs;

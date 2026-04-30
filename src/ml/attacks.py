@@ -45,6 +45,7 @@ def add_noise(model, offset_from_end: int = 5) -> OrderedDict:
 def let_malicious_users_do_their_work(pm):
     for i in range(len(pm.participants)):
         if pm.participants[i].attitude == "bad":
+
             if pm.malicious_attack_type == "byzantine":
                 print(red("Address {} executing Byzantine Attack".format(pm.participants[i].address[0:16] + "...")))
                 manipulated_state_dict = byzantine_attack(pm, pm.participants[i])
@@ -52,9 +53,10 @@ def let_malicious_users_do_their_work(pm):
                 pm.participants[i].last_attack_type = "noise" if fallback else "byzantine"
             else:
                 print(red("Address {} going to provide random weights".format(
-                    pm.participants[i].address[0:16] + "...")))
+                pm.participants[i].address[0:16] + "...")))
                 manipulated_state_dict = manipulate(pm.participants[i].model, scale=pm.malicious_noise_scale)
                 pm.participants[i].last_attack_type = "noise"
+
             pm.participants[i].model.load_state_dict(manipulated_state_dict)
             pm.participants[i].hashedModel = evaluation.get_hash(pm.participants[i].model.state_dict())
             loss, accuracy = training.test(pm.participants[i].model, pm.test, DEVICE)
@@ -71,6 +73,7 @@ def let_malicious_users_do_their_work(pm):
 def let_freerider_users_do_their_work(pm):
     for i in range(len(pm.participants)):
         if pm.participants[i].attitude == "freerider":
+
             if pm.freerider_attack_type == "delta_weight":
                 print(
                     red("Address {} executing Delta Weights Attack".format(pm.participants[i].address[0:16] + "...")))
@@ -82,6 +85,7 @@ def let_freerider_users_do_their_work(pm):
                     pm.participants[i].address[0:16] + "...")))
                 manipulated_state_dict = manipulate(pm.participants[i].model, scale=pm.freerider_noise_scale)
                 pm.participants[i].last_attack_type = "noise"
+
             pm.participants[i].model.load_state_dict(manipulated_state_dict)
             pm.participants[i].hashedModel = evaluation.get_hash(pm.participants[i].model.state_dict())
             loss, accuracy = training.test(pm.participants[i].model, pm.test, DEVICE)
