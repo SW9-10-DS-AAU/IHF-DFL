@@ -882,6 +882,10 @@ class FLChallenge(ConnectionHelper):
 
             # A roundRep of 0, does not nec. mean mal.
             contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0] # Keeps track of who will be merged in the_merge()
+            if len(contributors) == 0:
+                warnings.warn("All users had negative round reputation - merging all users and letting contribution score calculation sort them out.")
+                contributors = [user for user in self.pytorch_model.participants] # If all are negative, we merge everyone and let the contribution score calculation sort them out.
+
 
             users_weight_collector = {}
             agg_switch_collector = {}
