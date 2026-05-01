@@ -60,10 +60,10 @@ PRESETS = {
     ),
 
     "test": ExperimentPreset(
-        number_of_good_contributors=1,
-        number_of_bad_contributors=2,
-        number_of_freerider_contributors=0,
-        minimum_rounds=3,
+        number_of_good_contributors=4,
+        number_of_bad_contributors=1,
+        number_of_freerider_contributors=1,
+        minimum_rounds=10,
         epochs=1,
         batch_size=32,
         use_outlier_detection=[True],
@@ -75,9 +75,10 @@ PRESETS = {
         malicious_attack_type=["byzantine"],
         freerider_attack_type=["delta_weight"],
         aggregation_rule=["binary_switch[positives_only,FedAVG]"],
-        data_distribution=["random_split"],
+        data_distribution=["random_split_42", "dirichlet_split_42"],
         dirichlet_alpha=[0.5],
     ),
+
 
     "mnist_openfl_w_outlier": ExperimentPreset(
         number_of_good_contributors=4,
