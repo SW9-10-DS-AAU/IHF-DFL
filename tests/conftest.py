@@ -81,4 +81,7 @@ def minimal_run():
         receipts=pd.DataFrame(),
         contributions=pd.DataFrame(),
         warnings=pd.DataFrame(),
+        punishments=pd.DataFrame(),
+        evaluation_rewards=pd.DataFrame(),
+        evaluation_votes=pd.DataFrame(),
     )

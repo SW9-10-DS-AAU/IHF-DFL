@@ -22,6 +22,9 @@ def _run_with_global(global_rows, experiment_id="exp-A"):
         receipts=pd.DataFrame(),
         contributions=pd.DataFrame(),
         warnings=pd.DataFrame(),
+        punishments=pd.DataFrame(),
+        evaluation_rewards=pd.DataFrame(),
+        evaluation_votes=pd.DataFrame(),
     )
 
 
@@ -36,6 +39,9 @@ def _run_with_users(user_rows, experiment_id="exp-A"):
         receipts=pd.DataFrame(),
         contributions=pd.DataFrame(),
         warnings=pd.DataFrame(),
+        punishments=pd.DataFrame(),
+        evaluation_rewards=pd.DataFrame(),
+        evaluation_votes=pd.DataFrame(),
     )
 
 
@@ -133,6 +139,8 @@ def test_merge_runs_metadata_has_one_row_per_run(minimal_run):
         rounds_global=pd.DataFrame(), rounds_users=pd.DataFrame(),
         votes=pd.DataFrame(), receipts=pd.DataFrame(),
         contributions=pd.DataFrame(), warnings=pd.DataFrame(),
+        punishments=pd.DataFrame(), evaluation_rewards=pd.DataFrame(),
+        evaluation_votes=pd.DataFrame(),
     )
     result = merge_runs([minimal_run, run_b])
     assert len(result["metadata"]) == 2
@@ -144,6 +152,8 @@ def test_merge_runs_metadata_contains_experiment_ids(minimal_run):
         rounds_global=pd.DataFrame(), rounds_users=pd.DataFrame(),
         votes=pd.DataFrame(), receipts=pd.DataFrame(),
         contributions=pd.DataFrame(), warnings=pd.DataFrame(),
+        punishments=pd.DataFrame(), evaluation_rewards=pd.DataFrame(),
+        evaluation_votes=pd.DataFrame(),
     )
     result = merge_runs([minimal_run, run_b])
     ids = set(result["metadata"]["experiment_id"])
@@ -158,6 +168,8 @@ def test_merge_runs_users_contains_both_experiments(two_exp_users, two_exp_globa
         rounds_users=make_users(["exp-A"]),
         votes=pd.DataFrame(), receipts=pd.DataFrame(),
         contributions=pd.DataFrame(), warnings=pd.DataFrame(),
+        punishments=pd.DataFrame(), evaluation_rewards=pd.DataFrame(),
+        evaluation_votes=pd.DataFrame(),
     )
     run_b = RunData(
         experiment_id="exp-B", metadata={}, setup={},
@@ -165,6 +177,8 @@ def test_merge_runs_users_contains_both_experiments(two_exp_users, two_exp_globa
         rounds_users=make_users(["exp-B"]),
         votes=pd.DataFrame(), receipts=pd.DataFrame(),
         contributions=pd.DataFrame(), warnings=pd.DataFrame(),
+        punishments=pd.DataFrame(), evaluation_rewards=pd.DataFrame(),
+        evaluation_votes=pd.DataFrame(),
     )
     result = merge_runs([run_a, run_b])
     ids = set(result["users"]["experiment_id"])
@@ -191,6 +205,8 @@ def test_merge_runs_empty_tables_produce_empty_dataframes():
         rounds_global=pd.DataFrame(), rounds_users=pd.DataFrame(),
         votes=pd.DataFrame(), receipts=pd.DataFrame(),
         contributions=pd.DataFrame(), warnings=pd.DataFrame(),
+        punishments=pd.DataFrame(), evaluation_rewards=pd.DataFrame(),
+        evaluation_votes=pd.DataFrame(),
     )
     result = merge_runs([run])
     assert result["global"].empty

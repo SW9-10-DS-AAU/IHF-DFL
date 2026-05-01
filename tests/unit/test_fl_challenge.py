@@ -209,6 +209,7 @@ class TestCalcContributionScore:
         self.aggregator._calculate_scores_loss_only = lambda users, mad_threshold=1.1: \
             contribution._calculate_scores_loss_only(self.aggregator, users, mad_threshold)
 
+
     # Basic test case with non-zero global model
     # def test_calc_contribution_score_basic(self):
     #     """
