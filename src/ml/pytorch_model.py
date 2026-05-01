@@ -1,4 +1,5 @@
 import sys
+import atexit
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -29,6 +30,7 @@ class PytorchModel:
         self.NUMBER_OF_INACTIVE_CONTRIBUTORS = 0
         self.NUMBER_OF_CONTRIBUTORS = _good_participants + _bad_participants + _freerider_participants + self.NUMBER_OF_INACTIVE_CONTRIBUTORS
         self.DATA = None
+        self._pool = None
         self.participants = []
         self.disqualified = []
         self.EPOCHS = epochs
@@ -104,6 +106,20 @@ class PytorchModel:
         for i in range(self.NUMBER_OF_INACTIVE_CONTRIBUTORS):
             self.add_participant("inactive")
 
+        num_gpus = torch.cuda.device_count()
+        if num_gpus > 1:
+            ctx = mp.get_context("spawn")
+            self._pool_size = num_gpus
+            self._pool = ctx.Pool(processes=self._pool_size)
+        elif num_gpus == 0:
+            ctx = mp.get_context("spawn")
+            self._pool_size = min(len(self.participants), os.cpu_count() or 1)
+            self._pool = ctx.Pool(processes=self._pool_size)
+        else:
+            self._pool_size = 1
+        # Single GPU: _pool stays None, run_sequential() used instead
+        atexit.register(self.close_pool)
+
 
     def add_participant(self, _attitude):
         _train, _val, _test = data.load_data(self, self.NUMBER_OF_CONTRIBUTORS)
@@ -152,12 +168,17 @@ class PytorchModel:
 
 
     def federated_training(self):
-        print(b("\n================ PARALLEL FEDERATED TRAINING START ================"))
+        _sequential = debugging or self._pool is None
+        mode = "SEQUENTIAL" if _sequential else "PARALLEL"
+        print(b(f"\n================ {mode} FEDERATED TRAINING START ================"))
 
         start_total = time.perf_counter()
 
-        if debugging:
-            print(yellow("Debugging mode detected → running sequential training"))
+        if _sequential:
+            if self._pool is None and not debugging:
+                print(yellow("Single GPU detected → running sequential training"))
+            elif debugging:
+                print(yellow("Debugging mode detected → running sequential training"))
             results = self.run_sequential()
         else:
             results = self.run_multi_processing()
@@ -165,7 +186,7 @@ class PytorchModel:
         self.apply_training_results(results)
         total_time = time.perf_counter() - start_total
 
-        print(b("=================== PARALLEL TRAINING END ===================\n"))
+        print(b(f"=================== {mode} TRAINING END ===================\n"))
         print(green(f"Total federated training time: {total_time:.2f} seconds\n"))
 
 
@@ -213,41 +234,36 @@ class PytorchModel:
             raise RuntimeError("All participants have been disqualified - simulation cannot continue.")
 
         num_gpus = torch.cuda.device_count()
-        ctx = mp.get_context("spawn")
+        print_training_mode(num_gpus, self._pool_size)
 
-        num_processes = min(
-            len(self.participants),
-            num_gpus if num_gpus > 0 else os.cpu_count()
-        )
+        start_pool = time.perf_counter()
+        async_results = []
+        for idx, user in enumerate(self.participants):
+            device_id = idx % max(1, num_gpus)
+            sd_cpu = {k: v.cpu() for k, v in user.model.state_dict().items()}
 
-        print_training_mode(num_gpus, num_processes)
+            if user.attitude == "good":
+                async_results.append(self._pool.apply_async(
+                    training.train_user_proc,
+                    (user.id, sd_cpu, user.train.dataset, user.val.dataset,
+                     self.EPOCHS, device_id, self.DATASET, self.BATCHSIZE, PIN_MEMORY, False)
+                ))
+            else:
+                evaluation.finalize_user_evaluation(self, user)
 
-        with ctx.Pool(processes=num_processes) as pool:
-            start_pool = time.perf_counter()
+        try:
+            results = [r.get() for r in async_results]
+        except KeyboardInterrupt:
+            self._pool.terminate()
+            self._pool.join()
+            self._pool = None
+            raise
 
-            async_results = []
-            for idx, user in enumerate(self.participants):
-                device_id = idx % max(1, num_gpus)
-                sd_cpu = {k: v.cpu() for k, v in user.model.state_dict().items()}  # safe copy
-
-                if user.attitude=="good": # train
-                    async_results.append(pool.apply_async(
-                        training.train_user_proc,
-                        (user.id,
-                        sd_cpu,
-                        user.train.dataset,
-                        user.val.dataset,
-                        self.EPOCHS,
-                        device_id,
-                        self.DATASET,
-                        self.BATCHSIZE,
-                        PIN_MEMORY,
-                        False)
-                    ))
-                else: # If user's behaviour !good, skip Training.
-                    # Skips apply_training_results() - goes directly to evaluation. Corresponds to lines 261-277 in original code.
-                    evaluation.finalize_user_evaluation(self, user)
-
-            results = [r.get() for r in async_results] # Gather results from Multi-Processing
         print(green(f"Parallel execution time: {time.perf_counter() - start_pool:.2f} seconds"))
         return results
+
+    def close_pool(self):
+        if self._pool is not None:
+            self._pool.close()
+            self._pool.join()
+            self._pool = None

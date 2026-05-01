@@ -48,12 +48,7 @@ def print_training_mode(num_gpus: int, num_processes: int):
         print(green(f"Detected {num_gpus} GPU(s) → Parallel multi-GPU training"))
 
     elif num_gpus == 1:
-        if num_processes > 1:
-            print(yellow(
-                f"Detected 1 GPU → Parallel training on one GPU (shared across {num_processes} workers)"
-            ))
-        else:
-            print(green("Detected 1 GPU → Sequential GPU training"))
+        print(green("Detected 1 GPU → Sequential GPU training"))
 
     else:  # CPU-only
         if num_processes > 1:

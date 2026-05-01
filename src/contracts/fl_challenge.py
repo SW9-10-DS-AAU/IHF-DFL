@@ -575,7 +575,7 @@ class FLChallenge(ConnectionHelper):
     
 
     def exit_system(self):
-      
+        self.pytorch_model.close_pool()
         print(b(f"Terminating Model..."))
        
         txs = []
@@ -852,110 +852,113 @@ class FLChallenge(ConnectionHelper):
             })
 
         logging.log_round_zero(self)
+        try:
+            for i in range(rounds):
+                print(b(f"\n\nRound {_current_round} starts..."))
+                _round_start = time.perf_counter()
 
-        for i in range(rounds):
-            print(b(f"\n\nRound {_current_round} starts..."))
-            _round_start = time.perf_counter()
+                attacks.update_users_attitude(self.pytorch_model)
 
-            attacks.update_users_attitude(self.pytorch_model)
+                self.pytorch_model.federated_training()
 
-            self.pytorch_model.federated_training()
+                attacks.let_malicious_users_do_their_work(self.pytorch_model)
 
-            attacks.let_malicious_users_do_their_work(self.pytorch_model)
+                attacks.let_freerider_users_do_their_work(self.pytorch_model)
+                
+                self.user_register_slot()
 
-            attacks.let_freerider_users_do_their_work(self.pytorch_model)
-            
-            self.user_register_slot()
+                self.users_provide_hashed_weights()
 
-            self.users_provide_hashed_weights()
+                evaluation.exchange_models(self.pytorch_model)
+                
+                evaluation.verify_models(self.pytorch_model, {u.id: self.get_hashed_weights_of(u) for u in self.pytorch_model.participants})
 
-            evaluation.exchange_models(self.pytorch_model)
-            
-            evaluation.verify_models(self.pytorch_model, {u.id: self.get_hashed_weights_of(u) for u in self.pytorch_model.participants})
+                self.feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses = evaluation.evaluate_peers(self.pytorch_model)
 
-            self.feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses = evaluation.evaluate_peers(self.pytorch_model)
+                self.quick_feedback_round(fbm = self.feedback_matrix, am=accuracy_matrix, lm=loss_matrix, prev_accs=prev_accs, prev_losses=prev_losses)
 
-            self.quick_feedback_round(fbm = self.feedback_matrix, am=accuracy_matrix, lm=loss_matrix, prev_accs=prev_accs, prev_losses=prev_losses)
+                for user in self.pytorch_model.participants:
+                    user._roundrep.append(self.get_round_reputation_of_user(user.address))
+                    print(f"model participant: {user.address} gets {user._roundrep[-1]} round reputation")
+                for user in self.pytorch_model.disqualified:
+                    print(f"disqualified model participant: {user.address} has no round reputation, as he is disqualified")
 
-            for user in self.pytorch_model.participants:
-                user._roundrep.append(self.get_round_reputation_of_user(user.address))
-                print(f"model participant: {user.address} gets {user._roundrep[-1]} round reputation")
-            for user in self.pytorch_model.disqualified:
-                print(f"disqualified model participant: {user.address} has no round reputation, as he is disqualified")
+                # A roundRep of 0, does not nec. mean mal.
+                contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0] # Keeps track of who will be merged in the_merge()
 
-            # A roundRep of 0, does not nec. mean mal.
-            contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0] # Keeps track of who will be merged in the_merge()
-
-            users_weight_collector = {}
-            agg_switch_collector = {}
-            warning_collector = []
-
-
-            # Ordering of the merge. If dotproduct we merge before contribution score
-            if self.experiment_config.contribution_score_strategy == "dotproduct":
-                aggregation.the_merge(self.pytorch_model, _current_round, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, warning_collector=warning_collector)
-                for msg in warning_collector:
-                    logging.log_warning(self, msg, round=_current_round)
-
-            print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
-            contribution_score(self, contributors, _current_round)
-
-            receipt = self.close_round() # Increments round number by 1
-            _current_round = self.pytorch_model.round - 1 # Minus 1 since close_round increments. Reassign _current_round
-
-            # If not dotproduct, we calculate contribution score before the merge
-            if not self.experiment_config.contribution_score_strategy == "dotproduct":
-                avg_losses = self.get_all_n_prior_losses(3)
-                aggregation.the_merge(self.pytorch_model, _current_round, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_losses=avg_losses, warning_collector=warning_collector)
-                for msg in warning_collector:
-                    logging.log_warning(self, msg, round=_current_round)
-
-            if receipt is not None:
-                self.print_round_summary(receipt, _current_round)
-
-            _round_time = time.perf_counter() - _round_start
-
-            logging.log_round(self,
-                _current_round, _round_time,
-                accuracy_matrix, loss_matrix, prev_accs, prev_losses,
-                contributors, receipt, users_weight_collector, agg_switch_collector,
-            )
-
-            grs = [(user.address, user._globalrep[-1]) for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
-            round_punishment = [(punishment[0], punishment[1]) for punishment in self._punishments if punishment[0] == _current_round]
-            round_kicked = [punishment[2] for punishment in self._punishments if punishment[0] == _current_round]
-            roundTx = self.txHashes[self.writeTxProgress:]
-            self.writeTxProgress = len(self.txHashes) - 1
-            self.writer.writeResult({
-                "round": _current_round,
-                "GRS": grs,
-                "globalAcc": self.pytorch_model.accuracy[-1] or 0, # Checks out
-                "globalLoss": self.pytorch_model.loss[-1] or 0, # Checks out
-                "conctractBalanceRewards": self._reward_balance[-1],
-                "punishments": round_punishment,
-                "rewards": self.get_round_rewards(receipt),
-                "accAvgPerUser": prev_accs, # Check - Should come from am
-                "lossAvgPerUser": prev_losses, # Check - Should come from lm
-                "feedbackMatrix": self.feedback_matrix.tolist(),
-                "disqualifiedUsers": round_kicked,
-                "contributionScores": self.scores,
-                "userStatuses": [user.getStatus() for user in self.pytorch_model.participants],
-                "GasTransactions": roundTx
-                })
-
-            _current_round = self.pytorch_model.round # Update current round to match with incremented round in close_round()
+                users_weight_collector = {}
+                agg_switch_collector = {}
+                warning_collector = []
 
 
-        # print(f"Number of Shapley Axioms violated: {len(contribution.runtime_warnings)}\n")
-        # if contribution.runtime_warnings:
-        #     print("\n" + red("!" * 30 + " SHAPLEY WARNINGS " + "!" * 30))
-        #     for warn in contribution.runtime_warnings:
-        #         print(colored(warn, 'yellow'))
-        #     print(red("!" * 78))
-        contribution.print_shapley_warnings()
+                # Ordering of the merge. If dotproduct we merge before contribution score
+                if self.experiment_config.contribution_score_strategy == "dotproduct":
+                    aggregation.the_merge(self.pytorch_model, _current_round, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, warning_collector=warning_collector)
+                    for msg in warning_collector:
+                        logging.log_warning(self, msg, round=_current_round)
 
-        self.writer.writeComment(f"$gasCosts${self.gas_feedback},{self.gas_register},{self.gas_slot},{self.gas_weights},{self.gas_close},{self.gas_deploy},{self.gas_exit}")
-        self.exit_system()
+                print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
+                contribution_score(self, contributors, _current_round)
+
+                receipt = self.close_round() # Increments round number by 1
+                _current_round = self.pytorch_model.round - 1 # Minus 1 since close_round increments. Reassign _current_round
+
+                # If not dotproduct, we calculate contribution score before the merge
+                if not self.experiment_config.contribution_score_strategy == "dotproduct":
+                    avg_losses = self.get_all_n_prior_losses(3)
+                    aggregation.the_merge(self.pytorch_model, _current_round, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_losses=avg_losses, warning_collector=warning_collector)
+                    for msg in warning_collector:
+                        logging.log_warning(self, msg, round=_current_round)
+
+                if receipt is not None:
+                    self.print_round_summary(receipt, _current_round)
+
+                _round_time = time.perf_counter() - _round_start
+
+                logging.log_round(self,
+                    _current_round, _round_time,
+                    accuracy_matrix, loss_matrix, prev_accs, prev_losses,
+                    contributors, receipt, users_weight_collector, agg_switch_collector,
+                )
+
+                grs = [(user.address, user._globalrep[-1]) for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
+                round_punishment = [(punishment[0], punishment[1]) for punishment in self._punishments if punishment[0] == _current_round]
+                round_kicked = [punishment[2] for punishment in self._punishments if punishment[0] == _current_round]
+                roundTx = self.txHashes[self.writeTxProgress:]
+                self.writeTxProgress = len(self.txHashes) - 1
+                self.writer.writeResult({
+                    "round": _current_round,
+                    "GRS": grs,
+                    "globalAcc": self.pytorch_model.accuracy[-1] or 0, # Checks out
+                    "globalLoss": self.pytorch_model.loss[-1] or 0, # Checks out
+                    "conctractBalanceRewards": self._reward_balance[-1],
+                    "punishments": round_punishment,
+                    "rewards": self.get_round_rewards(receipt),
+                    "accAvgPerUser": prev_accs, # Check - Should come from am
+                    "lossAvgPerUser": prev_losses, # Check - Should come from lm
+                    "feedbackMatrix": self.feedback_matrix.tolist(),
+                    "disqualifiedUsers": round_kicked,
+                    "contributionScores": self.scores,
+                    "userStatuses": [user.getStatus() for user in self.pytorch_model.participants],
+                    "GasTransactions": roundTx
+                    })
+
+                _current_round = self.pytorch_model.round # Update current round to match with incremented round in close_round()
+
+
+            # print(f"Number of Shapley Axioms violated: {len(contribution.runtime_warnings)}\n")
+            # if contribution.runtime_warnings:
+            #     print("\n" + red("!" * 30 + " SHAPLEY WARNINGS " + "!" * 30))
+            #     for warn in contribution.runtime_warnings:
+            #         print(colored(warn, 'yellow'))
+            #     print(red("!" * 78))
+            contribution.print_shapley_warnings()
+
+            self.writer.writeComment(f"$gasCosts${self.gas_feedback},{self.gas_register},{self.gas_slot},{self.gas_weights},{self.gas_close},{self.gas_deploy},{self.gas_exit}")
+            self.exit_system()
+        finally:
+            self.pytorch_model.close_pool()
+
 
     
     def visualize_simulation(self, output_folder_path):
