@@ -400,18 +400,18 @@ def normalize_skip(skip: Skip):
         dataset=skip.dataset,
         strategy=skip.strategy,
         outlier_detection=skip.outlier_detection,
-        free_rider_activation_round=skip.free_rider_activation_round,
-        free_rider_noise=skip.free_rider_noise,
+        freerider_activation_round=skip.freerider_activation_round,
+        freerider_noise=skip.freerider_noise,
         freerider_attack_type=skip.freerider_attack_type,
         malicious_activation_round=(
             skip.malicious_activation_round
             if skip.malicious_activation_round is not None
-            else skip.free_rider_activation_round
+            else skip.freerider_activation_round
         ),
         malicious_noise=(
             skip.malicious_noise
             if skip.malicious_noise is not None
-            else skip.free_rider_noise
+            else skip.freerider_noise
         ),
         malicious_attack_type=skip.malicious_attack_type,
         aggregation_rule=skip.aggregation_rule,
