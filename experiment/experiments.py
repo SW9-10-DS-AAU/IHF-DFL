@@ -71,12 +71,12 @@ class Skip:
     dataset: str
     strategy: str
     outlier_detection: bool
-    free_rider_activation_round: int
-    free_rider_noise: float
+    freerider_activation_round: int
+    freerider_noise: float
+    freerider_attack_type: str
     malicious_activation_round: int | None
     malicious_noise: float | None
     malicious_attack_type: str
-    freerider_attack_type: str
     aggregation_rule: str
     data_distribution: str
     dirichlet_alpha: float | None
@@ -227,8 +227,8 @@ def main(author): # single preset
             dataset=dataset,
             strategy=strategy,
             outlier_detection=outlier_detection,
-            free_rider_activation_round=freerider_round,
-            free_rider_noise=freerider_noise,
+            freerider_activation_round=freerider_round,
+            freerider_noise=freerider_noise,
             freerider_attack_type=freerider_attack_type,
             malicious_activation_round=malicious_activation_round,
             malicious_noise=malicious_noise,
@@ -323,16 +323,17 @@ def parseSkips():
             r"(?P<preset>[^-]+)-"
             r"(?P<dataset>[^-]+)-"
             r"(?P<strategy>[^-]+)-"
+            r"(?P<outlierDetection>[^-]+)-"
             r"(?P<activationRound>[^-]+)-"
             r"(?P<noise>[^-]+)-"
             r"(?P<freeriderAttackType>[^-]+)-"
             r"(?P<maliciousRound>[^-]+)-"
             r"(?P<maliciousNoise>[^-]+)-"
             r"(?P<maliciousAttackType>[^-]+)-"
-            r"(?P<outlierDetection>[^-]+)-"
             r"(?P<aggregationRule>[^-]+)"
             r"-(?P<dataDistribution>[^-]+)"
             r"(?:-(?P<dirichletAlpha>[^-]+))"
+            r"-?(?P<runId>[0-9]+)?"  # <-- optional run ID part
             r"(?:-\{[0-9a-fA-F-]+\})?"  # <-- optional UUID part
             r"\.pkl",
             file,
@@ -363,6 +364,7 @@ def parseSkips():
                 aggregation_rule=m.group("aggregationRule"),
                 data_distribution=m.group("dataDistribution"),
                 dirichlet_alpha=float(alpha) if alpha != "None" else None,
+                run_id=int(m.group("runId")) if m.group("runId") is not None else 0
             )
         )
 
