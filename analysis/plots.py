@@ -261,22 +261,43 @@ def plot_contribution_score_by_role_relative(agg_scores: pd.DataFrame) -> plt.Fi
     return fig
 
 
-def plot_grs_by_user(grs_users: pd.DataFrame) -> plt.Figure:
-    # x-axis: Round: 0,1,...,n
-    # y-axis: GRS
-    # Plot user as a line
-    fig, ax = plt.subplots(figsize=(9, 4))
+def plot_grs_by_user(
+    grs_users: pd.DataFrame,
+    metadata: pd.DataFrame | None = None,
+) -> plt.Figure:
+    """
+    One line per user, GRS over rounds.
 
-    # for user_id, group in grs_users.groupby("user_id, behavior"):
-    #     ax.plot(group["round"], group["grs"], label=f"User {user_id}", alpha=0.5)
+    metadata: optional full metadata DataFrame. If provided, vertical dashed lines
+    are drawn at malicious_start_round / freerider_start_round for roles present
+    in the data, extracted automatically from the matching experiment row.
+    """
+    fig, ax = plt.subplots(figsize=(9, 4))
 
     for (user_id, behavior), group in grs_users.groupby(["user_id", "role"]):
         ax.plot(group["round"], group["grs"], label=f"User {user_id} ({ROLE_LABELS[behavior]})", alpha=0.5) # alpha: 50% transparency, so overlapping lines show through each other
 
+    if metadata is not None:
+        experiment_id = grs_users["experiment_id"].iloc[0]
+        meta = metadata[metadata["experiment_id"] == experiment_id].iloc[0]
+        roles_in_data = grs_users["role"].unique()
+        for role, col in (("bad", "malicious_start_round"), ("freerider", "freerider_start_round")):
+            if role not in roles_in_data or col not in meta.index:
+                continue
+            color = BEHAVIOR_COLORS.get(role, "black")
+            ax.axvline(
+                int(meta[col]),
+                linestyle="--",
+                color=color,
+                linewidth=2,
+                alpha=1.0,
+                label=f"{ROLE_LABELS.get(role, role)} activation",
+            )
+
     ax.set_xlabel("Round")
     ax.set_ylabel("Global Reputation Score (ETH)")
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    ax.legend(title="Users")
+    ax.legend(title="Users", loc="lower left")
     ax.grid(True, alpha=0.3) # alpha: makes the grid subtle/faint so it doesn't compete with the data
     fig.tight_layout()
     return fig
