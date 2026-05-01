@@ -36,6 +36,7 @@ class ExperimentPreset:
     dirichlet_alpha: list[float] | None
     malicious_attack_type: list[str] | None
     freerider_attack_type: list[str] | None
+    number_of_runs: int
 
 
 # Full preset (used when use_defaults=False)
@@ -60,9 +61,9 @@ PRESETS = {
     ),
 
     "test": ExperimentPreset(
-        number_of_good_contributors=4,
+        number_of_good_contributors=2,
         number_of_bad_contributors=1,
-        number_of_freerider_contributors=1,
+        number_of_freerider_contributors=0,
         minimum_rounds=10,
         epochs=1,
         batch_size=32,
@@ -75,8 +76,9 @@ PRESETS = {
         malicious_attack_type=["byzantine"],
         freerider_attack_type=["delta_weight"],
         aggregation_rule=["binary_switch[positives_only,FedAVG]"],
-        data_distribution=["random_split_42", "dirichlet_split_42"],
+        data_distribution=["dirichlet_split"],
         dirichlet_alpha=[0.5],
+        number_of_runs=3
     ),
 
 
@@ -98,6 +100,7 @@ PRESETS = {
         aggregation_rule= ["FedAVG"],
         data_distribution= ["random_split"],
         dirichlet_alpha= None,
+        number_of_runs=1
     ),
 
     "mnist_openfl_w/o_outlier": ExperimentPreset(
@@ -118,6 +121,7 @@ PRESETS = {
         aggregation_rule= ["FedAVG"],
         data_distribution= ["random_split"],
         dirichlet_alpha= None,
+        number_of_runs=1
     ),
 
     "cifar_openfl_w_outlier": ExperimentPreset(
@@ -138,6 +142,7 @@ PRESETS = {
         aggregation_rule= ["FedAVG"],
         data_distribution= ["random_split"],
         dirichlet_alpha= None,
+        number_of_runs=1
     ),
 
     "cifar_openfl_w/o_outlier": ExperimentPreset(
@@ -158,6 +163,7 @@ PRESETS = {
         aggregation_rule= ["FedAVG"],
         data_distribution= ["random_split"],
         dirichlet_alpha= None,
+        number_of_runs=1
     ),
 
     "aggregation_rules_test_model_performance_mnist": FullPreset(
@@ -189,7 +195,9 @@ PRESETS = {
         aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize"],
         data_distribution= ["random_split"],
         dirichlet_alpha= None,
+        number_of_runs=1
     ),
+
 
     "aggregation_rules_test_model_performance_people_get_kicked_now_mnist": FullPreset(
         fork=True,
@@ -219,7 +227,8 @@ PRESETS = {
         freerider_attack_type=None,
         aggregation_rule=["GRS_aggregation", "FedAVG", "positives_only", "binary_switch", "plus_one_normalize"], # 3
         data_distribution= ["random_split"], # 1
-        dirichlet_alpha= None
+        dirichlet_alpha= None,
+        number_of_runs=1
     ),
     "aggregation_rules_test_model_performance_people_get_kicked_now_cifar": FullPreset(
         fork=True,
@@ -250,6 +259,7 @@ PRESETS = {
         aggregation_rule=["binary_switch","positives_only", "FedAVG", "plus_one_normalize"], # 4
         data_distribution= ["random_split"], # 1
         dirichlet_alpha= None,
+        number_of_runs=1
     ),
     "data_distribution_mnist": FullPreset(
         fork=True,
@@ -280,6 +290,7 @@ PRESETS = {
         aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize"], # 3
         data_distribution= ["random_split", "stratified_split", "dirichlet_split"], # 3
         dirichlet_alpha= [0.5, 5.0],
+        number_of_runs=1
     ),
 }
 

@@ -17,7 +17,7 @@ from ml.participant import Participant
 debugging = sys.gettrace() is not None
 
 class PytorchModel:
-    def __init__(self, DATASET, _good_participants, _bad_participants, _freerider_participants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, use_nobody_is_kicked: bool = False, data_distribution : str = None, dirichlet_alpha: float = None, malicious_attack_type: str = "noise", freerider_attack_type: str = "noise"):
+    def __init__(self, DATASET, _good_participants, _bad_participants, _freerider_participants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, use_nobody_is_kicked: bool = False, data_distribution : str = None, dirichlet_alpha: float = None, malicious_attack_type: str = "noise", freerider_attack_type: str = "noise", run_id: int = None):
         self.DATASET = DATASET
         if self.DATASET == "mnist":
             self.global_model = Net_MNIST().to(DEVICE)
@@ -35,9 +35,10 @@ class PytorchModel:
         self.disqualified = []
         self.EPOCHS = epochs
         self.BATCHSIZE = batchsize
+        self.run_id = 0 if run_id is None else run_id
 
         if data_distribution is None:
-            self.data_distribution = "random_split_42"
+            self.data_distribution = "random_split"
         else:
             self.data_distribution = data_distribution
 
@@ -46,7 +47,7 @@ class PytorchModel:
         else:
             self.dirichlet_alpha = dirichlet_alpha
 
-        self.train, self.val, self.test = data.load_data(self, self.NUMBER_OF_CONTRIBUTORS, _print=True)
+        self.train, self.val, self.test = data.load_data(self, _print=True)
         self.default_collateral = default_collateral
         self.max_collateral = max_collateral
         self.force_merge_all = force_merge_all
@@ -122,7 +123,7 @@ class PytorchModel:
 
 
     def add_participant(self, _attitude):
-        _train, _val, _test = data.load_data(self, self.NUMBER_OF_CONTRIBUTORS)
+        _train, _val, _test = data.load_data(self)
 
         if self.DATASET == "mnist":
             _model = Net_MNIST().to(DEVICE)

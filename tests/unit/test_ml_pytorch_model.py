@@ -43,12 +43,71 @@ def test_device_label_formats_output():
     assert training.device_label(torch.device("cpu")) == "CPU"
     assert training.device_label(torch.device("cuda"), 2) == "GPU 2"
 
+@pytest.mark.parametrize("dataset", ["mnist", "cifar-10"])
+@pytest.mark.parametrize("split", ["random_split", "stratified_split", "dirichlet_split"])
+def test_equal_data_distribution(dataset, split):
+    print(f"\nTesting {dataset} with {split}...")
 
-def test_data_destribution_properties():
-    model1 = PytorchModel("mnist", 4, 6, 1, epochs=32, batchsize=1,
+    # test id 0 should be same as None
+    model1 = PytorchModel(dataset, 4, 1, 1, epochs=1, batchsize=128,
                           default_collateral=1, max_collateral=1,
-                          force_merge_all=False, use_nobody_is_kicked=False, data_distribution="random_split_42",)
-    model2 = PytorchModel("mnist", 4, 6, 1, epochs=32, batchsize=1,
+                          data_distribution=split, run_id=0)
+    model2 = PytorchModel(dataset, 4, 1, 1, epochs=1, batchsize=128,
                           default_collateral=1, max_collateral=1,
-                          data_distribution="random_split_42")
+                          data_distribution=split, run_id=None)
     assert data.get_client_data_distribution(model1) == data.get_client_data_distribution(model2)
+
+    # test id 1
+    model1 = PytorchModel(dataset, 4, 1, 1, epochs=1, batchsize=128,
+                          default_collateral=1, max_collateral=1,
+                          data_distribution=split, run_id=1)
+    model2 = PytorchModel(dataset, 4, 1, 1, epochs=1, batchsize=128,
+                          default_collateral=1, max_collateral=1,
+                          data_distribution=split, run_id=1)
+    assert data.get_client_data_distribution(model1) == data.get_client_data_distribution(model2)
+
+    # different ids → different distribution
+    model1 = PytorchModel(dataset, 4, 1, 1, epochs=1, batchsize=128,
+                          default_collateral=1, max_collateral=1,
+                          data_distribution=split, run_id=1)
+    model2 = PytorchModel(dataset, 4, 1, 1, epochs=1, batchsize=128,
+                          default_collateral=1, max_collateral=1,
+                          data_distribution=split, run_id=2)
+    assert data.get_client_data_distribution(model1) != data.get_client_data_distribution(model2)
+
+
+@pytest.mark.parametrize("dataset", ["mnist", "cifar-10"])
+@pytest.mark.parametrize(
+    "alpha1, alpha2",
+    [
+        (0.5, 1.0),
+    ]
+)
+def test_data_distribution_dirichlet(dataset, alpha1, alpha2):
+    print(f"\nTesting {dataset} with dirichlet alphas {alpha1} vs {alpha2}...")
+
+    # same alphas → same distribution
+    model1 = PytorchModel(dataset, 4, 1, 1, epochs=1, batchsize=128,
+                          default_collateral=1, max_collateral=1,
+                          data_distribution="dirichlet_split",
+                          run_id=0, dirichlet_alpha=alpha1)
+
+    model2 = PytorchModel(dataset, 4, 1, 1, epochs=1, batchsize=128,
+                          default_collateral=1, max_collateral=1,
+                          data_distribution="dirichlet_split",
+                          run_id=None, dirichlet_alpha=alpha1)
+
+    assert data.get_client_data_distribution(model1) == data.get_client_data_distribution(model2)
+
+    # different alphas → different distribution
+    model1 = PytorchModel(dataset, 4, 1, 1, epochs=32, batchsize=1,
+                          default_collateral=1, max_collateral=1,
+                          data_distribution="dirichlet_split",
+                          run_id=0, dirichlet_alpha=alpha1)
+
+    model2 = PytorchModel(dataset, 4, 1, 1, epochs=32, batchsize=1,
+                          default_collateral=1, max_collateral=1,
+                          data_distribution="dirichlet_split",
+                          run_id=None, dirichlet_alpha=alpha2)
+
+    assert data.get_client_data_distribution(model1) != data.get_client_data_distribution(model2)

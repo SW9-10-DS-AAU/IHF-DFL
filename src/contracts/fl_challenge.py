@@ -236,7 +236,7 @@ class FLChallenge(ConnectionHelper):
                 txHash = self.model.functions.feedback(target.address, score).transact(tx)
             else:
                 print(rb("Encountered error at feedback function"))
-                raise 
+                raise e
                 
         assert(txHash != None)
         
