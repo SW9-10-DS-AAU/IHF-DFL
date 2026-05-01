@@ -60,9 +60,9 @@ PRESETS = {
     ),
 
     "test": ExperimentPreset(
-        number_of_good_contributors=4,
-        number_of_bad_contributors=1,
-        number_of_freerider_contributors=1,
+        number_of_good_contributors=1,
+        number_of_bad_contributors=2,
+        number_of_freerider_contributors=0,
         minimum_rounds=3,
         epochs=1,
         batch_size=32,
@@ -72,10 +72,10 @@ PRESETS = {
         freerider_start_round=[2],
         malicious_noise_scale=[0.1],
         malicious_start_round=[2],
-        malicious_attack_type=["noise", "byzantine"],
-        freerider_attack_type=["noise", "delta_weight"],
-        aggregation_rule=["binary_switch[positives_only,FedAVG]", "partial_switch[loss, positives_only, FedAVG]", "partial_switch[acc, positives_only, FedAVG]", "partial_switch[retro, positives_only, FedAVG]"],
-        data_distribution=["random_split_42", "dirichlet_split_42"],
+        malicious_attack_type=["byzantine"],
+        freerider_attack_type=["delta_weight"],
+        aggregation_rule=["binary_switch[positives_only,FedAVG]"],
+        data_distribution=["random_split"],
         dirichlet_alpha=[0.5],
     ),
 
@@ -95,7 +95,7 @@ PRESETS = {
         malicious_attack_type=None,
         freerider_attack_type=None,
         aggregation_rule= ["FedAVG"],
-        data_distribution= ["random_split_42"],
+        data_distribution= ["random_split"],
         dirichlet_alpha= None,
     ),
 
@@ -115,7 +115,7 @@ PRESETS = {
         malicious_attack_type=None,
         freerider_attack_type=None,
         aggregation_rule= ["FedAVG"],
-        data_distribution= ["random_split_42"],
+        data_distribution= ["random_split"],
         dirichlet_alpha= None,
     ),
 
@@ -135,7 +135,7 @@ PRESETS = {
         malicious_attack_type=None,
         freerider_attack_type=None,
         aggregation_rule= ["FedAVG"],
-        data_distribution= ["random_split_42"],
+        data_distribution= ["random_split"],
         dirichlet_alpha= None,
     ),
 
@@ -155,7 +155,7 @@ PRESETS = {
         malicious_attack_type=None,
         freerider_attack_type=None,
         aggregation_rule= ["FedAVG"],
-        data_distribution= ["random_split_42"],
+        data_distribution= ["random_split"],
         dirichlet_alpha= None,
     ),
 
@@ -186,7 +186,7 @@ PRESETS = {
         malicious_attack_type=None,
         freerider_attack_type=None,
         aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize"],
-        data_distribution= ["random_split_42"],
+        data_distribution= ["random_split"],
         dirichlet_alpha= None,
     ),
 
@@ -217,7 +217,7 @@ PRESETS = {
         malicious_attack_type=None,
         freerider_attack_type=None,
         aggregation_rule=["GRS_aggregation", "FedAVG", "positives_only", "binary_switch", "plus_one_normalize"], # 3
-        data_distribution= ["random_split_42"], # 1
+        data_distribution= ["random_split"], # 1
         dirichlet_alpha= None
     ),
     "aggregation_rules_test_model_performance_people_get_kicked_now_cifar": FullPreset(
@@ -247,7 +247,7 @@ PRESETS = {
         malicious_attack_type=None,
         freerider_attack_type=None,
         aggregation_rule=["binary_switch","positives_only", "FedAVG", "plus_one_normalize"], # 4
-        data_distribution= ["random_split_42"], # 1
+        data_distribution= ["random_split"], # 1
         dirichlet_alpha= None,
     ),
     "data_distribution_mnist": FullPreset(
@@ -277,7 +277,7 @@ PRESETS = {
         malicious_attack_type=None,
         freerider_attack_type=None,
         aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize"], # 3
-        data_distribution= ["random_split_42", "stratified_split_42", "dirichlet_split_42"], # 3
+        data_distribution= ["random_split", "stratified_split", "dirichlet_split"], # 3
         dirichlet_alpha= [0.5, 5.0],
     ),
 }

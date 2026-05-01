@@ -638,7 +638,7 @@ class FLChallenge(ConnectionHelper):
         return results
 
 
-    def print_round_summary(self, receipt):
+    def print_round_summary(self, receipt, contributors):
         for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
             user.temporary_grs_evaluation = None
 
@@ -678,7 +678,6 @@ class FLChallenge(ConnectionHelper):
         if eval_reward_events:
             # print(b("EVALUATION VOTING REWARDS DISTRIBUTION"))
 
-            contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0]
             user_map = {u.address: u for u in contributors}
 
             for ev in eval_reward_events:
@@ -880,12 +879,9 @@ class FLChallenge(ConnectionHelper):
             for user in self.pytorch_model.disqualified:
                 print(f"disqualified model participant: {user.address} has no round reputation, as he is disqualified")
 
-            # A roundRep of 0, does not nec. mean mal.
             contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0] # Keeps track of who will be merged in the_merge()
-            if len(contributors) == 0:
-                warnings.warn("All users had negative round reputation - merging all users and letting contribution score calculation sort them out.")
-                contributors = [user for user in self.pytorch_model.participants] # If all are negative, we merge everyone and let the contribution score calculation sort them out.
-
+            if len(contributors) == 0: # If all are negative, we merge everyone and let the contribution score calculation sort them out.
+                contributors = self.make_everyone_contributors()
 
             users_weight_collector = {}
             agg_switch_collector = {}
@@ -912,7 +908,7 @@ class FLChallenge(ConnectionHelper):
                     logging.log_warning(self, msg, round=self.pytorch_model.round - 1) # Minus 1 since close_round increments.
 
             if receipt is not None:
-                self.print_round_summary(receipt)
+                self.print_round_summary(receipt, contributors)
 
             _round_time = time.perf_counter() - _round_start
             _current_round = self.pytorch_model.round - 1
@@ -1091,3 +1087,31 @@ class FLChallenge(ConnectionHelper):
         plt.savefig(os.path.join(output_folder_path, f"{self.pytorch_model.DATASET}_simulation.pdf"), bbox_inches='tight')
         #plt.show()
         return plt
+
+    def make_everyone_contributors(self):
+        msg = "All users had negative round reputation - merging all users and letting contribution score calculation sort them out."
+        print(rb(msg))
+        logging.log_warning(challenge=self, msg=msg, round=self.pytorch_model.round)
+        contributors = [user for user in self.pytorch_model.participants]
+
+        if self.fork:
+            tx = super().build_tx(self.w3.eth.default_account, self.modelAddress, 0)
+            tx_hash = self.model.functions.makeRoundReputationsPositive().transact(tx)
+        else:
+            nonce = self.w3.eth.get_transaction_count(self.pytorch_model.participants[0].address, 'pending')
+            cl = super().build_non_fork_tx(self.pytorch_model.participants[0].address, nonce)
+            cl = self.model.functions.makeRoundReputationsPositive().build_transaction(cl)
+            pk = self.pytorch_model.participants[0].privateKey
+            signed = self.w3.eth.account.sign_transaction(cl, private_key=pk)
+            tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
+
+        receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash,
+                                                           timeout=600,
+                                                           poll_latency=1)
+        print("All round reputations set to positive")
+
+        self.txHashes.append(("makeRoundRepsPositive", receipt["transactionHash"].hex(), receipt["gasUsed"]))
+        self.gas_close.append(receipt["gasUsed"])
+        logging.log_receipt(self, receipt, "makeRoundRepsPositive")
+
+        return contributors
