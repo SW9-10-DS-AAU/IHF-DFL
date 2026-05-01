@@ -350,7 +350,7 @@ class FLChallenge(ConnectionHelper):
                 votee = [_u for _u in self.pytorch_model.participants if _u.id == ix][0]
                 addrs.append(votee.address)
                 votes.append(int(vote))
-                votee.roundRep = votee.roundRep + self.get_global_reputation_of_user(user.address) * int(vote) # TODO: fix?
+                votee.roundRep = votee.roundRep + self.get_global_reputation_of_user(user.address) * int(vote)
                 votee._roundrep.append(self.get_global_reputation_of_user(user.address) * int(vote))
                 filtered_accs.append(accs[ix])
                 filtered_losses.append(min(UINT256_MAX, losses[ix]))
@@ -638,7 +638,7 @@ class FLChallenge(ConnectionHelper):
         return results
 
 
-    def print_round_summary(self, receipt):
+    def print_round_summary(self, receipt, _current_round_no, contributors):
         for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
             user.temporary_grs_evaluation = None
 
@@ -678,7 +678,6 @@ class FLChallenge(ConnectionHelper):
         if eval_reward_events:
             # print(b("EVALUATION VOTING REWARDS DISTRIBUTION"))
 
-            contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0]
             user_map = {u.address: u for u in contributors}
 
             for ev in eval_reward_events:
@@ -712,7 +711,7 @@ class FLChallenge(ConnectionHelper):
             for ev in punish_events:
                 args = ev["args"]
                 self._punishments.append((
-                    self.pytorch_model.round - 1, 
+                    _current_round_no,
                     args["loss"],
                     next((i + 1 for i, x in enumerate(self.pytorch_model.participants) if x.address == args["victim"]), 0),
                     ))
@@ -745,7 +744,7 @@ class FLChallenge(ConnectionHelper):
                 print("Disqualifying a user")
                 args = ev["args"]
                 self._punishments.append((
-                    self.pytorch_model.round - 1,
+                    _current_round_no,
                     args["loss"],
                     next((i + 1 for i, x in enumerate(self.pytorch_model.participants) if x.address == args["victim"]), 0)),
                     )
@@ -763,11 +762,11 @@ class FLChallenge(ConnectionHelper):
                 print(red(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
             print("-----------------------------------------------------------------------------------\n")
 
-        logging.log_punishments(self, events)
-        logging.log_evaluation_voting_rewards(self, events)
+        logging.log_punishments(self, events, _current_round_no)
+        logging.log_evaluation_voting_rewards(self, events, _current_round_no)
 
         # round grs summary print
-        print(b(f"Round {self.pytorch_model.round - 1} completed:"))
+        print(b(f"Round {_current_round_no} completed:"))
         print(b("Round Rewards (per user):"))
         print(b("{:>20}  {:>25} -> {:>25} -> {:>25}".format("address" + "...", "previous grs",
                                                             "evaluation votes grs",
@@ -827,7 +826,9 @@ class FLChallenge(ConnectionHelper):
         self.register_all_users()
         
         grs = [(user.address, user._globalrep[-1]) for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
-        
+
+        _current_round = self.pytorch_model.round
+
         roundTx = self.txHashes[self.writeTxProgress:]
         self.writeTxProgress = len(self.txHashes)
 
@@ -851,7 +852,7 @@ class FLChallenge(ConnectionHelper):
         logging.log_round_zero(self)
 
         for i in range(rounds):
-            print(b(f"\n\nRound {self.pytorch_model.round} starts..."))
+            print(b(f"\n\nRound {_current_round} starts..."))
             _round_start = time.perf_counter()
 
             attacks.update_users_attitude(self.pytorch_model)
@@ -874,14 +875,15 @@ class FLChallenge(ConnectionHelper):
 
             self.quick_feedback_round(fbm = self.feedback_matrix, am=accuracy_matrix, lm=loss_matrix, prev_accs=prev_accs, prev_losses=prev_losses)
 
-            for user in self.pytorch_model.participants: # TODO: remove after test?
+            for user in self.pytorch_model.participants:
                 user._roundrep.append(self.get_round_reputation_of_user(user.address))
                 print(f"model participant: {user.address} gets {user._roundrep[-1]} round reputation")
             for user in self.pytorch_model.disqualified:
                 print(f"disqualified model participant: {user.address} has no round reputation, as he is disqualified")
 
-            # A roundRep of 0, does not nec. mean mal.
             contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0] # Keeps track of who will be merged in the_merge()
+            if len(contributors) == 0: # If all are negative, we merge everyone and let the contribution score calculation sort them out.
+                contributors = self.make_everyone_contributors()
 
             users_weight_collector = {}
             agg_switch_collector = {}
@@ -890,28 +892,27 @@ class FLChallenge(ConnectionHelper):
 
             # Ordering of the merge. If dotproduct we merge before contribution score
             if self.experiment_config.contribution_score_strategy == "dotproduct":
-                aggregation.the_merge(self.pytorch_model, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, warning_collector=warning_collector)
+                aggregation.the_merge(self.pytorch_model, _current_round, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, warning_collector=warning_collector)
                 for msg in warning_collector:
-                    logging.log_warning(self, msg)
+                    logging.log_warning(self, msg, round=_current_round)
 
             print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
-            contribution_score(self, contributors)
+            contribution_score(self, contributors, _current_round)
 
-            receipt = self.close_round()
-
+            receipt = self.close_round() # Increments round number by 1
+            _current_round = self.pytorch_model.round - 1 # Minus 1 since close_round increments. Reassign _current_round
 
             # If not dotproduct, we calculate contribution score before the merge
             if not self.experiment_config.contribution_score_strategy == "dotproduct":
                 avg_losses = self.get_all_n_prior_losses(3)
-                aggregation.the_merge(self.pytorch_model, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_losses=avg_losses, warning_collector=warning_collector)
+                aggregation.the_merge(self.pytorch_model, _current_round, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_losses=avg_losses, warning_collector=warning_collector)
                 for msg in warning_collector:
-                    logging.log_warning(self, msg, round=self.pytorch_model.round - 1) # Minus 1 since close_round increments.
+                    logging.log_warning(self, msg, round=_current_round)
 
             if receipt is not None:
-                self.print_round_summary(receipt)
+                self.print_round_summary(receipt, _current_round, contributors)
 
             _round_time = time.perf_counter() - _round_start
-            _current_round = self.pytorch_model.round - 1
 
             logging.log_round(self,
                 _current_round, _round_time,
@@ -920,12 +921,12 @@ class FLChallenge(ConnectionHelper):
             )
 
             grs = [(user.address, user._globalrep[-1]) for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
-            round_punishment = [(punishment[0], punishment[1]) for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]
-            round_kicked = [punishment[2] for punishment in self._punishments if punishment[0] == self.pytorch_model.round - 1]
+            round_punishment = [(punishment[0], punishment[1]) for punishment in self._punishments if punishment[0] == _current_round]
+            round_kicked = [punishment[2] for punishment in self._punishments if punishment[0] == _current_round]
             roundTx = self.txHashes[self.writeTxProgress:]
             self.writeTxProgress = len(self.txHashes) - 1
             self.writer.writeResult({
-                "round": self.pytorch_model.round - 1,
+                "round": _current_round,
                 "GRS": grs,
                 "globalAcc": self.pytorch_model.accuracy[-1] or 0, # Checks out
                 "globalLoss": self.pytorch_model.loss[-1] or 0, # Checks out
@@ -940,6 +941,8 @@ class FLChallenge(ConnectionHelper):
                 "userStatuses": [user.getStatus() for user in self.pytorch_model.participants],
                 "GasTransactions": roundTx
                 })
+
+            _current_round = self.pytorch_model.round # Update current round to match with incremented round in close_round()
 
 
         # print(f"Number of Shapley Axioms violated: {len(contribution.runtime_warnings)}\n")
@@ -1087,3 +1090,31 @@ class FLChallenge(ConnectionHelper):
         plt.savefig(os.path.join(output_folder_path, f"{self.pytorch_model.DATASET}_simulation.pdf"), bbox_inches='tight')
         #plt.show()
         return plt
+
+    def make_everyone_contributors(self):
+        msg = "All users had negative round reputation - merging all users and letting contribution score calculation sort them out."
+        print(rb(msg))
+        logging.log_warning(challenge=self, msg=msg, round=self.pytorch_model.round)
+        contributors = [user for user in self.pytorch_model.participants]
+
+        if self.fork:
+            tx = super().build_tx(self.w3.eth.default_account, self.modelAddress, 0)
+            tx_hash = self.model.functions.makeRoundReputationsPositive().transact(tx)
+        else:
+            nonce = self.w3.eth.get_transaction_count(self.pytorch_model.participants[0].address, 'pending')
+            cl = super().build_non_fork_tx(self.pytorch_model.participants[0].address, nonce)
+            cl = self.model.functions.makeRoundReputationsPositive().build_transaction(cl)
+            pk = self.pytorch_model.participants[0].privateKey
+            signed = self.w3.eth.account.sign_transaction(cl, private_key=pk)
+            tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
+
+        receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash,
+                                                           timeout=600,
+                                                           poll_latency=1)
+        print("All round reputations set to positive")
+
+        self.txHashes.append(("makeRoundRepsPositive", receipt["transactionHash"].hex(), receipt["gasUsed"]))
+        self.gas_close.append(receipt["gasUsed"])
+        logging.log_receipt(self, receipt, "makeRoundRepsPositive")
+
+        return contributors

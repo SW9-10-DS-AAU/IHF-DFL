@@ -11,7 +11,7 @@ from contracts import logging
 _runtime_warnings = []
 
 
-def contribution_score(challenge, _users):
+def contribution_score(challenge, _users, _current_round_no):
     """
     Compute contribution scores for all merging users, submit them to the
     contract, and log them. Strategy is chosen by _get_contribution_score_calculator:
@@ -33,7 +33,7 @@ def contribution_score(challenge, _users):
 
     if len(_users) <= 3:
         share = 1.0 / len(_users)
-        msg = f"[Round {challenge.pytorch_model.round}] Too few contributors ({len(_users)}) for contribution scoring – using equal shares({share: .4f} each)"
+        msg = f"[Round {_current_round_no}] Too few contributors ({len(_users)}) for contribution scoring – using equal shares({share: .4f} each)"
         print(colored(msg, "yellow"))
         logging.log_warning(challenge, msg)
         scores = [share] * len(_users)
@@ -42,9 +42,12 @@ def contribution_score(challenge, _users):
     else:
         if strategy not in _STRATEGIES:
             raise ValueError(f"Unknown contribution score strategy '{strategy}'. Available: {sorted(_STRATEGIES)}")
-        scores = _STRATEGIES[strategy](challenge, _users)
+        scores = _STRATEGIES[strategy](challenge, _users, _current_round_no)
 
     challenge.scores = scores
+
+    if challenge.experiment_config.contribution_score_strategy != "loss_only":
+        for u in _users: u.evaluation_reward = 1
 
     txs = []
     for u, score in zip(_users, challenge.scores):
@@ -205,7 +208,7 @@ def _calculate_scores_accuracy_loss(challenge, users, mad_threshold=1.1):
 # Find out who was merged
 
 
-def _calculate_scores_accuracy_only(challenge, users, mad_threshold=1.1):
+def _calculate_scores_accuracy_only(challenge, users, _current_round_no, mad_threshold=1.1):
     """
     Accuracy-based scoring: use accuracy directly as contribution score.
     """
@@ -252,7 +255,7 @@ def _calculate_scores_accuracy_only(challenge, users, mad_threshold=1.1):
     success, errors = check_shapley_compliance(diffs, norm_accuracies)
 
     if not success:
-        msg = f"[Round {challenge.pytorch_model.round}] Axiom Violation: {errors}"
+        msg = f"[Round {_current_round_no}] Axiom Violation: {errors}"
         _runtime_warnings.append(msg)
         print(colored(f"{msg}", "yellow"))
         logging.log_warning(challenge, msg)
@@ -265,7 +268,7 @@ def _calculate_scores_accuracy_only(challenge, users, mad_threshold=1.1):
     return scores
 
 
-def _calculate_scores_loss_only(challenge, users, mad_threshold=1.1):
+def _calculate_scores_loss_only(challenge, users, _current_round_no, mad_threshold=1.1):
     """
     Loss-based scoring: use loss directly as contribution score.
     """
@@ -332,7 +335,7 @@ def _calculate_scores_loss_only(challenge, users, mad_threshold=1.1):
     success, errors = check_shapley_compliance(diffs, norm_losses)
 
     if not success:
-        msg = f"[Round {challenge.pytorch_model.round}] Axiom Violation: {errors}"
+        msg = f"[Round {_current_round_no}] Axiom Violation: {errors}"
         _runtime_warnings.append(msg)
         print(colored(f"{msg}", "yellow"))
         logging.log_warning(challenge, msg)
@@ -437,7 +440,7 @@ def normalize_contribution_scores_new(vals: list, prev_val: float, evaluation_me
         vals = [-1 * val for val in vals]
     sum_ = sum(vals)
 
-    # Step 2: edge cases  TODO: 0 og -0.5
+    # Step 2: edge cases
     max_val = max(vals)
     if max_val == 0:
         vals = [1 if val == 0 else val for val in vals]

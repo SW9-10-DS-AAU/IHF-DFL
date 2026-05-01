@@ -220,7 +220,7 @@ def grs_by_user(merged_users: pd.DataFrame) -> pd.DataFrame:
 
     # Role: Just fetch from first value on user
 
-    return df[["grs", "user_id", "role", "round"]].sort_values("round")
+    return df[["experiment_id", "grs", "user_id", "role", "round"]].sort_values("round")
 
 
 def global_acc_by_aggregation_strategy(acc_over_agg: pd.DataFrame, metadata: pd.DataFrame) -> pd.DataFrame:
@@ -434,8 +434,6 @@ def agg_round_kicked_by_strategy(
 
     Mirrors the kickedGraph() chart from scripts/processData.py.
     """
-
-    # TODO: Check this works
 
     df = _with_meta(merged_users, metadata, ["contribution_score_strategy", "freerider_start_round"])
 

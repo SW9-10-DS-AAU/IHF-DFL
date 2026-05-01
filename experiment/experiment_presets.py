@@ -81,6 +81,7 @@ PRESETS = {
         number_of_runs=3
     ),
 
+
     "mnist_openfl_w_outlier": ExperimentPreset(
         number_of_good_contributors=4,
         number_of_bad_contributors=1,
