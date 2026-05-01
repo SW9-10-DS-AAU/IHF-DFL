@@ -242,14 +242,24 @@ class PytorchModel:
             device_id = idx % max(1, num_gpus)
             sd_cpu = {k: v.cpu() for k, v in user.model.state_dict().items()}
 
-            if user.attitude == "good":
+            if user.attitude == "good":  # train
                 async_results.append(self._pool.apply_async(
                     training.train_user_proc,
-                    (user.id, sd_cpu, user.train.dataset, user.val.dataset,
-                     self.EPOCHS, device_id, self.DATASET, self.BATCHSIZE, PIN_MEMORY, False)
+                    (user.id,
+                     sd_cpu,
+                     user.train.dataset,
+                     user.val.dataset,
+                     self.EPOCHS,
+                     device_id,
+                     self.DATASET,
+                     self.BATCHSIZE,
+                     PIN_MEMORY,
+                     False)
                 ))
-            else:
+            else:  # If user's behaviour !good, skip Training.
+                # Skips apply_training_results() - goes directly to evaluation. Corresponds to lines 261-277 in original code.
                 evaluation.finalize_user_evaluation(self, user)
+
 
         try:
             results = [r.get() for r in async_results]
