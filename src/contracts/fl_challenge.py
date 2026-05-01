@@ -883,9 +883,8 @@ class FLChallenge(ConnectionHelper):
 
                 # A roundRep of 0, does not nec. mean mal.
                 contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0] # Keeps track of who will be merged in the_merge()
-            contributors = [user for user in self.pytorch_model.participants if user._roundrep[-1] >= 0] # Keeps track of who will be merged in the_merge()
-            if len(contributors) == 0: # If all are negative, we merge everyone and let the contribution score calculation sort them out.
-                contributors = self.make_everyone_contributors()
+                if len(contributors) == 0: # If all are negative, we merge everyone and let the contribution score calculation sort them out.
+                    contributors = self.make_everyone_contributors()
 
                 users_weight_collector = {}
                 agg_switch_collector = {}
@@ -911,8 +910,8 @@ class FLChallenge(ConnectionHelper):
                     for msg in warning_collector:
                         logging.log_warning(self, msg, round=_current_round)
 
-            if receipt is not None:
-                self.print_round_summary(receipt, _current_round, contributors)
+                if receipt is not None:
+                    self.print_round_summary(receipt, _current_round, contributors)
 
                 _round_time = time.perf_counter() - _round_start
 
