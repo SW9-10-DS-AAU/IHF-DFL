@@ -26,7 +26,7 @@ def getPath(config: ExperimentConfiguration, time: str, dataset: str, preset: st
     if run_id != 0:
         parts.append(run_id)
 
-    filename = "-".join(map(str, parts)) + "{" + str(uuid.uuid4()) + "}" + ".csv"
+    filename = "-".join(map(str, parts)) + "-{" + str(uuid.uuid4()) + "}" + ".csv"
 
     path = Path(resultDataFolder).joinpath(time).joinpath(filename)
 
