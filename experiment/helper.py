@@ -26,7 +26,7 @@ def getPath(config: ExperimentConfiguration, time: str, dataset: str, preset: st
     if run_id != 0:
         parts.append(run_id)
 
-    parts.append(uuid.uuid4())
+    parts.append("{" + uuid.uuid4() + "}")
 
     filename = "-".join(map(str, parts)) + ".csv"
 
