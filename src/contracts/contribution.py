@@ -33,7 +33,7 @@ def contribution_score(challenge, _users, _current_round_no):
 
     if len(_users) <= 3:
         share = 1.0 / len(_users)
-        msg = f"[Round {_current_round_no}] Too few contributors ({len(_users)}) for contribution scoring – using equal shares({share: .4f} each)"
+        msg = f"[Round {_current_round_no}] Too few contributors({len(_users)}) for contribution scoring – using equal shares({share:.4f} each)"
         print(colored(msg, "yellow"))
         logging.log_warning(challenge, msg)
         scores = [share] * len(_users)
@@ -102,9 +102,10 @@ def _calculate_scores_dotproduct(challenge, users):
     MAD-based scoring: robust per-weight outlier filtering before scoring.
     """
     merged_model = users[0].model
-    global_update = torch.cat([p.data.view(-1) for p in merged_model.parameters()])
+    # Both sides must use the same source (state_dict) so vector lengths stay aligned if buffers are added.
+    global_update = torch.cat([v.view(-1) for v in merged_model.state_dict().values()])
     local_updates = [
-        torch.cat([p.data.view(-1) for p in u.previousModel.parameters()]) for u in users
+        torch.cat([v.view(-1) for v in u.previousModel.values()]) for u in users
     ]
     local_updates = torch.stack(local_updates)
 
