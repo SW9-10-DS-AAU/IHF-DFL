@@ -39,7 +39,7 @@ class DummyModel(nn.Module):
 class TensorModel(nn.Module):
     def __init__(self, values):
         super().__init__()
-        self.params = nn.Parameter(torch.tensor(values, dtype=torch.float32))
+        self.params = nn.Parameter(torch.as_tensor(values, dtype=torch.float32).detach().clone())
 
     def parameters(self):
         return [self.params]

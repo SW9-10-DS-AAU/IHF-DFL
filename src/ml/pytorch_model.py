@@ -1,4 +1,5 @@
 import sys
+import signal
 import atexit
 import torch
 import torch.nn as nn
@@ -172,6 +173,7 @@ class PytorchModel:
         # Single GPU: _pool stays None, run_sequential() used instead
         if self._pool is not None:
             atexit.register(self.close_pool)
+            signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
 
     def federated_training(self):
         self.create_pool()
