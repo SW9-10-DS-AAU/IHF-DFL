@@ -1,6 +1,17 @@
 import pytest
-from unittest.mock import MagicMock
-from src.ml.aggregation import positives_only, plus_one_normalize, plus_more_than_one_normalize, GRS_aggregation
+from unittest.mock import MagicMock, patch
+from src.ml.aggregation import positives_only, plus_one_normalize, plus_more_than_one_normalize, GRS_aggregation, binary_switch
+
+def func_1(scores): return {"func": "one"}
+def func_2(scores): return {"func": "two"}
+
+def mock_pytorch_model(has_switched=False, has_two_previous=False):
+    pm = MagicMock()
+    pm.has_switched = has_switched
+    pm.two_previous_global_model = MagicMock() if has_two_previous else None
+    pm.previous_global_model = MagicMock()
+    return pm
+
 
 def mock_user(address, last_globalrep):
     user = MagicMock()
@@ -93,3 +104,53 @@ class TestGRSAggregation:
         users = [mock_user("a", 0.0), mock_user("b", 0.0)]
         with pytest.raises(ZeroDivisionError):
             GRS_aggregation(users)
+
+
+SCORES = {"a": 2.0, "b": 2.0}
+
+class TestBinarySwitch:
+    def test_uses_func_1_at_round_1(self):
+        # Round 1, hvor betingelsen current_round_no > 1 er falsk, dermed ingen switch-check
+        result = binary_switch(mock_pytorch_model(), SCORES, func_1, func_2, None, _current_round_no=1)
+        assert result == {"func": "one"}
+
+    def test_uses_func_1_when_no_two_previous_model(self):
+        # two_previous_global_model er None, hvor betingelsen er falsk, dermed ingen switch-check
+        result = binary_switch(mock_pytorch_model(has_two_previous=False), SCORES, func_1, func_2, None, _current_round_no=2)
+        assert result == {"func": "one"}
+
+    @patch("src.ml.aggregation.models_are_equal", return_value=False)
+    def test_uses_func_1_when_models_not_equal(self, _):
+        # Modeller er ikke ens, og derfor ingen switch
+        result = binary_switch(mock_pytorch_model(has_two_previous=True), SCORES, func_1, func_2, None, _current_round_no=2)
+        assert result
+
+    @patch("src.ml.aggregation.models_are_equal", return_value=True)
+    def test_switches_to_func_2_on_convergence(self, _):
+        # Konvergens detekteret, derfor bruges func_2 og sætter has_switched=True
+        pm = mock_pytorch_model(has_two_previous=True)
+        result = binary_switch(pm, SCORES, func_1, func_2, None, _current_round_no=2)
+        assert result == {"func": "two"}
+        assert pm.has_switched is True
+
+    def test_uses_func_2_when_already_switched(self):
+        # has_switched=True, dermed bruges func_2 direkte uden at tjekke modeller
+        result = binary_switch(mock_pytorch_model(has_switched=True), SCORES, func_1, func_2, None, _current_round_no=1)
+        assert result == {"func": "two"}
+
+    def test_collector_updated_before_switch(self):
+        # Før switch: func_1 har vægt 1.0, func_2 har vægt 0.0
+        collector = {}
+        binary_switch(mock_pytorch_model(), SCORES, func_1, func_2, collector, _current_round_no=1)
+        assert collector == {"func_1": "func_1", "weight_1": 1.0, "func_2": "func_2", "weight_2": 0.0}
+
+    @patch("src.ml.aggregation.models_are_equal", return_value=True)
+    def test_collector_updated_after_switch(self, _):
+        # Efter switch: func_1 har vægt 0.0, func_2 har vægt 1.0
+        collector = {}
+        binary_switch(mock_pytorch_model(has_two_previous=True), SCORES, func_1, func_2, collector, _current_round_no=2)
+        assert collector == {"func_1": "func_1", "weight_1": 0.0, "func_2": "func_2", "weight_2": 1.0}
+
+    def test_collector_none_does_not_raise(self):
+        # collector=None, som betyder ingen fejl
+        binary_switch(mock_pytorch_model(), SCORES, func_1, func_2, None, _current_round_no=1)
