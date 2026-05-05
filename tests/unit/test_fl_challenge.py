@@ -1223,4 +1223,4 @@ class TestReporting:
         }
 
         with patch.object(fl_challenge, 'get_events', return_value=expected_events):
-            fl_challenge.print_round_summary(mock_receipt, 1)
+            fl_challenge.print_round_summary(mock_receipt, _current_round_no=1, contributors=5)
