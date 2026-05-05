@@ -1,3 +1,4 @@
+import gc
 import sys
 import signal
 import atexit
@@ -286,3 +287,35 @@ class PytorchModel:
             self._pool.close()
             self._pool.join()
             self._pool = None
+
+    @staticmethod
+    def _shutdown_loader(loader):
+        if loader is None:
+            return
+        it = getattr(loader, "_iterator", None)
+        if it is not None:
+            shutdown = getattr(it, "_shutdown_workers", None)
+            if callable(shutdown):
+                shutdown()
+            loader._iterator = None
+
+    def shutdown(self):
+        self.close_pool()
+
+        self._shutdown_loader(self.test)
+        for loader in (self.train if isinstance(self.train, list) else [self.train]):
+            self._shutdown_loader(loader)
+        for loader in (self.val if isinstance(self.val, list) else [self.val]):
+            self._shutdown_loader(loader)
+
+        for p in self.participants + self.disqualified:
+            self._shutdown_loader(getattr(p, "train", None))
+            self._shutdown_loader(getattr(p, "val", None))
+            p.train = None
+            p.val = None
+
+        self.train = None
+        self.val = None
+        self.test = None
+        self.DATA = None
+        gc.collect()
