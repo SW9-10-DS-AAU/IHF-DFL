@@ -371,6 +371,16 @@ contract OpenFLModel {
         return true;
     }
 
+    function makeRoundReputationsPositive () public {
+        for (uint i = 0; i < participants.length; i++) {
+            User storage user = users[participants[i]];
+            if (user.isRegistered && !user.isDisqualified) {
+                require(user.roundReputation < 0, "User round reputation is not negative in makeRoundReputationsPositive");
+                user.roundReputation = - user.roundReputation;
+            }
+        }
+    }
+
     function isContributionRoundDone() public returns (bool roundClosed) {
         uint mergedUsers = 0;
         for (uint i = 0; i < participants.length; i++) {
@@ -484,6 +494,7 @@ contract OpenFLModel {
             }
         }
     }
+
     // Pay back freerider 1st round stake to good users
     function paybackFreeriders(uint freeriderLock) internal returns (uint additionalPunishment) {
         for (uint i = 0; i < participants.length; i++) {
@@ -588,6 +599,7 @@ contract OpenFLModel {
                 }
             }
         }
+
         // Give rewards based on positive contribution score
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];

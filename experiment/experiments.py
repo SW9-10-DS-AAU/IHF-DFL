@@ -20,7 +20,7 @@ REPO_ROOT = repo_root(Path(__file__))
 import experiment.experiment_runner as ExperimentRunner
 from itertools import product
 from dataclasses import dataclass
-from experiment.helper import getPath
+from experiment.helper import getPath, create_run_ids
 from experiment.experiment_configuration import ExperimentConfiguration
 from experiment.experiment_presets import PRESETS
 from utils.async_writer import AsyncWriter
@@ -71,15 +71,16 @@ class Skip:
     dataset: str
     strategy: str
     outlier_detection: bool
-    free_rider_activation_round: int
-    free_rider_noise: float
+    freerider_activation_round: int
+    freerider_noise: float
+    freerider_attack_type: str
     malicious_activation_round: int | None
     malicious_noise: float | None
     malicious_attack_type: str
-    freerider_attack_type: str
     aggregation_rule: str
     data_distribution: str
     dirichlet_alpha: float | None
+    run_id : int
 
 skips: list[Skip] = []
 
@@ -119,6 +120,8 @@ def main(author): # single preset
         else [None]
     )
 
+    runs = create_run_ids(preset_config.number_of_runs)
+
     for (
             strategy,
             outlier_detection,
@@ -131,6 +134,7 @@ def main(author): # single preset
             dataset,
             aggregation_rule,
             data_distribution,
+            run_id
     ) in product(
         preset_config.contribution_score_strategy,
         preset_config.use_outlier_detection,
@@ -143,6 +147,7 @@ def main(author): # single preset
         datasets,
         preset_config.aggregation_rule,
         preset_config.data_distribution,
+        runs
     ):
 
         # fallback to freerider values if any of the malicious params are None
@@ -172,6 +177,7 @@ def main(author): # single preset
                     aggregation_rule,
                     data_distribution,
                     alpha,
+                    run_id
                 ))
         else:
             productVar.append((
@@ -187,6 +193,7 @@ def main(author): # single preset
                 aggregation_rule,
                 data_distribution,
                 None,
+                run_id
             ))
 
     total = len(productVar)
@@ -206,9 +213,9 @@ def main(author): # single preset
         dataset,
         aggregation_rule,
         data_distribution,
-        dirichlet_alpha
+        dirichlet_alpha,
+        run_id
     ) in enumerate(productVar, start=1):
-
         progress_bar(i - 1, skipsCount, total)
 
         config = ExperimentConfiguration(preset=preset, use_defaults=_use_defaults)
@@ -220,15 +227,16 @@ def main(author): # single preset
             dataset=dataset,
             strategy=strategy,
             outlier_detection=outlier_detection,
-            free_rider_activation_round=freerider_round,
-            free_rider_noise=freerider_noise,
+            freerider_activation_round=freerider_round,
+            freerider_noise=freerider_noise,
             freerider_attack_type=freerider_attack_type,
             malicious_activation_round=malicious_activation_round,
             malicious_noise=malicious_noise,
             malicious_attack_type=malicious_attack_type,
             aggregation_rule=aggregation_rule,
             data_distribution=data_distribution,
-            dirichlet_alpha=dirichlet_alpha
+            dirichlet_alpha=dirichlet_alpha,
+            run_id=run_id
         )
 
         if shouldSkip(skipConfig):
@@ -249,14 +257,14 @@ def main(author): # single preset
         config.data_distribution = data_distribution
         config.dirichlet_alpha = dirichlet_alpha
 
-        path = getPath(config, time, dataset, preset, RESULTDATAFOLDER)
+        path = getPath(config, time, dataset, preset, RESULTDATAFOLDER, run_id=run_id)
 
         try:
 
             writer = AsyncWriter(path, OUTPUTHEADERS, WRITERBUFFERSIZE, config, author)
             metadata = {**vars(config), "dataset": dataset, "timestamp": startTime}
             logger = ExperimentLogger(experiment_id=path.stem, metadata=metadata)
-            ExperimentRunner.run_experiment(dataset, config, writer, logger)
+            ExperimentRunner.run_experiment(dataset, config, run_id, writer, logger)
             writer.finish()
 
             logger.save(path.with_suffix(".pkl"))
@@ -276,6 +284,7 @@ def main(author): # single preset
                 f.write(text)
 
             print(f"Error logged to: {err_file}")
+
 
         # experiment.model.visualize_simulation(DATA_ROOT / "figures")
 
@@ -314,16 +323,17 @@ def parseSkips():
             r"(?P<preset>[^-]+)-"
             r"(?P<dataset>[^-]+)-"
             r"(?P<strategy>[^-]+)-"
+            r"(?P<outlierDetection>[^-]+)-"
             r"(?P<activationRound>[^-]+)-"
             r"(?P<noise>[^-]+)-"
             r"(?P<freeriderAttackType>[^-]+)-"
             r"(?P<maliciousRound>[^-]+)-"
             r"(?P<maliciousNoise>[^-]+)-"
             r"(?P<maliciousAttackType>[^-]+)-"
-            r"(?P<outlierDetection>[^-]+)-"
             r"(?P<aggregationRule>[^-]+)"
             r"-(?P<dataDistribution>[^-]+)"
             r"(?:-(?P<dirichletAlpha>[^-]+))"
+            r"-?(?P<runId>[0-9]+)?"  # <-- optional run ID part
             r"(?:-\{[0-9a-fA-F-]+\})?"  # <-- optional UUID part
             r"\.pkl",
             file,
@@ -345,8 +355,8 @@ def parseSkips():
                 dataset=m.group("dataset"),
                 strategy=m.group("strategy"),
                 outlier_detection=m.group("outlierDetection") == "True",
-                free_rider_activation_round=int(m.group("activationRound")),
-                free_rider_noise=float(m.group("noise")),
+                freerider_activation_round=int(m.group("activationRound")),
+                freerider_noise=float(m.group("noise")),
                 freerider_attack_type=m.group("freeriderAttackType"),
                 malicious_activation_round=int(mal_round) if mal_round != "None" else None,
                 malicious_noise=float(mal_noise) if mal_noise != "None" else None,
@@ -354,6 +364,7 @@ def parseSkips():
                 aggregation_rule=m.group("aggregationRule"),
                 data_distribution=m.group("dataDistribution"),
                 dirichlet_alpha=float(alpha) if alpha != "None" else None,
+                run_id=int(m.group("runId")) if m.group("runId") is not None else 0
             )
         )
 
@@ -389,23 +400,24 @@ def normalize_skip(skip: Skip):
         dataset=skip.dataset,
         strategy=skip.strategy,
         outlier_detection=skip.outlier_detection,
-        free_rider_activation_round=skip.free_rider_activation_round,
-        free_rider_noise=skip.free_rider_noise,
+        freerider_activation_round=skip.freerider_activation_round,
+        freerider_noise=skip.freerider_noise,
         freerider_attack_type=skip.freerider_attack_type,
         malicious_activation_round=(
             skip.malicious_activation_round
             if skip.malicious_activation_round is not None
-            else skip.free_rider_activation_round
+            else skip.freerider_activation_round
         ),
         malicious_noise=(
             skip.malicious_noise
             if skip.malicious_noise is not None
-            else skip.free_rider_noise
+            else skip.freerider_noise
         ),
         malicious_attack_type=skip.malicious_attack_type,
         aggregation_rule=skip.aggregation_rule,
         data_distribution=skip.data_distribution,
-        dirichlet_alpha=skip.dirichlet_alpha if skip.data_distribution in {"dirichlet_split", "dirichlet_split_42"} else None
+        dirichlet_alpha=skip.dirichlet_alpha if skip.data_distribution in {"dirichlet_split", "dirichlet_split_42"} else None,
+        run_id=skip.run_id
     )
 
 
@@ -416,3 +428,5 @@ if __name__ == "__main__":
     mp.freeze_support()
     main(author)
     print("Done :)")
+
+

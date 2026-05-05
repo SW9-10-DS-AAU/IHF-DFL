@@ -136,8 +136,8 @@ class ConnectionHelper:
         self.w3 = w3
         return w3, latestBlock
 
-    def get_w3():
-        return w3
+    def get_w3(self):
+        return self.w3
     
     def initialize(self, nobody_is_kicked=False):
         bytecode_path = repo_root(Path(__file__)) / "artifacts" / "bytecode"

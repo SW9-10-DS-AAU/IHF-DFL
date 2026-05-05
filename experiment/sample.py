@@ -60,15 +60,16 @@ if config.malicious_start_round is None:
     config.malicious_start_round = config.freerider_start_round
 
 
+
 def main():
     time = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
     #
     # try:
-    path = getPath(config, time, DATASET, preset, RESULTDATAFOLDER)
+    path = getPath(config, time, DATASET, preset, RESULTDATAFOLDER, run_id=0)
     writer = AsyncWriter(path, OUTPUTHEADERS, WRITERBUFFERSIZE, config, "sample")
     metadata = {**vars(config), "dataset": DATASET, "timestamp": time}
     logger = ExperimentLogger(experiment_id=path.stem, metadata=metadata)
-    experiment = ExperimentRunner.run_experiment(DATASET, config, writer, logger)
+    experiment = ExperimentRunner.run_experiment(DATASET, config, 0, writer, logger)
     writer.finish()
     logger.save(path.with_suffix(".pkl"))
 
