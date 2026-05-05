@@ -309,6 +309,8 @@ def _calculate_scores_loss_only(challenge, users, _current_round_no, mad_thresho
             per_user_outlier_info.append({})
             raise type(e)(f"Failed while processing user data: {e}") from e
 
+
+        # Evaluation voting: convert loss votes into rewards using softmax, assign to users, and log
         rewards = softmax_rewards(losses, avg_loss, 1, 0.01)
         for voter_addr, loss_vote, reward in zip(voters, losses, rewards):
             if voter_addr in user_map:
