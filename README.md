@@ -90,6 +90,9 @@ To get test coverage for python code, run the following command: \
 To get test coverage for solidity code, run the following command: \
 `forge coverage`
 
+(Optional) Output to a file
+`forge coverage --report lcov`
+
 
 # 7. Solidity Compiler (Arm)
 If running on arm cpu, you need to download a recompiled solidity (solc) compiler for arm 
