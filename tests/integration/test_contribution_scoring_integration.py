@@ -69,7 +69,7 @@ def make_participant(idx: int, previous_model: nn.Module, merged_model: nn.Modul
         id=idx,
         address=f"0xparticipant{idx}",
         privateKey=f"priv{idx}",
-        previousModel=previous_model,
+        previousModel=previous_model.state_dict(),
         model=merged_model,
     )
 

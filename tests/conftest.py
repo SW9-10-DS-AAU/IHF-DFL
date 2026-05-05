@@ -1,6 +1,12 @@
 import sys
 import types
 
+# Disable pin_memory before any ml modules are imported — pin_memory=True causes PyTorch 2.11
+# to call the deprecated Tensor.pin_memory(device) API internally (319k warnings per test run).
+# Tests don't need pinned memory (it's only a GPU transfer performance optimization).
+import ml.runtime as _runtime
+_runtime.PIN_MEMORY = False
+
 # Provide a lightweight yaml stub to avoid external dependency during tests
 if "yaml" not in sys.modules:
     yaml_stub = types.ModuleType("yaml")
@@ -81,4 +87,7 @@ def minimal_run():
         receipts=pd.DataFrame(),
         contributions=pd.DataFrame(),
         warnings=pd.DataFrame(),
+        punishments=pd.DataFrame(),
+        evaluation_rewards=pd.DataFrame(),
+        evaluation_votes=pd.DataFrame(),
     )

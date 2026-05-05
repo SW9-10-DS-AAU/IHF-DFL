@@ -39,7 +39,7 @@ class DummyModel(nn.Module):
 class TensorModel(nn.Module):
     def __init__(self, values):
         super().__init__()
-        self.params = nn.Parameter(torch.tensor(values, dtype=torch.float32))
+        self.params = nn.Parameter(torch.as_tensor(values, dtype=torch.float32).detach().clone())
 
     def parameters(self):
         return [self.params]
@@ -205,9 +205,10 @@ class TestCalcContributionScore:
         self.aggregator._calculate_scores_accuracy_loss = lambda users, mad_threshold=1.1: \
             contribution._calculate_scores_accuracy_loss(self.aggregator, users, mad_threshold)
         self.aggregator._calculate_scores_accuracy_only = lambda users, mad_threshold=1.1: \
-            contribution._calculate_scores_accuracy_only(self.aggregator, users, mad_threshold)
+            contribution._calculate_scores_accuracy_only(self.aggregator, users, 1, mad_threshold)
         self.aggregator._calculate_scores_loss_only = lambda users, mad_threshold=1.1: \
-            contribution._calculate_scores_loss_only(self.aggregator, users, mad_threshold)
+            contribution._calculate_scores_loss_only(self.aggregator, users, 1, mad_threshold)
+
 
     # Basic test case with non-zero global model
     # def test_calc_contribution_score_basic(self):
@@ -442,7 +443,7 @@ class TestCalcContributionScore:
         self.aggregator.get_all_accuracies_about.side_effect = mock_get_accuracies
 
         scores = contribution._calculate_scores_accuracy_only(
-            self.aggregator, users, mad_threshold=1.1
+            self.aggregator, users, 1, mad_threshold=1.1
         )
         print(f"scores = {scores}")
 
@@ -551,7 +552,7 @@ class TestCalcContributionScore:
         self.aggregator.get_all_losses_about.side_effect = mock_get_losses
 
         scores = contribution._calculate_scores_loss_only(
-            self.aggregator, users, mad_threshold=1.1
+            self.aggregator, users, 1, mad_threshold=1.1
         )
         print(f"scores = {scores}")
 
@@ -587,7 +588,7 @@ class TestCalcContributionScoresMAD:
         participants = []
         for update in local_updates:
             user = MagicMock()
-            user.previousModel = TensorModel(update)
+            user.previousModel = TensorModel(update).state_dict()
             user.model = merged_model
             participants.append(user)
 
@@ -617,7 +618,7 @@ class TestCalcContributionScoresMAD:
         participants = []
         for update in local_updates:
             user = MagicMock()
-            user.previousModel = TensorModel(update)
+            user.previousModel = TensorModel(update).state_dict()
             user.model = merged_model
             participants.append(user)
 
@@ -656,7 +657,7 @@ class TestCalcContributionScoresMAD:
         participants = []
         for update in local_updates:
             user = MagicMock()
-            user.previousModel = TensorModel(update)
+            user.previousModel = TensorModel(update).state_dict()
             user.model = merged_model
             participants.append(user)
 
@@ -944,7 +945,7 @@ class TestFLChallengeFeatures:
         merged_model = DummyModel(10.0)
 
         for i, user in enumerate(mock_participants):
-            user.previousModel = DummyModel(float(i + 1))
+            user.previousModel = DummyModel(float(i + 1)).state_dict()
             user.model = merged_model
 
         with patch('contracts.contribution.calc_contribution_scores_dotproduct') as mock_math:
@@ -1011,7 +1012,7 @@ class TestFLChallengeWorkflow:
         challenge = FLChallenge(manager, configs, pytorch_model, experiment_config)
 
         with pytest.raises(ValueError) as excinfo:
-            contribution_score(challenge, [MagicMock() for _ in range(4)])
+            contribution_score(challenge, [MagicMock() for _ in range(4)], 1)
         assert "Unknown contribution score strategy" in str(excinfo.value)
 
     # Test hashed weights provision filtering inactive users
@@ -1068,13 +1069,13 @@ class TestFLChallengeWorkflow:
 
         for u in mock_participants:
             u.model = DummyModel(1.0)
-            u.previousModel = DummyModel(1.0)
+            u.previousModel = DummyModel(1.0).state_dict()
             u.evaluation_reward = 1
 
         mock_strategy_fn = MagicMock(return_value=[100, 200, 300, 400])
 
         with patch('contracts.contribution._STRATEGIES', {'dotproduct': mock_strategy_fn}):
-            contribution_score(fl_challenge, mock_participants)
+            contribution_score(fl_challenge, mock_participants, 1)
 
         assert fl_challenge.model.functions.submitContributionScoreAndVotingEvaluation.call_count == 4
 
@@ -1222,4 +1223,4 @@ class TestReporting:
         }
 
         with patch.object(fl_challenge, 'get_events', return_value=expected_events):
-            fl_challenge.print_round_summary(mock_receipt)
+            fl_challenge.print_round_summary(mock_receipt, 1)

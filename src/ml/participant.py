@@ -1,5 +1,5 @@
 import numpy as np
-import copy
+from collections import OrderedDict
 from web3 import Web3
 from ml.visualization import get_color
 
@@ -14,7 +14,9 @@ class Participant:
         self.train = _train
         self.val = _val
         self.model = _model
-        self.previousModel = copy.deepcopy(_model)
+        # Changed from deepcopy(_model): we only need a frozen weight snapshot here, not a full model object.
+        # detach().clone() avoids shared storage/autograd links and keeps snapshot costs lower.
+        self.previousModel = OrderedDict((k, v.detach().clone()) for k, v in _model.state_dict().items())
         self.modelHash = Web3.solidity_keccak(['string'], [str(_model)]).hex()
         self.optimizer = _optimizer
         self.criterion = _criterion

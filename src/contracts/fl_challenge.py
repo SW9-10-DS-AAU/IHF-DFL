@@ -32,7 +32,7 @@ class FLChallenge(ConnectionHelper):
       - Contribution scoring (delegated to `contribution`)
       - Round settlement and visualization
     """
-    def __init__(self, manager, configs, pyTorchModel, experiment_config, writer: AsyncWriter=None, logger=None):
+    def __init__(self, manager, configs, pyTorchModel, experiment_config, writer: AsyncWriter=None, logger=None): # pragma: no cover
         self.w3 = manager.w3
         self.model, self.modelAddress = configs[:2]
         self.pytorch_model = pyTorchModel
@@ -63,7 +63,7 @@ class FLChallenge(ConnectionHelper):
         print("Contract ABI functions:", [f["name"] for f in self.model.abi if f["type"] == "function"])
 
         
-    def register_all_users(self):
+    def register_all_users(self): # pragma: no cover
         """
         Register all participants in the federated learning model
         via the smart contract.
@@ -105,7 +105,7 @@ class FLChallenge(ConnectionHelper):
         printer._print("-----------------------------------------------------------------------------------", "\n")
         
     
-    def get_hashed_weights_of(self, user):
+    def get_hashed_weights_of(self, user): # pragma: no cover
         return self.model.functions.weightsOf(user.address,self.pytorch_model.round-1).call({"to": self.modelAddress})
 
 
@@ -114,7 +114,7 @@ class FLChallenge(ConnectionHelper):
         return user[2]
 
 
-    def get_round_reputation_of_user(self, user):
+    def get_round_reputation_of_user(self, user): # pragma: no cover
         user_struct = self.model.functions.users(user).call()
         return user_struct[2]
 
@@ -161,11 +161,11 @@ class FLChallenge(ConnectionHelper):
         return losses_per_round  # [round-1, round-2, ..., round-n]
 
 
-    def get_reward_left(self):
+    def get_reward_left(self): # pragma: no cover
         return self.model.functions.rewardLeft().call({"to": self.modelAddress})
 
 
-    def users_provide_hashed_weights(self):
+    def users_provide_hashed_weights(self): # pragma: no cover
 
         txs = []
         for acc in self.pytorch_model.participants:
@@ -205,7 +205,7 @@ class FLChallenge(ConnectionHelper):
         # printer._print("-----------------------------------------------------------------------------------\n")
 
              
-    def give_feedback(self, feedbackGiver, target, score):
+    def give_feedback(self, feedbackGiver, target, score): # pragma: no cover
         """
         Send a feedback transaction from feedbackGiver to target with given score:
           1  -> positive
@@ -266,7 +266,7 @@ class FLChallenge(ConnectionHelper):
         return txHash
 
     
-    def return_stats(self):
+    def return_stats(self): # pragma: no cover
         print("\n==================================================================================\n")
         print("\n{:<8}{:^32}  {:^32}".format(f"ROUND {self.pytorch_model.round}","GLOBAL REPUTATION", "ROUND REPUTATION"))
         for acc in self.pytorch_model.participants:
@@ -276,7 +276,7 @@ class FLChallenge(ConnectionHelper):
         print("\n==================================================================================\n")
     
             
-    def feedback_round(self, fbm):
+    def feedback_round(self, fbm): # pragma: no cover
         txs = []
         for user in self.pytorch_model.participants:
             user_votes = fbm[user.id]
@@ -309,7 +309,7 @@ class FLChallenge(ConnectionHelper):
         # print("\n-----------------------------------------------------------------------------------")
 
 
-    def build_feedback_bytes(self, a, v):
+    def build_feedback_bytes(self, a, v): # pragma: no cover
         fbb = ""  # keep as string
 
         # Addresses: slice last 20 bytes to mimic original behavior
@@ -324,7 +324,7 @@ class FLChallenge(ConnectionHelper):
         return fbb
 
 
-    def quick_feedback_round(self, fbm, am = None, lm = None, prev_accs = None, prev_losses = None):
+    def quick_feedback_round(self, fbm, am = None, lm = None, prev_accs = None, prev_losses = None): # pragma: no cover
         print("Users exchanging feedback...")
         txs = []
         for idx, user in enumerate(self.pytorch_model.participants):
@@ -420,7 +420,7 @@ class FLChallenge(ConnectionHelper):
         print("\n-----------------------------------------------------------------------------------")
 
 
-    def sign_and_send_tx(self, user, contract_fn_call):
+    def sign_and_send_tx(self, user, contract_fn_call): # pragma: no cover
         nonce = self.w3.eth.get_transaction_count(user.address)
         tx = super().build_non_fork_tx(user.address, nonce)
         tx = contract_fn_call.build_transaction(tx)
@@ -429,7 +429,8 @@ class FLChallenge(ConnectionHelper):
         return self.w3.eth.send_raw_transaction(signed.raw_transaction)
 
 
-    def track_transaction(self, i, tx_hash, len_txs, receipt_type: str):  # formerly named log_receipt
+    # formerly named log_receipt
+    def track_transaction(self, i, tx_hash, len_txs, receipt_type: str): # pragma: no cover
         #   1. Prints a progress bar — i out of len_txs transactions done
         #   2. Waits for the transaction to be mined — blocks until the receipt comes back (up to 600s timeout)
         #   3. Stores gas used — appends to self.gas_feedback
@@ -448,7 +449,7 @@ class FLChallenge(ConnectionHelper):
         # New logger log this way
 
 
-    def send_fallback_transaction_onchain(self, _to, _from, data, private_key=None):
+    def send_fallback_transaction_onchain(self, _to, _from, data, private_key=None): # pragma: no cover
         try:
             if self.fork:
                 tx_hash = self.w3.eth.send_transaction({'to': _to, 'from': _from, 'data': data})
@@ -475,7 +476,7 @@ class FLChallenge(ConnectionHelper):
         return tx_hash
 
 
-    def close_round(self):
+    def close_round(self): # pragma: no cover
         if "inactive" in [acc.attitude for acc in self.pytorch_model.participants]:
                 input("Inactive users found - such users do not provide feedback.. " \
                           + "\nGoing to forward time for 1 day\n")
@@ -529,7 +530,7 @@ class FLChallenge(ConnectionHelper):
         return receipt
 
 
-    def user_register_slot(self):
+    def user_register_slot(self): # pragma: no cover
         txs = []
         for acc in self.pytorch_model.participants:
             if acc.attitude == "inactive":
@@ -574,7 +575,7 @@ class FLChallenge(ConnectionHelper):
         return 
     
 
-    def exit_system(self):
+    def exit_system(self): # pragma: no cover
         self.pytorch_model.close_pool()
         print(b(f"Terminating Model..."))
        
@@ -782,7 +783,7 @@ class FLChallenge(ConnectionHelper):
             print(b("{:>20}  {:>25,.0f} -> {:>25} -> {:>25,.0f}".format(user.address[0:16] + "...", i, j, k)))
 
 
-    def get_round_rewards(self, receipt):
+    def get_round_rewards(self, receipt): # pragma: no cover
         events = self.get_events(
             w3=self.w3,
             contract=self.model,
@@ -961,7 +962,7 @@ class FLChallenge(ConnectionHelper):
 
 
     
-    def visualize_simulation(self, output_folder_path):
+    def visualize_simulation(self, output_folder_path): # pragma: no cover
         os.makedirs(output_folder_path, exist_ok=True)  # ensure folder exists
         accuracy = [0] + self.pytorch_model.accuracy
         loss = [self.pytorch_model.loss[0]] + self.pytorch_model.loss

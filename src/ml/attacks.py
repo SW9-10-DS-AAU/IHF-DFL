@@ -1,6 +1,5 @@
 import torch
 import random
-import copy
 import ml.training as training
 import ml.evaluation as evaluation
 from ml.visualization import get_color
@@ -116,7 +115,8 @@ def _freerider_submit_with_noise(pm, user):
 
     if pm.freerider_noise_scale == 0:  # Copy global model if noise is zero
         print(yellow("Address {} resubmitting original model".format(user.address[0:16] + "...")))
-        return copy.deepcopy(user.model).state_dict()
+        # Changed from deepcopy(user.model).state_dict(): only tensor copies are required for the submission payload.
+        return OrderedDict((k, v.clone()) for k, v in user.model.state_dict().items())
 
     print(red(
         "Address {} adding noise (scale={}) to global weights".format(
@@ -124,7 +124,8 @@ def _freerider_submit_with_noise(pm, user):
             pm.freerider_noise_scale,
         )
     ))
-    return manipulate(copy.deepcopy(user.model), scale=pm.freerider_noise_scale)
+    # Changed from manipulate(deepcopy(user.model), ...): manipulate() already clones each tensor internally.
+    return manipulate(user.model, scale=pm.freerider_noise_scale)
 
 
 def byzantine_attack(pm, user):
@@ -139,11 +140,13 @@ def byzantine_attack(pm, user):
     """
     if pm.previous_global_model is None:
         print(red("  [Byzantine] Not enough history yet – falling back to noise attack"))
-        return manipulate(copy.deepcopy(user.model), scale=pm.malicious_noise_scale)
+        # Same deepcopy removal as above: fallback path only needs a crafted tensor dict, not an nn.Module copy.
+        return manipulate(user.model, scale=pm.malicious_noise_scale)
 
     crafted_weights = OrderedDict()
     with torch.no_grad():
-        prev_weights = pm.previous_global_model.state_dict()
+        # Changed from pm.previous_global_model.state_dict(): previous_global_model is now already a state_dict snapshot.
+        prev_weights = pm.previous_global_model
         current_weights = pm.global_model.state_dict()
 
         for key in current_weights.keys():
@@ -169,11 +172,13 @@ def delta_weight_attack(pm, user):
     """
     if pm.previous_global_model is None:
         print(red("  [DeltaWeight] Not enough history yet – falling back to noise attack"))
-        return manipulate(copy.deepcopy(user.model), scale=pm.freerider_noise_scale)
+        # Same deepcopy removal as above: fallback path only needs a crafted tensor dict, not an nn.Module copy.
+        return manipulate(user.model, scale=pm.freerider_noise_scale)
 
     crafted_weights = OrderedDict()
     with torch.no_grad():
-        prev_weights = pm.previous_global_model.state_dict()
+        # Changed from pm.previous_global_model.state_dict(): previous_global_model is now already a state_dict snapshot.
+        prev_weights = pm.previous_global_model
         current_weights = pm.global_model.state_dict()
 
         for key in current_weights.keys():

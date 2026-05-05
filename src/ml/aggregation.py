@@ -1,7 +1,7 @@
-import copy
 import math
 import torch
 import numpy as np
+from collections import OrderedDict
 import ml.training as training
 from utils import aggregation_strategy_parser
 from utils.colors import yellow, red, b
@@ -23,7 +23,8 @@ def the_merge(pm, _current_round_no, _users, aggregation_rule: str, merge_weight
             warning_collector.append(msg)
         return
 
-    pre_merge_snapshot = copy.deepcopy(pm.global_model)
+    # state_dict + detach().clone(): lightweight independent snapshot; no need to copy the full model object.
+    pre_merge_snapshot = OrderedDict((k, v.detach().clone()) for k, v in pm.global_model.state_dict().items())
 
     pm.two_previous_global_model = pm.previous_global_model
     pm.previous_global_model = pre_merge_snapshot
@@ -150,23 +151,19 @@ def the_merge(pm, _current_round_no, _users, aggregation_rule: str, merge_weight
     # Distribute global model
     # -------------------------
     for u in pm.participants:
-        u.previousModel = copy.deepcopy(u.model)
+        # Changed from deepcopy(u.model): keep only the pre-merge tensor state needed by scoring/attacks.
+        # This prevents accidental aliasing while avoiding the overhead of cloning full nn.Module objects.
+        u.previousModel = OrderedDict((k, v.detach().clone()) for k, v in u.model.state_dict().items())
         u.model.load_state_dict(pm.global_model.state_dict())
 
     print("-----------------------------------------------------------------------------------\n")
 
 
-def models_are_equal(model_a, model_b):
-    previous_model_params = model_a.state_dict()
-    pre_previous_model_params = model_b.state_dict()
-
-    if previous_model_params.keys() != pre_previous_model_params.keys():
+def models_are_equal(sd_a, sd_b):
+    # Changed from model objects to state_dict snapshots, so compare mapping keys/tensors directly.
+    if sd_a.keys() != sd_b.keys():
         return False
-
-    return all(
-        torch.equal(previous_model_params[x], pre_previous_model_params[x])
-        for x in previous_model_params
-    )
+    return all(torch.equal(sd_a[k], sd_b[k]) for k in sd_a)
 
 
 def invoke_partial_switch(pm, users_contrib_scores, switch_type: str, func1: Callable, func2: Callable, avg_prior_losses=None, agg_switch_collector=None):

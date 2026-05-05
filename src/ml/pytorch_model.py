@@ -1,4 +1,5 @@
 import sys
+import signal
 import atexit
 import torch
 import torch.nn as nn
@@ -107,19 +108,7 @@ class PytorchModel:
         for i in range(self.NUMBER_OF_INACTIVE_CONTRIBUTORS):
             self.add_participant("inactive")
 
-        num_gpus = torch.cuda.device_count()
-        if num_gpus > 1:
-            ctx = mp.get_context("spawn")
-            self._pool_size = num_gpus
-            self._pool = ctx.Pool(processes=self._pool_size)
-        elif num_gpus == 0:
-            ctx = mp.get_context("spawn")
-            self._pool_size = min(len(self.participants), os.cpu_count() or 1)
-            self._pool = ctx.Pool(processes=self._pool_size)
-        else:
-            self._pool_size = 1
-        # Single GPU: _pool stays None, run_sequential() used instead
-        atexit.register(self.close_pool)
+        self._pool_size = 0
 
 
     def add_participant(self, _attitude):
@@ -168,7 +157,27 @@ class PytorchModel:
         print("Participant added: {:<9} {}".format(color_fn(_attitude.upper()[0]+_attitude[1:]), color_fn("User")))
 
 
+    def create_pool(self):
+        if self._pool is not None:
+            return
+        num_gpus = torch.cuda.device_count()
+        if num_gpus > 1:
+            ctx = mp.get_context("spawn")
+            self._pool_size = num_gpus
+            self._pool = ctx.Pool(processes=self._pool_size)
+        elif num_gpus == 0:
+            ctx = mp.get_context("spawn")
+            self._pool_size = min(len(self.participants), os.cpu_count() or 1)
+            self._pool = ctx.Pool(processes=self._pool_size)
+        else:
+            self._pool_size = 1
+        # Single GPU: _pool stays None, run_sequential() used instead
+        if self._pool is not None:
+            atexit.register(self.close_pool)
+            signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+
     def federated_training(self):
+        self.create_pool()
         _sequential = debugging or self._pool is None
         mode = "SEQUENTIAL" if _sequential else "PARALLEL"
         print(b(f"\n================ {mode} FEDERATED TRAINING START ================"))
