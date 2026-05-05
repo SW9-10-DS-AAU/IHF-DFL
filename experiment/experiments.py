@@ -114,11 +114,24 @@ def main(author): # single preset
         else [None]
     )
 
+    freerider_rounds = (
+        preset_config.freerider_start_round
+        if preset_config.freerider_start_round is not None
+        else [None]
+    )
+
+    freerider_noises = (
+        preset_config.freerider_noise_scale
+        if preset_config.freerider_noise_scale is not None
+        else [None]
+    )
+
     freerider_attack_types = (
         preset_config.freerider_attack_type
         if preset_config.freerider_attack_type is not None
         else [None]
     )
+
 
     runs = create_run_ids(preset_config.number_of_runs)
 
@@ -138,8 +151,8 @@ def main(author): # single preset
     ) in product(
         preset_config.contribution_score_strategy,
         preset_config.use_outlier_detection,
-        preset_config.freerider_start_round,
-        preset_config.freerider_noise_scale,
+        freerider_rounds,
+        freerider_noises,
         freerider_attack_types,
         malicious_rounds,
         malicious_noises,

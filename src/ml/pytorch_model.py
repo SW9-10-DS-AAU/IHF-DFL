@@ -57,29 +57,29 @@ class PytorchModel:
         self.has_switched = False
 
 
-        if freerider_noise_scale < 0:
+        if freerider_noise_scale is not None and freerider_noise_scale < 0:
             raise ValueError("freerider_noise_scale must be non-negative")
         self.freerider_noise_scale = freerider_noise_scale
 
-        if freerider_start_round < 1:
+        if freerider_start_round is not None and freerider_start_round < 1:
             raise ValueError("freerider_start_round must be at least 1")
         self.freerider_start_round = freerider_start_round
 
-        if malicious_start_round < 1:
+        if malicious_start_round is not None and malicious_start_round < 1:
             raise ValueError("malicious_start_round must be at least 1")
         self.malicious_start_round = malicious_start_round
 
-        if malicious_noise_scale < 0:
+        if malicious_noise_scale is not None and malicious_noise_scale < 0:
             raise ValueError("malicious_noise_scale must be non-negative")
         self.malicious_noise_scale = malicious_noise_scale
 
         valid_malicious_attack_types = {"noise", "byzantine"}
-        if malicious_attack_type not in valid_malicious_attack_types:
+        if malicious_attack_type is not None and malicious_attack_type not in valid_malicious_attack_types:
             raise ValueError(f"malicious_attack_type must be one of {valid_malicious_attack_types}, got '{malicious_attack_type}'")
         self.malicious_attack_type = malicious_attack_type
 
         valid_freerider_attack_types = {"noise", "delta_weight"}
-        if freerider_attack_type not in valid_freerider_attack_types:
+        if freerider_attack_type is not None and freerider_attack_type not in valid_freerider_attack_types:
             raise ValueError(f"freerider_attack_type must be one of {valid_freerider_attack_types}, got '{freerider_attack_type}'")
         self.freerider_attack_type = freerider_attack_type
 
