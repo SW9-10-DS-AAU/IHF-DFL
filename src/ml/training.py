@@ -116,10 +116,7 @@ def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, d
 
     print(f"[{device_label(device, device_id)}] User {user_id} done | Acc: {val_acc:.3f}, Loss: {val_loss:.3f}")
 
-    # Move state dict to CPU before returning so the parent receives plain CPU
-    # tensors instead of CUDA IPC handles, avoiding the "shared CUDA tensors
-    # released after producer exit" warning.
+    # Ensure all GPU work is complete before worker exits
     if device.type == "cuda":
         torch.cuda.synchronize(device)
-    cpu_state = {k: v.cpu() for k, v in model.state_dict().items()}
-    return user_id, cpu_state, val_loss, val_acc
+    return user_id, model.state_dict(), val_loss, val_acc

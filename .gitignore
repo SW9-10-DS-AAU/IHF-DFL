@@ -32,10 +32,10 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-# foundry — compiled artifacts, soldeer install tree, generated remappings
-foundry/out/
-foundry/dependencies/
-foundry/remappings.txt
+# foundry
+foundry/out/                # compiled artifacts (bytecode, ABIs)
+foundry/dependencies/       # soldeer install tree (regenerated from soldeer.lock)
+foundry/remappings.txt      # only inline remappings in foundry.toml are authoritative
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

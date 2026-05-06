@@ -494,7 +494,6 @@ contract OpenFLModel {
             }
         }
     }
-
     // Pay back freerider 1st round stake to good users
     function paybackFreeriders(uint freeriderLock) internal returns (uint additionalPunishment) {
         for (uint i = 0; i < participants.length; i++) {
@@ -599,7 +598,6 @@ contract OpenFLModel {
                 }
             }
         }
-
         // Give rewards based on positive contribution score
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
