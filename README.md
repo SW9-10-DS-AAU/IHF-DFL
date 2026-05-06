@@ -48,27 +48,13 @@ ROCM:
 CUDA:
 ``pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu130``
 
-
 ## 4. Running an Experiment
-
-Two modes are availble for running an experiment: sample or experiment.
-### Sample
-Just want to see a quick demo of the code? Run the sample.py file with:
-`python ./experiment/sample.py`
-
-### Experiment
-Want to run a systematic experiment with different parameters?
-
 The Experiment folder contains files for running experiments on different datasets.
 To change the experiment setup, modify the experiment_configuration.py file.
 To change the dataset, modify the experiments.py file.
 
 The file experiments.py runs one such experiment and can be run with:
-
-`python ./experiment/experiments.py`
-
-Or if you want to specify a different .env file, run with the ENV prefix as described in the Environment Variables section:
-``ENV=ganache python ./experiment/experiments.py``
+``ENV=ganache python ./experiment/experiment_runner.py``
 
 
 ## 5. Solidity testing
@@ -83,43 +69,12 @@ Or if you want to specify a different .env file, run with the ENV prefix as desc
   - `forge build` 
   - `forge test`
 
-# 6. Running Tests
-
-Tests are run with pytest from the repo root:
-```
-pytest
-```
-
-By default, tests marked as `slow` are skipped. These are tests that load full datasets (e.g. CIFAR-10)
-and can take significant time. To include them:
-```
-pytest -m slow
-```
-
-To run only the slow tests:
-```
-pytest -m slow --no-header -q
-```
-
-Solidity tests (forge) run automatically as part of the pytest suite on Linux/WSL.
-On Windows they are skipped — run them manually in WSL:
-```
-cd foundry && forge test
-```
-
-# 7. Test Coverage
-
-To get test coverage for python code, run the following command: \
+# 6. Test Coverage
+To get test coverage, run the following command: \
 `pytest --cov tests/`
 
-To get test coverage for solidity code, run the following command: \
-`forge coverage`
 
-(Optional) Output to a file
-`forge coverage --report lcov`
-
-
-# 8. Solidity Compiler (Arm)
+# 7. Solidity Compiler (Arm)
 If running on arm cpu, you need to download a recompiled solidity (solc) compiler for arm 
 and place it in the directory ```~/.local/bin/solc```
 The files can be found here: https://github.com/0xidm/solc-bin

@@ -43,7 +43,7 @@ def test_device_label_formats_output():
     assert training.device_label(torch.device("cpu")) == "CPU"
     assert training.device_label(torch.device("cuda"), 2) == "GPU 2"
 
-@pytest.mark.parametrize("dataset", ["mnist", pytest.param("cifar-10", marks=pytest.mark.slow)])
+@pytest.mark.parametrize("dataset", ["mnist", "cifar-10"])
 @pytest.mark.parametrize("split", ["random_split", "stratified_split", "dirichlet_split"])
 def test_equal_data_distribution(dataset, split):
     print(f"\nTesting {dataset} with {split}...")
@@ -76,8 +76,13 @@ def test_equal_data_distribution(dataset, split):
     assert data.get_client_data_distribution(model1) != data.get_client_data_distribution(model2)
 
 
-@pytest.mark.parametrize("dataset", ["mnist", pytest.param("cifar-10", marks=pytest.mark.slow)])
-@pytest.mark.parametrize("alpha1, alpha2", [(0.5, 1.0)])
+@pytest.mark.parametrize("dataset", ["mnist", "cifar-10"])
+@pytest.mark.parametrize(
+    "alpha1, alpha2",
+    [
+        (0.5, 1.0),
+    ]
+)
 def test_data_distribution_dirichlet(dataset, alpha1, alpha2):
     print(f"\nTesting {dataset} with dirichlet alphas {alpha1} vs {alpha2}...")
 

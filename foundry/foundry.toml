@@ -3,7 +3,6 @@ src = "../contracts"   # point to your existing contracts folder
 out = "out"         # optional, compiled artifacts go here
 test = "../tests/solidity"
 libs = ["dependencies"]
-no_match_coverage = "(tests|contracts/harness)"  # regex on file paths
 
 remappings = [
   "forge-std/=dependencies/forge-std-1.9.4/src/",
