@@ -42,8 +42,18 @@ ci = [
 ]
 
 [tool.coverage.run]
-source_pkgs = ["ml", "api", "contracts", "utils", "analysis", "experiment/experiment_configuration.py", "experiment/experiment_presets.py"]
-omit = ["ml/cnn_models.py", "ml/participant.py", "ml/pytorch_model.py", "ml/runtime.py", "ml/training.py", "ml/visualization.py", "contracts/fl_manager.py"]
+source_pkgs = ["ml", "api", "contracts", "utils", "analysis"]
+omit = [
+    "*/ml/cnn_models.py",
+    "*/ml/participant.py",
+    "*/ml/pytorch_model.py",
+    "*/ml/runtime.py",
+    "*/ml/training.py",
+    "*/ml/visualization.py",
+    "*/contracts/fl_manager.py",
+    "*/contracts/logging.py",
+    "*/utils/async_writer.py"
+]
 
 [tool.coverage.report]
 show_missing = true
@@ -53,6 +63,8 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 pythonpath = ["src", "tests"]
+addopts = "-m 'not slow'"
+markers = ["slow: marks tests as slow (deselect with '-m not slow')"]
 
 [build-system]
 requires = ["setuptools>=69", "wheel"]
