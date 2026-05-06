@@ -1,9 +1,13 @@
+import math
 import pytest
 from unittest.mock import MagicMock, patch
-from src.ml.aggregation import positives_only, plus_one_normalize, plus_more_than_one_normalize, GRS_aggregation, binary_switch
+from src.ml.aggregation import positives_only, plus_one_normalize, plus_more_than_one_normalize, GRS_aggregation, binary_switch, partial_switch_fixed_loss, partial_switch_loss_retrospective
 
 def func_1(scores): return {"func": "one"}
 def func_2(scores): return {"func": "two"}
+
+def func_all_to_a(scores): return {"a": 1.0, "b": 0.0}
+def func_all_to_b(scores): return {"a": 0.0, "b": 1.0}
 
 def mock_pytorch_model(has_switched=False, has_two_previous=False):
     pm = MagicMock()
@@ -154,3 +158,104 @@ class TestBinarySwitch:
     def test_collector_none_does_not_raise(self):
         # collector=None, som betyder ingen fejl
         binary_switch(mock_pytorch_model(), SCORES, func_1, func_2, None, _current_round_no=1)
+
+
+class TestPartialSwitchFixedLoss:
+    @pytest.mark.parametrize("avg_prior_losses, threshold, expected", [
+        (None,  100, {"a": 1.0, "b": 0.0}),  # None → alpha=1.0, derfor kun func_1
+        (200.0, 100, {"a": 1.0, "b": 0.0}),  # loss > threshold, derfor alpha=1.0, og kun func_1
+        (100.0, 100, {"a": 1.0, "b": 0.0}),  # loss == threshold, derfor alpha=1.0, og kun func_1
+        (0.0,   100, {"a": 0.0, "b": 1.0}),  # loss=0, derfor alpha=sin(0°)=0, og kun func_2
+    ])
+    def test_boundary_cases(self, avg_prior_losses, threshold, expected):
+        result = partial_switch_fixed_loss(SCORES, avg_prior_losses, func_all_to_a, func_all_to_b, threshold)
+        assert result == pytest.approx(expected)
+
+    def test_midpoint_follows_sin_curve(self):
+        alpha = math.sin(math.radians(45))
+        result = partial_switch_fixed_loss(SCORES, 50.0, func_all_to_a, func_all_to_b, threshold=100)
+        assert result == pytest.approx({"a": alpha, "b": 1 - alpha})
+
+    def test_custom_threshold(self):
+        alpha = math.sin(math.radians(45))
+        result = partial_switch_fixed_loss(SCORES, 25.0, func_all_to_a, func_all_to_b, threshold=50)
+        assert result == pytest.approx({"a": alpha, "b": 1 - alpha})
+
+    def test_output_sums_to_one(self):
+        result = partial_switch_fixed_loss(SCORES, 50.0, func_all_to_a, func_all_to_b)
+        assert sum(result.values()) == pytest.approx(1.0)
+
+    def test_fallback_uniform_when_total_is_zero(self):
+        # Begge funcs returnerer 0, betydende total=0, derfor ensartet fordeling
+        def func_zero(scores): return {k: 0.0 for k in scores}
+        result = partial_switch_fixed_loss(SCORES, 50.0, func_zero, func_zero)
+        assert result == pytest.approx({"a": 0.5, "b": 0.5})
+
+    def test_collector_updated_when_fully_func1(self):
+        collector = {}
+        partial_switch_fixed_loss(SCORES, None, func_all_to_a, func_all_to_b, agg_switch_collector=collector)
+        assert collector["func_1"] == "func_all_to_a"
+        assert collector["weight_1"] == pytest.approx(1.0)
+        assert collector["func_2"] == "func_all_to_b"
+        assert collector["weight_2"] == pytest.approx(0.0)
+
+    def test_collector_updated_on_partial_switch(self):
+        collector = {}
+        partial_switch_fixed_loss(SCORES, 50.0, func_all_to_a, func_all_to_b, threshold=100, agg_switch_collector=collector)
+        expected_alpha = math.sin(math.radians(45))
+        assert collector["weight_1"] == pytest.approx(expected_alpha)
+        assert collector["weight_2"] == pytest.approx(1.0 - expected_alpha)
+
+    def test_collector_none_does_not_raise(self):
+        partial_switch_fixed_loss(SCORES, 50.0, func_all_to_a, func_all_to_b, agg_switch_collector=None)
+
+
+class TestPartialSwitchLossRetrospective:
+    @pytest.mark.parametrize("avg_prior_losses, expected", [
+        ([5.0],       {"a": 1.0, "b": 0.0}),  # Kun 1 loss, improvement_ratio=1.0, defor kun func_1
+        ([4.0, 4.0],  {"a": 0.0, "b": 1.0}),  # Ens værdier, men med forskellige output
+        ([5.0, 3.0],  {"a": 0.0, "b": 1.0}),  # Forværring, med ratio=0, derfor kun func_2
+        ([0.0, 10.0], {"a": 1.0, "b": 0.0}),  # Hurtig forbedring, hvor ratio fastsat til 1, derfor kun func_1
+        ([0.0, 0.0],  {"a": 1.0, "b": 0.0}),  # mean_loss=0 med ratio=1.0, derfor kun func_1
+    ])
+    def test_boundary_cases(self, avg_prior_losses, expected):
+        result = partial_switch_loss_retrospective(SCORES, avg_prior_losses, func_all_to_a, func_all_to_b)
+        assert result == pytest.approx(expected)
+
+    def test_improving_loss_follows_sin_curve(self):
+        alpha = math.sin(math.radians(45))
+        result = partial_switch_loss_retrospective(SCORES, [3.0, 5.0], func_all_to_a, func_all_to_b)
+        assert result == pytest.approx({"a": alpha, "b": 1 - alpha})
+
+    def test_multiple_points_regression(self):
+        alpha = math.sin(math.radians(45))
+        result = partial_switch_loss_retrospective(SCORES, [2.0, 4.0, 6.0], func_all_to_a, func_all_to_b)
+        assert result == pytest.approx({"a": alpha, "b": 1 - alpha})
+
+    def test_output_sums_to_one(self):
+        result = partial_switch_loss_retrospective(SCORES, [3.0, 5.0], func_all_to_a, func_all_to_b)
+        assert sum(result.values()) == pytest.approx(1.0)
+
+    def test_fallback_uniform_when_total_is_zero(self):
+        def func_zero(scores): return {k: 0.0 for k in scores}
+        result = partial_switch_loss_retrospective(SCORES, [3.0, 5.0], func_zero, func_zero)
+        assert result == pytest.approx({"a": 0.5, "b": 0.5})
+
+    def test_collector_updated_on_plateau(self):
+        collector = {}
+        partial_switch_loss_retrospective(SCORES, [4.0, 4.0], func_all_to_a, func_all_to_b, agg_switch_collector=collector)
+        assert collector["func_1"] == "func_all_to_a"
+        assert collector["weight_1"] == pytest.approx(0.0)
+        assert collector["func_2"] == "func_all_to_b"
+        assert collector["weight_2"] == pytest.approx(1.0)
+
+    def test_collector_updated_on_partial_blend(self):
+        # ratio=0.5 → alpha=sin(45°)
+        collector = {}
+        alpha = math.sin(math.radians(45))
+        partial_switch_loss_retrospective(SCORES, [3.0, 5.0], func_all_to_a, func_all_to_b, agg_switch_collector=collector)
+        assert collector["weight_1"] == pytest.approx(alpha)
+        assert collector["weight_2"] == pytest.approx(1 - alpha)
+
+    def test_collector_none_does_not_raise(self):
+        partial_switch_loss_retrospective(SCORES, [3.0, 5.0], func_all_to_a, func_all_to_b, agg_switch_collector=None)
