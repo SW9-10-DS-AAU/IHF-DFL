@@ -20,11 +20,10 @@ REPO_ROOT = repo_root(Path(__file__))
 import experiment.experiment_runner as ExperimentRunner
 from itertools import product
 from dataclasses import dataclass
-from experiment.helper import getPath, create_run_ids
+from experiment.helper import getPath, create_run_ids, resolve_attack_params
 from experiment.experiment_configuration import ExperimentConfiguration
 from experiment.experiment_presets import PRESETS
 from utils.async_writer import AsyncWriter
-from utils.colors import red
 from selector import choose_from_list
 from analysis import ExperimentLogger
 
@@ -165,98 +164,24 @@ def main(author): # single preset
         preset_config.data_distribution,
         runs
     ):
-
-        has_bad = preset_config.number_of_bad_contributors > 0
-        has_fr = preset_config.number_of_freerider_contributors > 0
-
-        # Cross-fallback only if both roles exist
-        if has_bad and has_fr:
-            if malicious_activation_round is None:
-                print(red(f"[WARN] malicious_start_round is None; using freerider_start_round={freerider_round}"))
-                malicious_activation_round = freerider_round
-            if malicious_noise is None:
-                print(red(f"[WARN] malicious_noise_scale is None; using freerider_noise_scale={freerider_noise}"))
-                malicious_noise = freerider_noise
-            if malicious_attack_type is None:
-                print(red("[WARN] malicious_attack_type is None; using default='noise'"))
-                malicious_attack_type = "noise"
-
-            if freerider_round is None:
-                print(red(f"[WARN] freerider_start_round is None; using malicious_start_round = {malicious_activation_round}"))
-                freerider_round = malicious_activation_round
-            if freerider_noise is None:
-                print(red(f"[WARN] freerider_noise_scale is None; using malicious_noise_scale={malicious_noise}"))
-                freerider_noise = malicious_noise
-            if freerider_attack_type is None:
-                print(red("[WARN] freerider_attack_type is None; using default='noise'"))
-                freerider_attack_type = "noise"
-
-        # Role-local hard defaults (only for roles that exist)
-        if has_bad:
-            if malicious_activation_round is None:
-                print(red("[WARN] malicious_start_round unresolved; forcing default=1"))
-                malicious_activation_round = 1
-            if malicious_noise is None:
-                print(red("[WARN] malicious_noise_scale unresolved; forcing default=0.0"))
-                malicious_noise = 0.0
-            if malicious_attack_type is None:
-                print(red("[WARN] malicious_attack_type unresolved; forcing default='noise'"))
-                malicious_attack_type = "noise"
-
-        if has_fr:
-            if freerider_round is None:
-                print(red("[WARN] freerider_start_round unresolved; forcing default=1"))
-                freerider_round = 1
-            if freerider_noise is None:
-                print(red("[WARN] freerider_noise_scale unresolved; forcing default=0.0"))
-                freerider_noise = 0.0
-            if freerider_attack_type is None:
-                print(red("[WARN] freerider_attack_type unresolved; forcing default='noise'"))
-                freerider_attack_type = "noise"
-
-                # if preset_config.number_of_bad_contributors > 0 and preset_config.number_of_freerider_contributors > 0:
-        #     # fallback to freerider values if any of the malicious params are None
-        #     if malicious_activation_round is None:
-        #         print(red(f"[WARN] malicious_start_round is None; using freerider_start_round={freerider_round}"))
-        #         malicious_activation_round = freerider_round
-        #     if malicious_noise is None:
-        #         print(red(f"[WARN] malicious_noise_scale is None; using freerider_noise_scale={freerider_noise}"))
-        #         malicious_noise = freerider_noise
-        #     if malicious_attack_type is None:
-        #         print(red("[WARN] malicious_attack_type is None; using default='noise'"))
-        #         malicious_attack_type = "noise"
-        #
-        #     # fallback to malicious values if any of the freerider params are None
-        #     if freerider_round is None:
-        #         print(red(f"[WARN] freerider_start_round is None; using malicious_start_round={malicious_activation_round}"))
-        #         freerider_round = malicious_activation_round
-        #     if freerider_noise is None:
-        #         print(red(f"[WARN] freerider_noise_scale is None; using malicious_noise_scale={malicious_noise}"))
-        #         freerider_noise = malicious_noise
-        #     if freerider_attack_type is None:
-        #         print(red("[WARN] freerider_attack_type is None; using default='noise'"))
-        #         freerider_attack_type = "noise"
-        #
-        # # Hard defaults to avoid None leaking through (both-missing case)
-        # if malicious_activation_round is None:
-        #     print(red("[WARN] malicious_start_round unresolved after fallback; forcing default=1"))
-        #     malicious_activation_round = 1
-        # if malicious_noise is None:
-        #     print(red("[WARN] malicious_noise_scale unresolved after fallback; forcing default=0.0"))
-        #     malicious_noise = 0.0
-        # if malicious_attack_type is None:
-        #     print(red("[WARN] malicious_attack_type unresolved after fallback; forcing default='noise'"))
-        #     malicious_attack_type = "noise"
-        #
-        # if freerider_round is None:
-        #     print(red("[WARN] freerider_start_round unresolved after fallback; forcing default=1"))
-        #     freerider_round = 1
-        # if freerider_noise is None:
-        #     print(red("[WARN] freerider_noise_scale unresolved after fallback; forcing default=0.0"))
-        #     freerider_noise = 0.0
-        # if freerider_attack_type is None:
-        #     print(red("[WARN] freerider_attack_type unresolved after fallback; forcing default='noise'"))
-        #     freerider_attack_type = "noise"
+        (
+            freerider_round,
+            freerider_noise,
+            freerider_attack_type,
+            malicious_activation_round,
+            malicious_noise,
+            malicious_attack_type,
+        ) = resolve_attack_params(
+            has_bad=preset_config.number_of_bad_contributors > 0,
+            has_freerider=preset_config.number_of_freerider_contributors > 0,
+            freerider_round=freerider_round,
+            freerider_noise=freerider_noise,
+            freerider_attack_type=freerider_attack_type,
+            malicious_activation_round=malicious_activation_round,
+            malicious_noise=malicious_noise,
+            malicious_attack_type=malicious_attack_type,
+            warn=True,
+        )
 
 
         # only add dirichlet alpha to the product if the data distribution is dirichlet, otherwise set it to None
@@ -348,8 +273,8 @@ def main(author): # single preset
         config.freerider_start_round = freerider_round
         config.freerider_noise_scale = freerider_noise
         config.freerider_attack_type = freerider_attack_type
-        config.malicious_start_round = malicious_activation_round if malicious_activation_round is not None else freerider_round
-        config.malicious_noise_scale = malicious_noise if malicious_noise is not None else freerider_noise
+        config.malicious_start_round = malicious_activation_round
+        config.malicious_noise_scale = malicious_noise
         config.malicious_attack_type = malicious_attack_type
         config.aggregation_rule = aggregation_rule
         config.data_distribution = data_distribution
@@ -493,25 +418,45 @@ def progress_bar(i, skipsCount, total):
 
 
 def normalize_skip(skip: Skip):
+    preset_cfg = PRESETS.get(skip.preset)
+    has_bad = (
+        preset_cfg.number_of_bad_contributors > 0
+        if preset_cfg is not None else True
+    )
+    has_freerider = (
+        preset_cfg.number_of_freerider_contributors > 0
+        if preset_cfg is not None else True
+    )
+    (
+        freerider_round,
+        freerider_noise,
+        freerider_attack_type,
+        malicious_activation_round,
+        malicious_noise,
+        malicious_attack_type,
+    ) = resolve_attack_params(
+        has_bad=has_bad,
+        has_freerider=has_freerider,
+        freerider_round=skip.freerider_activation_round,
+        freerider_noise=skip.freerider_noise,
+        freerider_attack_type=skip.freerider_attack_type,
+        malicious_activation_round=skip.malicious_activation_round,
+        malicious_noise=skip.malicious_noise,
+        malicious_attack_type=skip.malicious_attack_type,
+        warn=False,
+    )
+
     return Skip(
         preset=skip.preset,
         dataset=skip.dataset,
         strategy=skip.strategy,
         outlier_detection=skip.outlier_detection,
-        freerider_activation_round=skip.freerider_activation_round,
-        freerider_noise=skip.freerider_noise,
-        freerider_attack_type=skip.freerider_attack_type,
-        malicious_activation_round=(
-            skip.malicious_activation_round
-            if skip.malicious_activation_round is not None
-            else skip.freerider_activation_round
-        ),
-        malicious_noise=(
-            skip.malicious_noise
-            if skip.malicious_noise is not None
-            else skip.freerider_noise
-        ),
-        malicious_attack_type=skip.malicious_attack_type,
+        freerider_activation_round=freerider_round,
+        freerider_noise=freerider_noise,
+        freerider_attack_type=freerider_attack_type,
+        malicious_activation_round=malicious_activation_round,
+        malicious_noise=malicious_noise,
+        malicious_attack_type=malicious_attack_type,
         aggregation_rule=skip.aggregation_rule,
         data_distribution=skip.data_distribution,
         dirichlet_alpha=skip.dirichlet_alpha if skip.data_distribution in {"dirichlet_split", "dirichlet_split_42"} else None,

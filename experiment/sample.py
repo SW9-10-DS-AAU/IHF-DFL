@@ -15,7 +15,7 @@ REPO_ROOT = repo_root(Path(__file__))
 
 import experiment.experiment_runner as ExperimentRunner
 from experiment.experiment_configuration import ExperimentConfiguration
-from experiment.helper import getPath
+from experiment.helper import getPath, resolve_attack_params
 from utils.async_writer import AsyncWriter
 
 from analysis import ExperimentLogger
@@ -24,7 +24,7 @@ DATA_ROOT = REPO_ROOT / "data"
 
 preset = "test"
 _use_defaults = True
-# preset = "test"
+
 
 config = ExperimentConfiguration(preset=preset, use_defaults=_use_defaults)
 
@@ -54,10 +54,24 @@ OUTPUTHEADERS = [
 
 WRITERBUFFERSIZE = 200
 
-if config.malicious_noise_scale is None:
-    config.malicious_noise_scale = config.freerider_noise_scale
-if config.malicious_start_round is None:
-    config.malicious_start_round = config.freerider_start_round
+(
+    config.freerider_start_round,
+    config.freerider_noise_scale,
+    config.freerider_attack_type,
+    config.malicious_start_round,
+    config.malicious_noise_scale,
+    config.malicious_attack_type,
+) = resolve_attack_params(
+    has_bad=config.number_of_bad_contributors > 0,
+    has_freerider=config.number_of_freerider_contributors > 0,
+    freerider_round=config.freerider_start_round,
+    freerider_noise=config.freerider_noise_scale,
+    freerider_attack_type=config.freerider_attack_type,
+    malicious_activation_round=config.malicious_start_round,
+    malicious_noise=config.malicious_noise_scale,
+    malicious_attack_type=config.malicious_attack_type,
+    warn=True,
+)
 
 
 
