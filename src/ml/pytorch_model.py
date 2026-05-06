@@ -165,11 +165,11 @@ class PytorchModel:
         if num_gpus > 1:
             ctx = mp.get_context("spawn")
             self._pool_size = num_gpus
-            self._pool = ctx.Pool(processes=self._pool_size, maxtasksperchild=10)
+            self._pool = ctx.Pool(processes=self._pool_size)
         elif num_gpus == 0:
             ctx = mp.get_context("spawn")
             self._pool_size = min(len(self.participants), os.cpu_count() or 1)
-            self._pool = ctx.Pool(processes=self._pool_size, maxtasksperchild=10)
+            self._pool = ctx.Pool(processes=self._pool_size)
         else:
             self._pool_size = 1
         # Single GPU: _pool stays None, run_sequential() used instead

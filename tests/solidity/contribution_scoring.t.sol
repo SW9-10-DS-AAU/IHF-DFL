@@ -12,7 +12,7 @@ import "../../contracts/OpenFLModel.sol";
 
 // Reward logic is partially checked
 // If a user is punished is checked
-// If a user is disqualified is not checked...
+
 
 contract ContributionScoringHarness is OpenFLModel {
     constructor(
