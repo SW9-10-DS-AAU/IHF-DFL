@@ -958,7 +958,7 @@ class FLChallenge(ConnectionHelper):
             self.writer.writeComment(f"$gasCosts${self.gas_feedback},{self.gas_register},{self.gas_slot},{self.gas_weights},{self.gas_close},{self.gas_deploy},{self.gas_exit}")
             self.exit_system()
         finally:
-            self.pytorch_model.close_pool()
+            self.pytorch_model.shutdown()
 
 
     

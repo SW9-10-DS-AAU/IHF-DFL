@@ -20,7 +20,7 @@ REPO_ROOT = repo_root(Path(__file__))
 import experiment.experiment_runner as ExperimentRunner
 from itertools import product
 from dataclasses import dataclass
-from experiment.helper import getPath, create_run_ids
+from experiment.helper import getPath, create_run_ids, resolve_attack_params
 from experiment.experiment_configuration import ExperimentConfiguration
 from experiment.experiment_presets import PRESETS
 from utils.async_writer import AsyncWriter
@@ -34,7 +34,6 @@ RESULTDATAFOLDER = REPO_ROOT / "data" / "runs" / "experiments"
 
 # ---------------- PRESET SEARCH SPACE ----------------
 
-# preset = "test"
 preset = "test"
 _use_defaults = True
 datasets = [ DATASETFAST ]
@@ -71,12 +70,12 @@ class Skip:
     dataset: str
     strategy: str
     outlier_detection: bool
-    freerider_activation_round: int
-    freerider_noise: float
-    freerider_attack_type: str
+    freerider_activation_round: int | None
+    freerider_noise: float | None
+    freerider_attack_type: str | None
     malicious_activation_round: int | None
     malicious_noise: float | None
-    malicious_attack_type: str
+    malicious_attack_type: str | None
     aggregation_rule: str
     data_distribution: str
     dirichlet_alpha: float | None
@@ -114,13 +113,29 @@ def main(author): # single preset
         else [None]
     )
 
+    freerider_rounds = (
+        preset_config.freerider_start_round
+        if preset_config.freerider_start_round is not None
+        else [None]
+    )
+
+    freerider_noises = (
+        preset_config.freerider_noise_scale
+        if preset_config.freerider_noise_scale is not None
+        else [None]
+    )
+
     freerider_attack_types = (
         preset_config.freerider_attack_type
         if preset_config.freerider_attack_type is not None
         else [None]
     )
 
-    runs = create_run_ids(preset_config.number_of_runs)
+
+    number_of_runs = preset_config.number_of_runs if preset_config.number_of_runs is not None else 1
+    runs = create_run_ids(number_of_runs)
+    if not runs:
+        runs = [1]
 
     for (
             strategy,
@@ -138,8 +153,8 @@ def main(author): # single preset
     ) in product(
         preset_config.contribution_score_strategy,
         preset_config.use_outlier_detection,
-        preset_config.freerider_start_round,
-        preset_config.freerider_noise_scale,
+        freerider_rounds,
+        freerider_noises,
         freerider_attack_types,
         malicious_rounds,
         malicious_noises,
@@ -149,17 +164,25 @@ def main(author): # single preset
         preset_config.data_distribution,
         runs
     ):
+        (
+            freerider_round,
+            freerider_noise,
+            freerider_attack_type,
+            malicious_activation_round,
+            malicious_noise,
+            malicious_attack_type,
+        ) = resolve_attack_params(
+            has_bad=preset_config.number_of_bad_contributors > 0,
+            has_freerider=preset_config.number_of_freerider_contributors > 0,
+            freerider_round=freerider_round,
+            freerider_noise=freerider_noise,
+            freerider_attack_type=freerider_attack_type,
+            malicious_activation_round=malicious_activation_round,
+            malicious_noise=malicious_noise,
+            malicious_attack_type=malicious_attack_type,
+            warn=True,
+        )
 
-        # fallback to freerider values if any of the malicious params are None
-        if malicious_activation_round is None:
-            malicious_activation_round = freerider_round
-        if malicious_noise is None:
-            malicious_noise = freerider_noise
-        if malicious_attack_type is None:
-            malicious_attack_type = "noise"
-
-        if freerider_attack_type is None:
-            freerider_attack_type = "noise"
 
         # only add dirichlet alpha to the product if the data distribution is dirichlet, otherwise set it to None
         if data_distribution in {"dirichlet_split", "dirichlet_split_42"}:
@@ -250,8 +273,8 @@ def main(author): # single preset
         config.freerider_start_round = freerider_round
         config.freerider_noise_scale = freerider_noise
         config.freerider_attack_type = freerider_attack_type
-        config.malicious_start_round = malicious_activation_round if malicious_activation_round is not None else freerider_round
-        config.malicious_noise_scale = malicious_noise if malicious_noise is not None else freerider_noise
+        config.malicious_start_round = malicious_activation_round
+        config.malicious_noise_scale = malicious_noise
         config.malicious_attack_type = malicious_attack_type
         config.aggregation_rule = aggregation_rule
         config.data_distribution = data_distribution
@@ -395,25 +418,45 @@ def progress_bar(i, skipsCount, total):
 
 
 def normalize_skip(skip: Skip):
+    preset_cfg = PRESETS.get(skip.preset)
+    has_bad = (
+        preset_cfg.number_of_bad_contributors > 0
+        if preset_cfg is not None else True
+    )
+    has_freerider = (
+        preset_cfg.number_of_freerider_contributors > 0
+        if preset_cfg is not None else True
+    )
+    (
+        freerider_round,
+        freerider_noise,
+        freerider_attack_type,
+        malicious_activation_round,
+        malicious_noise,
+        malicious_attack_type,
+    ) = resolve_attack_params(
+        has_bad=has_bad,
+        has_freerider=has_freerider,
+        freerider_round=skip.freerider_activation_round,
+        freerider_noise=skip.freerider_noise,
+        freerider_attack_type=skip.freerider_attack_type,
+        malicious_activation_round=skip.malicious_activation_round,
+        malicious_noise=skip.malicious_noise,
+        malicious_attack_type=skip.malicious_attack_type,
+        warn=False,
+    )
+
     return Skip(
         preset=skip.preset,
         dataset=skip.dataset,
         strategy=skip.strategy,
         outlier_detection=skip.outlier_detection,
-        freerider_activation_round=skip.freerider_activation_round,
-        freerider_noise=skip.freerider_noise,
-        freerider_attack_type=skip.freerider_attack_type,
-        malicious_activation_round=(
-            skip.malicious_activation_round
-            if skip.malicious_activation_round is not None
-            else skip.freerider_activation_round
-        ),
-        malicious_noise=(
-            skip.malicious_noise
-            if skip.malicious_noise is not None
-            else skip.freerider_noise
-        ),
-        malicious_attack_type=skip.malicious_attack_type,
+        freerider_activation_round=freerider_round,
+        freerider_noise=freerider_noise,
+        freerider_attack_type=freerider_attack_type,
+        malicious_activation_round=malicious_activation_round,
+        malicious_noise=malicious_noise,
+        malicious_attack_type=malicious_attack_type,
         aggregation_rule=skip.aggregation_rule,
         data_distribution=skip.data_distribution,
         dirichlet_alpha=skip.dirichlet_alpha if skip.data_distribution in {"dirichlet_split", "dirichlet_split_42"} else None,
@@ -427,9 +470,6 @@ if __name__ == "__main__":
     author = args.author if args.author is not None else input("Author?\n")
     mp.freeze_support()
     main(author)
-    for p in mp.active_children():
-        print("Terminating:", p.pid)
-        p.terminate()
     print("Done :)")
 
 
