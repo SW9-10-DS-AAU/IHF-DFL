@@ -85,9 +85,9 @@ contract NoEtherLost is Test {
         vm.prank(user3); model.feedback(user1, 1);
         vm.prank(user3); model.feedback(user2, 1);
 
-        vm.prank(user1); model.submitContributionScoreAndVotingEvaluation(1e18, 1e18);
-        vm.prank(user2); model.submitContributionScoreAndVotingEvaluation(1e18, 1e18);
-        vm.prank(user3); model.submitContributionScoreAndVotingEvaluation(1e18, 1e18);
+        vm.prank(user1); model.submitContributionScore(1e18);
+        vm.prank(user2); model.submitContributionScore(1e18);
+        vm.prank(user3); model.submitContributionScore(1e18);
     }
 
     // Feedback only
@@ -142,13 +142,13 @@ contract NoEtherLost is Test {
         assertEq(address(model).balance, REWARD, "Contract should only hold undistributed reward");
     }
 
-    // settle() reverts when evaluation scores are missing
-    function testSettleRevertsWithoutEvaluationScore() public {
-        playRoundWithoutScores();
-
-        vm.expectRevert("Evaluation score not submitted for user");
-        model.settle();
-    }
+//    // settle() reverts when evaluation scores are missing
+//    function testSettleRevertsWithoutEvaluationScore() public {
+//        playRoundWithoutScores();
+//
+//        vm.expectRevert("Evaluation score not submitted for user");
+//        model.settle();
+//    }
 
     // settle() does not destroy ether
     function testSettleDoesNotDestroyEther() public {
@@ -160,7 +160,6 @@ contract NoEtherLost is Test {
 
     // Punishment redistributes slashed ether to good users — none is destroyed
     // user2 receives two negative votes (score == -1) and ends up punished
-    // user2 does not need to submit evaluation scores because _isEligibleForRewards() == false
     function testGriefingPunishmentPreservesInvariant() public {
         vm.warp(block.timestamp + 86401);
         vm.roll(block.number + 1);
@@ -173,8 +172,8 @@ contract NoEtherLost is Test {
         vm.prank(user3); model.feedback(user1,  1);
         vm.prank(user3); model.feedback(user2, -1);
 
-        vm.prank(user1); model.submitContributionScoreAndVotingEvaluation(1e18, 1e18);
-        vm.prank(user3); model.submitContributionScoreAndVotingEvaluation(1e18, 1e18);
+        vm.prank(user1); model.submitContributionScore(1e18);
+        vm.prank(user3); model.submitContributionScore(1e18);
 
         model.settle();
 

@@ -63,10 +63,9 @@ contract ContributionScoringHarness is OpenFLModel {
     }
 
     function _settleContributionScores(
-        uint totalPunishment,
-        uint evaluationDisqualificationPool
+        uint totalPunishment
     ) external returns (uint256) {
-        return settleContributionScores(totalPunishment, evaluationDisqualificationPool);
+        return settleContributionScores(totalPunishment);
     }
 
     function _getGRS(address user) external view returns (uint) {
@@ -125,7 +124,7 @@ contract ContributionScoringTest is Test {
         uint beforeA = model._getGRS(a);
         uint beforeB = model._getGRS(b);
 
-        uint256 sum = model._settleContributionScores(0, 0);
+        uint256 sum = model._settleContributionScores(0);
         assertEq(sum, 4e18);
 
         uint afterA = model._getGRS(a);
@@ -147,7 +146,7 @@ contract ContributionScoringTest is Test {
         uint beforeA = model._getGRS(a);
         uint beforeB = model._getGRS(b);
 
-        model._settleContributionScores(0, 0);
+        model._settleContributionScores(0);
 
         uint expectedPunishment = COLLATERAL / PUNISH_CONTRIB;
         uint expectedReward = model._rewardPerRound() + expectedPunishment;
@@ -169,7 +168,7 @@ contract ContributionScoringTest is Test {
         model._setContribution(a, 0);
 
         vm.expectRevert("sumOfWeightedContribScore is <= 0 in settle!");
-        model._settleContributionScores(0, 0);
+        model._settleContributionScores(0);
     }
 
     // Verifies a sufficiently low-GRS user with negative contribution is
@@ -183,7 +182,7 @@ contract ContributionScoringTest is Test {
         model._setContribution(b, 1e18);
 
         uint beforeB = model._getGRS(b);
-        model._settleContributionScores(0, 0);
+        model._settleContributionScores(0);
         uint afterB = model._getGRS(b);
 
         assertTrue(model._isDisqualified(a));
