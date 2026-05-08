@@ -1077,12 +1077,11 @@ class TestFLChallengeWorkflow:
         with patch('contracts.contribution._STRATEGIES', {'dotproduct': mock_strategy_fn}):
             contribution_score(fl_challenge, mock_participants, 1)
 
-        assert fl_challenge.model.functions.submitContributionScoreAndVotingEvaluation.call_count == 4
+        assert fl_challenge.model.functions.submitContributionScore.call_count == 4
 
         # contribution_score scales raw score by 1e18 before submitting (WEI fixed-point)
-        fl_challenge.model.functions.submitContributionScoreAndVotingEvaluation.assert_any_call(
+        fl_challenge.model.functions.submitContributionScore.assert_any_call(
             int(Decimal(400) * Decimal('1e18')),
-            int(Decimal(1) * Decimal('1e18')),
         )
 
         assert mock_participants[0].contribution_score == 100
@@ -1219,7 +1218,7 @@ class TestReporting:
             "ContributionPunishment": [],
             "PassivePunishment": [],
             "Disqualification": [],
-            "EvaluationVotingReward": [],
+            # "EvaluationVotingReward": [],
         }
 
         with patch.object(fl_challenge, 'get_events', return_value=expected_events):

@@ -1,7 +1,7 @@
 [project]
-name = "FedCBA"
-version = "0.1.0"
-description = "FedCBA"
+name = "IHP-DFL"
+version = "2.0.0"
+description = "IHP-DFL"
 readme = "README.md"
 requires-python = "==3.10.*"
 license = { text = "MIT" }
