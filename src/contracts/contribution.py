@@ -27,7 +27,7 @@ def contribution_score(challenge, _users, _current_round_no): # pragma: no cover
         print("-----------------------------------------------------------------------------------")
         return
 
-    print("Calculating contribution scores and evaluation rewards...\n")
+    print("Calculating contribution scores...\n")
 
     strategy = challenge.experiment_config.contribution_score_strategy
 
@@ -38,7 +38,7 @@ def contribution_score(challenge, _users, _current_round_no): # pragma: no cover
         logging.log_warning(challenge, msg)
         scores = [share] * len(_users)
         logging.log_contribution_scores(challenge, _users, scores, None, None, None)
-        for u in _users: u.evaluation_reward = 1
+        # for u in _users: u.evaluation_reward = 1
     else:
         if strategy not in _STRATEGIES:
             raise ValueError(f"Unknown contribution score strategy '{strategy}'. Available: {sorted(_STRATEGIES)}")
@@ -46,21 +46,21 @@ def contribution_score(challenge, _users, _current_round_no): # pragma: no cover
 
     challenge.scores = scores
 
-    if challenge.experiment_config.contribution_score_strategy != "loss_only":
-        for u in _users: u.evaluation_reward = 1
+    # if challenge.experiment_config.contribution_score_strategy != "loss_only":
+    #     for u in _users: u.evaluation_reward = 1
 
     txs = []
     for u, score in zip(_users, challenge.scores):
         u.contribution_score = score
         scaled_contribution_score = int(Decimal(score) * Decimal("1e18"))
-        scaled_evaluation_score = int(Decimal(str(u.evaluation_reward)) * Decimal("1e18"))
-        if u.evaluation_reward == 0:
-            raise ValueError(f"Evaluation reward for user {u.address} is zero, which will fail a require on the smart contract. User data: {u.__dict__}")
+        # scaled_evaluation_score = int(Decimal(str(u.evaluation_reward)) * Decimal("1e18"))
+        # if u.evaluation_reward == 0:
+        #     raise ValueError(f"Evaluation reward for user {u.address} is zero, which will fail a require on the smart contract. User data: {u.__dict__}")
 
         if challenge.fork:
             tx = challenge.build_tx(u.address, challenge.modelAddress)
-            tx_hash = challenge.model.functions.submitContributionScoreAndVotingEvaluation(
-                scaled_contribution_score, scaled_evaluation_score
+            tx_hash = challenge.model.functions.submitContributionScore(
+                scaled_contribution_score
             ).transact(tx)
         else:
             nonce = challenge.w3.eth.get_transaction_count(u.address)
@@ -69,7 +69,7 @@ def contribution_score(challenge, _users, _current_round_no): # pragma: no cover
                 nonce,
             )
             cl = challenge.model.functions.submitContributionScore(
-                scaled_contribution_score, scaled_evaluation_score
+                scaled_contribution_score
             ).build_transaction(cl)
             pk = u.privateKey
             signed = challenge.w3.eth.account.sign_transaction(cl, private_key=pk)
@@ -82,7 +82,7 @@ def contribution_score(challenge, _users, _current_round_no): # pragma: no cover
     for u in _users:
         print(green(f"\nUSER @ {u.address}"))
         print(green(f"{'CONTRIBUTION SCORE:':25}{u.contribution_score}"))
-        print(green(f"{'EVALUATION REWARD:':25}{u.evaluation_reward}")) if u.evaluation_reward is not None else None
+        # print(green(f"{'EVALUATION REWARD:':25}{u.evaluation_reward}")) if u.evaluation_reward is not None else None
     print("-----------------------------------------------------------------------------------\n")
 
 
@@ -246,7 +246,6 @@ def _calculate_scores_accuracy_only(challenge, users, _current_round_no, mad_thr
             per_user_outlier_info.append({})
             raise type(e)(f"Failed while processing user data: {e}") from e
 
-        # No evaluation voting here. For loss_only
 
     norm_accuracies = normalize_contribution_scores_new(avg_accuracies, avg_prev_acc, 'accuracy')
     print(f"normalized accuracies: {norm_accuracies}")
@@ -286,9 +285,9 @@ def _calculate_scores_loss_only(challenge, users, _current_round_no, mad_thresho
     avg_prev_loss = np.mean(mad_prev_losses)
     avg_losses = []  # after loop: [60, 70, 50, 80]
     per_user_outlier_info = []
-    softmax_records = []
-    user_map = {u.address: u for u in users}
-    for u in users: u.evaluation_reward = 0
+    # softmax_records = []
+    # user_map = {u.address: u for u in users}
+    # for u in users: u.evaluation_reward = 0
 
     for u in users:  # For loop to extract losses.
         # All loses per user
@@ -310,20 +309,20 @@ def _calculate_scores_loss_only(challenge, users, _current_round_no, mad_thresho
             raise type(e)(f"Failed while processing user data: {e}") from e
 
 
-        # Evaluation voting: convert loss votes into rewards using softmax, assign to users, and log
-        rewards = softmax_rewards(losses, avg_loss, 1, 0.01)
-        for voter_addr, loss_vote, reward in zip(voters, losses, rewards):
-            if voter_addr in user_map:
-                user_map[voter_addr].evaluation_reward += reward
-                softmax_records.append({
-                    "evaluated_user":      u,
-                    "voter_user":          user_map[voter_addr],
-                    "loss_vote":           loss_vote,
-                    "avg_loss_true_value": avg_loss,
-                    "softmax_reward":      reward,
-                })
-            else:
-                warnings.warn("Voter {} not found among merging users".format(voter_addr))
+        # # Evaluation voting: convert loss votes into rewards using softmax, assign to users, and log
+        # rewards = softmax_rewards(losses, avg_loss, 1, 0.01)
+        # for voter_addr, loss_vote, reward in zip(voters, losses, rewards):
+        #     if voter_addr in user_map:
+        #         user_map[voter_addr].evaluation_reward += reward
+        #         softmax_records.append({
+        #             "evaluated_user":      u,
+        #             "voter_user":          user_map[voter_addr],
+        #             "loss_vote":           loss_vote,
+        #             "avg_loss_true_value": avg_loss,
+        #             "softmax_reward":      reward,
+        #         })
+        #     else:
+        #         warnings.warn("Voter {} not found among merging users".format(voter_addr))
 
     norm_losses = normalize_contribution_scores_new(avg_losses, avg_prev_loss, 'loss')
     # print(f"normalized losses: {norm_losses}")
@@ -346,7 +345,7 @@ def _calculate_scores_loss_only(challenge, users, _current_round_no, mad_thresho
     scores = norm_losses
 
     # print(f"scores = {scores}")
-    logging.log_evaluation_votes(challenge, softmax_records)
+    # logging.log_evaluation_votes(challenge, softmax_records)
     logging.log_contribution_scores(challenge, users, scores, avg_losses, per_user_outlier_info, avg_prev_loss)
 
     return scores

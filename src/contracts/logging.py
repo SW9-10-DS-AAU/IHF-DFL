@@ -198,38 +198,38 @@ def log_punishments(challenge, events, current_round_no):
         )
 
 
-def log_evaluation_voting_rewards(challenge, events, current_round_no):
-    """Forward EvaluationVotingReward contract events to the logger."""
-    if challenge._logger is None:
-        return
-    user_map = {u.address: u for u in challenge.pytorch_model.participants + challenge.pytorch_model.disqualified}
-    for ev in events.get("EvaluationVotingReward", []):
-        args = ev["args"]
-        u = user_map.get(args["user"])
-        challenge._logger.evaluation_voting_reward(
-            round=current_round_no, user_id=u.id if u else None, user_address=args["user"],
-            staked=args["staked"], rewarded=args["rewarded"], new_reputation=args["newReputation"],
-        )
+# def log_evaluation_voting_rewards(challenge, events, current_round_no):
+#     """Forward EvaluationVotingReward contract events to the logger."""
+#     if challenge._logger is None:
+#         return
+#     user_map = {u.address: u for u in challenge.pytorch_model.participants + challenge.pytorch_model.disqualified}
+#     for ev in events.get("EvaluationVotingReward", []):
+#         args = ev["args"]
+#         u = user_map.get(args["user"])
+#         challenge._logger.evaluation_voting_reward(
+#             round=current_round_no, user_id=u.id if u else None, user_address=args["user"],
+#             staked=args["staked"], rewarded=args["rewarded"], new_reputation=args["newReputation"],
+#         )
 
 
-def log_evaluation_votes(challenge, softmax_records):
-    """Log per-voter softmax details for each evaluated user (loss_only strategy).
-
-    softmax_records: list of dicts with keys:
-        evaluated_user, voter_user  (Participant objects)
-        loss_vote, avg_loss_true_value, softmax_reward  (floats)
-    """
-    if challenge._logger is None:
-        return
-    r = challenge.pytorch_model.round
-    for rec in softmax_records:
-        eu = rec["evaluated_user"]
-        vu = rec["voter_user"]
-        challenge._logger.evaluation_vote(
-            round=r,
-            evaluated_user_id=eu.id, evaluated_user_address=eu.address,
-            voter_user_id=vu.id, voter_user_address=vu.address,
-            loss_vote=rec["loss_vote"],
-            avg_loss_true_value=rec["avg_loss_true_value"],
-            softmax_reward=rec["softmax_reward"],
-        )
+# def log_evaluation_votes(challenge, softmax_records):
+#     """Log per-voter softmax details for each evaluated user (loss_only strategy).
+#
+#     softmax_records: list of dicts with keys:
+#         evaluated_user, voter_user  (Participant objects)
+#         loss_vote, avg_loss_true_value, softmax_reward  (floats)
+#     """
+#     if challenge._logger is None:
+#         return
+#     r = challenge.pytorch_model.round
+#     for rec in softmax_records:
+#         eu = rec["evaluated_user"]
+#         vu = rec["voter_user"]
+#         challenge._logger.evaluation_vote(
+#             round=r,
+#             evaluated_user_id=eu.id, evaluated_user_address=eu.address,
+#             voter_user_id=vu.id, voter_user_address=vu.address,
+#             loss_vote=rec["loss_vote"],
+#             avg_loss_true_value=rec["avg_loss_true_value"],
+#             softmax_reward=rec["softmax_reward"],
+#         )

@@ -72,13 +72,13 @@ class Skip:
     outlier_detection: bool
     freerider_activation_round: int | None
     freerider_noise: float | None
-    freerider_attack_type: str | None
+    # freerider_attack_type: str | None
     malicious_activation_round: int | None
     malicious_noise: float | None
-    malicious_attack_type: str | None
-    aggregation_rule: str
-    data_distribution: str
-    dirichlet_alpha: float | None
+    # malicious_attack_type: str | None
+    # aggregation_rule: str
+    # data_distribution: str
+    # dirichlet_alpha: float | None
     run_id : int
 
 skips: list[Skip] = []
@@ -107,11 +107,11 @@ def main(author): # single preset
         else [None]
     )
 
-    malicious_attack_types = (
-        preset_config.malicious_attack_type
-        if preset_config.malicious_attack_type is not None
-        else [None]
-    )
+    # malicious_attack_types = (
+    #     preset_config.malicious_attack_type
+    #     if preset_config.malicious_attack_type is not None
+    #     else [None]
+    # )
 
     freerider_rounds = (
         preset_config.freerider_start_round
@@ -125,11 +125,11 @@ def main(author): # single preset
         else [None]
     )
 
-    freerider_attack_types = (
-        preset_config.freerider_attack_type
-        if preset_config.freerider_attack_type is not None
-        else [None]
-    )
+    # freerider_attack_types = (
+    #     preset_config.freerider_attack_type
+    #     if preset_config.freerider_attack_type is not None
+    #     else [None]
+    # )
 
 
     number_of_runs = preset_config.number_of_runs if preset_config.number_of_runs is not None else 1
@@ -142,82 +142,81 @@ def main(author): # single preset
             outlier_detection,
             freerider_round,
             freerider_noise,
-            freerider_attack_type,
+            # freerider_attack_type,
             malicious_activation_round,
             malicious_noise,
-            malicious_attack_type,
+            # malicious_attack_type,
             dataset,
-            aggregation_rule,
-            data_distribution,
+            # aggregation_rule,
+            # data_distribution,
             run_id
     ) in product(
         preset_config.contribution_score_strategy,
         preset_config.use_outlier_detection,
         freerider_rounds,
         freerider_noises,
-        freerider_attack_types,
+        # freerider_attack_types,
         malicious_rounds,
         malicious_noises,
-        malicious_attack_types,
+        # malicious_attack_types,
         datasets,
-        preset_config.aggregation_rule,
-        preset_config.data_distribution,
+        # preset_config.aggregation_rule,
+        # preset_config.data_distribution,
         runs
     ):
-        (
+        # (
+        #     freerider_round,
+        #     freerider_noise,
+        #     freerider_attack_type,
+        #     malicious_activation_round,
+        #     malicious_noise,
+        #     malicious_attack_type,
+        # ) = resolve_attack_params(
+        #     has_bad=preset_config.number_of_bad_contributors > 0,
+        #     has_freerider=preset_config.number_of_freerider_contributors > 0,
+        #     freerider_round=freerider_round,
+        #     freerider_noise=freerider_noise,
+        #     freerider_attack_type=freerider_attack_type,
+        #     malicious_activation_round=malicious_activation_round,
+        #     malicious_noise=malicious_noise,
+        #     malicious_attack_type=malicious_attack_type,
+        #     warn=True,
+        # )
+
+
+        # # only add dirichlet alpha to the product if the data distribution is dirichlet, otherwise set it to None
+        # if data_distribution in {"dirichlet_split", "dirichlet_split_42"}:
+        #     for alpha in preset_config.dirichlet_alpha:
+        #         productVar.append((
+        #             strategy,
+        #             outlier_detection,
+        #             freerider_round,
+        #             freerider_noise,
+        #             freerider_attack_type,
+        #             malicious_activation_round,
+        #             malicious_noise,
+        #             malicious_attack_type,
+        #             dataset,
+        #             aggregation_rule,
+        #             data_distribution,
+        #             alpha,
+        #             run_id
+        #         ))
+        # else:
+        productVar.append((
+            strategy,
+            outlier_detection,
             freerider_round,
             freerider_noise,
-            freerider_attack_type,
+            # freerider_attack_type,
             malicious_activation_round,
             malicious_noise,
-            malicious_attack_type,
-        ) = resolve_attack_params(
-            has_bad=preset_config.number_of_bad_contributors > 0,
-            has_freerider=preset_config.number_of_freerider_contributors > 0,
-            freerider_round=freerider_round,
-            freerider_noise=freerider_noise,
-            freerider_attack_type=freerider_attack_type,
-            malicious_activation_round=malicious_activation_round,
-            malicious_noise=malicious_noise,
-            malicious_attack_type=malicious_attack_type,
-            warn=True,
-        )
-
-
-        # only add dirichlet alpha to the product if the data distribution is dirichlet, otherwise set it to None
-        if data_distribution in {"dirichlet_split", "dirichlet_split_42"}:
-            for alpha in preset_config.dirichlet_alpha:
-                productVar.append((
-                    strategy,
-                    outlier_detection,
-                    freerider_round,
-                    freerider_noise,
-                    freerider_attack_type,
-                    malicious_activation_round,
-                    malicious_noise,
-                    malicious_attack_type,
-                    dataset,
-                    aggregation_rule,
-                    data_distribution,
-                    alpha,
-                    run_id
-                ))
-        else:
-            productVar.append((
-                strategy,
-                outlier_detection,
-                freerider_round,
-                freerider_noise,
-                freerider_attack_type,
-                malicious_activation_round,
-                malicious_noise,
-                malicious_attack_type,
-                dataset,
-                aggregation_rule,
-                data_distribution,
-                None,
-                run_id
-            ))
+            # malicious_attack_type,
+            dataset,
+            # aggregation_rule,
+            # data_distribution,
+            run_id
+        ))
 
     total = len(productVar)
     skipsCount = len(skips)
@@ -229,14 +228,14 @@ def main(author): # single preset
         outlier_detection,
         freerider_round,
         freerider_noise,
-        freerider_attack_type,
+        # freerider_attack_type,
         malicious_activation_round,
         malicious_noise,
-        malicious_attack_type,
+        # malicious_attack_type,
         dataset,
-        aggregation_rule,
-        data_distribution,
-        dirichlet_alpha,
+        # aggregation_rule,
+        # data_distribution,
+        # dirichlet_alpha,
         run_id
     ) in enumerate(productVar, start=1):
         progress_bar(i - 1, skipsCount, total)
@@ -252,13 +251,13 @@ def main(author): # single preset
             outlier_detection=outlier_detection,
             freerider_activation_round=freerider_round,
             freerider_noise=freerider_noise,
-            freerider_attack_type=freerider_attack_type,
+            # freerider_attack_type=freerider_attack_type,
             malicious_activation_round=malicious_activation_round,
             malicious_noise=malicious_noise,
-            malicious_attack_type=malicious_attack_type,
-            aggregation_rule=aggregation_rule,
-            data_distribution=data_distribution,
-            dirichlet_alpha=dirichlet_alpha,
+            # malicious_attack_type=malicious_attack_type,
+            # aggregation_rule=aggregation_rule,
+            # data_distribution=data_distribution,
+            # dirichlet_alpha=dirichlet_alpha,
             run_id=run_id
         )
 
@@ -272,13 +271,13 @@ def main(author): # single preset
         config.use_outlier_detection = outlier_detection
         config.freerider_start_round = freerider_round
         config.freerider_noise_scale = freerider_noise
-        config.freerider_attack_type = freerider_attack_type
+        # config.freerider_attack_type = freerider_attack_type
         config.malicious_start_round = malicious_activation_round
         config.malicious_noise_scale = malicious_noise
-        config.malicious_attack_type = malicious_attack_type
-        config.aggregation_rule = aggregation_rule
-        config.data_distribution = data_distribution
-        config.dirichlet_alpha = dirichlet_alpha
+        # config.malicious_attack_type = malicious_attack_type
+        # config.aggregation_rule = aggregation_rule
+        # config.data_distribution = data_distribution
+        # config.dirichlet_alpha = dirichlet_alpha
 
         path = getPath(config, time, dataset, preset, RESULTDATAFOLDER, run_id=run_id)
 
@@ -380,13 +379,13 @@ def parseSkips():
                 outlier_detection=m.group("outlierDetection") == "True",
                 freerider_activation_round=int(m.group("activationRound")),
                 freerider_noise=float(m.group("noise")),
-                freerider_attack_type=m.group("freeriderAttackType"),
+                # freerider_attack_type=m.group("freeriderAttackType"),
                 malicious_activation_round=int(mal_round) if mal_round != "None" else None,
                 malicious_noise=float(mal_noise) if mal_noise != "None" else None,
-                malicious_attack_type=m.group("maliciousAttackType"),
-                aggregation_rule=m.group("aggregationRule"),
-                data_distribution=m.group("dataDistribution"),
-                dirichlet_alpha=float(alpha) if alpha != "None" else None,
+                # malicious_attack_type=m.group("maliciousAttackType"),
+                # aggregation_rule=m.group("aggregationRule"),
+                # data_distribution=m.group("dataDistribution"),
+                # dirichlet_alpha=float(alpha) if alpha != "None" else None,
                 run_id=int(m.group("runId")) if m.group("runId") is not None else 0
             )
         )
@@ -430,19 +429,19 @@ def normalize_skip(skip: Skip):
     (
         freerider_round,
         freerider_noise,
-        freerider_attack_type,
+        # freerider_attack_type,
         malicious_activation_round,
         malicious_noise,
-        malicious_attack_type,
+        # malicious_attack_type,
     ) = resolve_attack_params(
         has_bad=has_bad,
         has_freerider=has_freerider,
         freerider_round=skip.freerider_activation_round,
         freerider_noise=skip.freerider_noise,
-        freerider_attack_type=skip.freerider_attack_type,
+        # freerider_attack_type=skip.freerider_attack_type,
         malicious_activation_round=skip.malicious_activation_round,
         malicious_noise=skip.malicious_noise,
-        malicious_attack_type=skip.malicious_attack_type,
+        # malicious_attack_type=skip.malicious_attack_type,
         warn=False,
     )
 
@@ -453,13 +452,13 @@ def normalize_skip(skip: Skip):
         outlier_detection=skip.outlier_detection,
         freerider_activation_round=freerider_round,
         freerider_noise=freerider_noise,
-        freerider_attack_type=freerider_attack_type,
+        # freerider_attack_type=freerider_attack_type,
         malicious_activation_round=malicious_activation_round,
         malicious_noise=malicious_noise,
-        malicious_attack_type=malicious_attack_type,
-        aggregation_rule=skip.aggregation_rule,
-        data_distribution=skip.data_distribution,
-        dirichlet_alpha=skip.dirichlet_alpha if skip.data_distribution in {"dirichlet_split", "dirichlet_split_42"} else None,
+        # malicious_attack_type=malicious_attack_type,
+        # aggregation_rule=skip.aggregation_rule,
+        # data_distribution=skip.data_distribution,
+        # dirichlet_alpha=skip.dirichlet_alpha if skip.data_distribution in {"dirichlet_split", "dirichlet_split_42"} else None,
         run_id=skip.run_id
     )
 

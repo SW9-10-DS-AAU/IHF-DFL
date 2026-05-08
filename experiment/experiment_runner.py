@@ -58,10 +58,7 @@ def run_experiment(dataset_name: str, experiment_config, _run_id: int,  writer: 
                                     experiment_config.malicious_noise_scale,
                                     experiment_config.force_merge_all,
                                     experiment_config.use_nobody_is_kicked,
-                                    experiment_config.data_distribution,
-                                    experiment_config.dirichlet_alpha,
-                                    experiment_config.malicious_attack_type,
-                                    experiment_config.freerider_attack_type,
+                                    # experiment_config.data_distribution,
                                     run_id)
 
     manager = Manager.FLManager(pytorch_model, True).init(
@@ -146,14 +143,14 @@ def run_experiment(dataset_name: str, experiment_config, _run_id: int,  writer: 
             "dataset": cfg.dataset,
             "freerider_start_round": cfg.freerider_start_round,
             "freerider_noise_scale": cfg.freerider_noise_scale,
-            "freerider_attack_type": cfg.freerider_attack_type,
+            # "freerider_attack_type": cfg.freerider_attack_type,
             "malicious_start_round": cfg.malicious_start_round,
             "malicious_noise_scale": cfg.malicious_noise_scale,
-            "malicious_attack_type": cfg.malicious_attack_type,
+            # "malicious_attack_type": cfg.malicious_attack_type,
             "force_merge_all": cfg.force_merge_all,
-            "aggregation_rule": cfg.aggregation_rule,
-            "data_distribution": cfg.data_distribution,
-            "dirichlet_alpha": cfg.dirichlet_alpha,
+            # "aggregation_rule": cfg.aggregation_rule,
+            # "data_distribution": cfg.data_distribution,
+            # "dirichlet_alpha": cfg.dirichlet_alpha,
         }
 
         logger.setup(total_experiment_time, hardware, config)

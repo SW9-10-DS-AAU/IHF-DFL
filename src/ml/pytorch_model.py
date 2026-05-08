@@ -19,7 +19,7 @@ from ml.participant import Participant
 debugging = sys.gettrace() is not None
 
 class PytorchModel:
-    def __init__(self, DATASET, _good_participants, _bad_participants, _freerider_participants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, use_nobody_is_kicked: bool = False, data_distribution : str = None, dirichlet_alpha: float = None, malicious_attack_type: str = "noise", freerider_attack_type: str = "noise", run_id: int = None):
+    def __init__(self, DATASET, _good_participants, _bad_participants, _freerider_participants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, use_nobody_is_kicked: bool = False, run_id: int = None):
         self.DATASET = DATASET
         if self.DATASET == "mnist":
             self.global_model = Net_MNIST().to(DEVICE)
@@ -39,15 +39,15 @@ class PytorchModel:
         self.BATCHSIZE = batchsize
         self.run_id = 0 if run_id is None else run_id
 
-        if data_distribution is None:
-            self.data_distribution = "random_split"
-        else:
-            self.data_distribution = data_distribution
-
-        if dirichlet_alpha is None:
-            self.dirichlet_alpha = 0.5
-        else:
-            self.dirichlet_alpha = dirichlet_alpha
+        # if data_distribution is None:
+        #     self.data_distribution = "random_split"
+        # else:
+        #     self.data_distribution = data_distribution
+        #
+        # if dirichlet_alpha is None:
+        #     self.dirichlet_alpha = 0.5
+        # else:
+        #     self.dirichlet_alpha = dirichlet_alpha
 
         self.train, self.val, self.test = data.load_data(self, _print=True)
         self.default_collateral = default_collateral
@@ -73,15 +73,15 @@ class PytorchModel:
             raise ValueError("malicious_noise_scale must be non-negative")
         self.malicious_noise_scale = malicious_noise_scale
 
-        valid_malicious_attack_types = {"noise", "byzantine"}
-        if malicious_attack_type is not None and malicious_attack_type not in valid_malicious_attack_types:
-            raise ValueError(f"malicious_attack_type must be one of {valid_malicious_attack_types}, got '{malicious_attack_type}'")
-        self.malicious_attack_type = malicious_attack_type
+        # valid_malicious_attack_types = {"noise", "byzantine"}
+        # if malicious_attack_type is not None and malicious_attack_type not in valid_malicious_attack_types:
+        #     raise ValueError(f"malicious_attack_type must be one of {valid_malicious_attack_types}, got '{malicious_attack_type}'")
+        # self.malicious_attack_type = malicious_attack_type
 
-        valid_freerider_attack_types = {"noise", "delta_weight"}
-        if freerider_attack_type is not None and freerider_attack_type not in valid_freerider_attack_types:
-            raise ValueError(f"freerider_attack_type must be one of {valid_freerider_attack_types}, got '{freerider_attack_type}'")
-        self.freerider_attack_type = freerider_attack_type
+        # valid_freerider_attack_types = {"noise", "delta_weight"}
+        # if freerider_attack_type is not None and freerider_attack_type not in valid_freerider_attack_types:
+        #     raise ValueError(f"freerider_attack_type must be one of {valid_freerider_attack_types}, got '{freerider_attack_type}'")
+        # self.freerider_attack_type = freerider_attack_type
 
         loss, accuracy = training.test(self.global_model,self.test,DEVICE)
 

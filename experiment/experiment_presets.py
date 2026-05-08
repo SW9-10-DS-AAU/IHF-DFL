@@ -29,13 +29,13 @@ class ExperimentPreset:
     contribution_score_strategy: list[str]
     freerider_noise_scale: list[float] | None
     freerider_start_round: list[int] | None
-    freerider_attack_type: list[str] | None
+    # freerider_attack_type: list[str] | None
     malicious_noise_scale: list[float] | None
     malicious_start_round: list[int] | None
-    malicious_attack_type: list[str] | None
-    aggregation_rule: list[str]
-    data_distribution: list[str]
-    dirichlet_alpha: list[float] | None
+    # malicious_attack_type: list[str] | None
+    # aggregation_rule: list[str]
+    # data_distribution: list[str]
+    # dirichlet_alpha: list[float] | None
     number_of_runs: int
 
 
@@ -71,13 +71,13 @@ PRESETS = {
         contribution_score_strategy=["loss_only"],
         freerider_noise_scale=[0],
         freerider_start_round=[2],
-        freerider_attack_type=["delta_weight"],
+        # freerider_attack_type=["delta_weight"],
         malicious_noise_scale=[0.1],
         malicious_start_round=[2],
-        malicious_attack_type=["byzantine"],
-        aggregation_rule=["binary_switch[positives_only,FedAVG]"],
-        data_distribution=["dirichlet_split"],
-        dirichlet_alpha=[0.5],
+        # malicious_attack_type=["byzantine"],
+        # aggregation_rule=["binary_switch[positives_only,FedAVG]"],
+        # data_distribution=["dirichlet_split"],
+        # dirichlet_alpha=[0.5],
         number_of_runs=3
     ),
 
@@ -92,13 +92,13 @@ PRESETS = {
         contribution_score_strategy=["loss_only", "accuracy_only", "accuracy_loss", "naive", "dotproduct"],
         freerider_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         freerider_start_round=[1, 3, 5],
-        freerider_attack_type=None,
+        # freerider_attack_type=None,
         malicious_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         malicious_start_round=[1, 3, 5],
-        malicious_attack_type=None,
-        aggregation_rule=["FedAVG"],
-        data_distribution=["random_split"],
-        dirichlet_alpha=None,
+        # malicious_attack_type=None,
+        # aggregation_rule=["FedAVG"],
+        # data_distribution=["random_split"],
+        # dirichlet_alpha=None,
         number_of_runs=1
     ),
 
@@ -113,13 +113,13 @@ PRESETS = {
         contribution_score_strategy=["dotproduct"],
         freerider_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         freerider_start_round=[1, 3, 5],
-        freerider_attack_type=None,
+        # freerider_attack_type=None,
         malicious_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         malicious_start_round=[1, 3, 5],
-        malicious_attack_type=None,
-        aggregation_rule=["FedAVG"],
-        data_distribution=["random_split"],
-        dirichlet_alpha=None,
+        # malicious_attack_type=None,
+        # aggregation_rule=["FedAVG"],
+        # data_distribution=["random_split"],
+        # dirichlet_alpha=None,
         number_of_runs=1
     ),
 
@@ -134,13 +134,13 @@ PRESETS = {
         contribution_score_strategy=["loss_only", "accuracy_only", "accuracy_loss", "naive", "dotproduct"],
         freerider_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         freerider_start_round=[1, 3, 5],
-        freerider_attack_type=None,
+        # freerider_attack_type=None,
         malicious_noise_scale=None,
         malicious_start_round=None,
-        malicious_attack_type=None,
-        aggregation_rule=["FedAVG"],
-        data_distribution=["random_split"],
-        dirichlet_alpha=None,
+        # malicious_attack_type=None,
+        # aggregation_rule=["FedAVG"],
+        # data_distribution=["random_split"],
+        # dirichlet_alpha=None,
         number_of_runs=1
     ),
 
@@ -155,227 +155,16 @@ PRESETS = {
         contribution_score_strategy=["dotproduct"],
         freerider_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         freerider_start_round=[1, 3, 5],
-        freerider_attack_type=None,
+        # freerider_attack_type=None,
         malicious_noise_scale=None,
         malicious_start_round=None,
-        malicious_attack_type=None,
-        aggregation_rule=["FedAVG"],
-        data_distribution=["random_split"],
-        dirichlet_alpha=None,
+        # malicious_attack_type=None,
+        # aggregation_rule=["FedAVG"],
+        # data_distribution=["random_split"],
+        # dirichlet_alpha=None,
         number_of_runs=1
     ),
 
-    "aggregation_rules_test_model_performance_mnist": FullPreset(
-        fork=True,
-        reward=int(1e18),
-        standard_buy_in=int(1e18),
-        min_buy_in=int(1e18),
-        max_buy_in=int(1e18),
-        first_round_fee=50,
-        punish_factor=3,
-        punish_factor_contrib=3,
-        force_merge_all=True,
-        use_nobody_is_kicked=True,
-        number_of_inactive_contributors=0,
-        number_of_good_contributors=4,
-        number_of_bad_contributors=1,
-        number_of_freerider_contributors=1,
-        minimum_rounds=5,
-        epochs=1,
-        batch_size=32,
-        use_outlier_detection=[True],
-        contribution_score_strategy=["loss_only", "accuracy_only"],
-        freerider_noise_scale=[0, 0.1, 1.0],
-        freerider_start_round=[1, 5, 10],
-        freerider_attack_type=None,
-        malicious_noise_scale=None,
-        malicious_start_round=None,
-        malicious_attack_type=None,
-        aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize"],
-        data_distribution=["random_split"],
-        dirichlet_alpha=None,
-        number_of_runs=1
-    ),
-
-    "aggregation_rules_test_model_performance_people_get_kicked_now_mnist": FullPreset(
-        fork=True,
-        reward=int(1e18),
-        standard_buy_in=int(1e18),
-        min_buy_in=int(1e18),
-        max_buy_in=int(1e18),
-        first_round_fee=50,
-        punish_factor=3,
-        punish_factor_contrib=3,
-        force_merge_all=False,
-        use_nobody_is_kicked=False,
-        number_of_inactive_contributors=0,
-        number_of_good_contributors=4,
-        number_of_bad_contributors=1,
-        number_of_freerider_contributors=1,
-        minimum_rounds=25,
-        epochs=1,
-        batch_size=32,
-        use_outlier_detection=[True],
-        contribution_score_strategy=["loss_only"],  # loss_only is the only loss'os
-        freerider_noise_scale=[0.01],               # 0.0
-        freerider_start_round=[1],                  # 1
-        freerider_attack_type=None,
-        malicious_noise_scale=[0.1],
-        malicious_start_round=None,
-        malicious_attack_type=None,
-        aggregation_rule=["GRS_aggregation", "FedAVG", "positives_only", "binary_switch", "plus_one_normalize"],
-        data_distribution=["random_split"],         # 1
-        dirichlet_alpha=None,
-        number_of_runs=1
-    ),
-
-    "aggregation_rules_test_model_performance_people_get_kicked_now_cifar": FullPreset(
-        fork=True,
-        reward=int(1e18),
-        standard_buy_in=int(1e18),
-        min_buy_in=int(1e18),
-        max_buy_in=int(1e18),
-        first_round_fee=50,
-        punish_factor=3,
-        punish_factor_contrib=3,
-        force_merge_all=False,
-        use_nobody_is_kicked=True,
-        number_of_inactive_contributors=0,
-        number_of_good_contributors=6,
-        number_of_bad_contributors=1,
-        number_of_freerider_contributors=1,
-        minimum_rounds=50,
-        epochs=25,
-        batch_size=128,
-        use_outlier_detection=[True],
-        contribution_score_strategy=["loss_only"],  # loss_only is the only loss'os
-        freerider_noise_scale=[0.01],               # 0.0
-        freerider_start_round=[1],                  # 1
-        freerider_attack_type=None,
-        malicious_noise_scale=[0.1],
-        malicious_start_round=None,
-        malicious_attack_type=None,
-        aggregation_rule=["binary_switch", "positives_only", "FedAVG", "plus_one_normalize"],
-        data_distribution=["random_split"],         # 1
-        dirichlet_alpha=None,
-        number_of_runs=1
-    ),
-
-    "data_distribution_mnist": FullPreset(
-        fork=True,
-        reward=int(1e18),
-        standard_buy_in=int(1e18),
-        min_buy_in=int(1e18),
-        max_buy_in=int(1e18),
-        first_round_fee=50,
-        punish_factor=3,
-        punish_factor_contrib=3,
-        force_merge_all=True,
-        use_nobody_is_kicked=True,
-        number_of_inactive_contributors=0,
-        number_of_good_contributors=4,
-        number_of_bad_contributors=1,
-        number_of_freerider_contributors=1,
-        minimum_rounds=50,
-        epochs=1,
-        batch_size=32,
-        use_outlier_detection=[True],
-        contribution_score_strategy=["loss_only"],  # loss_only is the only loss'os
-        freerider_noise_scale=[0.0],                # 0.0
-        freerider_start_round=[1],                  # 1
-        freerider_attack_type=None,
-        malicious_noise_scale=[0.1],
-        malicious_start_round=None,
-        malicious_attack_type=None,
-        aggregation_rule=["positives_only", "FedAVG", "plus_one_normalize"],
-        data_distribution=["random_split", "stratified_split", "dirichlet_split"],
-        dirichlet_alpha=[0.5, 5.0],
-        number_of_runs=1
-    ),
-
-    "freerider_noise_mnist": ExperimentPreset(
-        number_of_good_contributors=4,
-        number_of_bad_contributors=0,
-        number_of_freerider_contributors=2,
-        minimum_rounds=10,
-        epochs=1,
-        batch_size=32,
-        use_outlier_detection=[True],
-        contribution_score_strategy=["loss_only"],
-        freerider_noise_scale=[0.001, 0.01, 0.1, 1],
-        freerider_start_round=[3],
-        freerider_attack_type=["noise"],
-        malicious_noise_scale=None,
-        malicious_start_round=None,
-        malicious_attack_type=None,
-        aggregation_rule=["FedAVG"],
-        data_distribution=["random_split_42"],
-        dirichlet_alpha=None,
-        number_of_runs=3,
-    ),
-
-    "freerider_delta_weight_mnist": ExperimentPreset(
-        number_of_good_contributors=4,
-        number_of_bad_contributors=0,
-        number_of_freerider_contributors=2,
-        minimum_rounds=10,
-        epochs=1,
-        batch_size=32,
-        use_outlier_detection=[True],
-        contribution_score_strategy=["loss_only"],
-        freerider_noise_scale=[0.0],
-        freerider_start_round=[3],
-        freerider_attack_type=["delta_weight"],
-        malicious_noise_scale=None,
-        malicious_start_round=None,
-        malicious_attack_type=None,
-        aggregation_rule=["FedAVG"],
-        data_distribution=["random_split_42"],
-        dirichlet_alpha=None,
-        number_of_runs=3,
-    ),
-
-    "malicious_noise_mnist": ExperimentPreset(
-        number_of_good_contributors=4,
-        number_of_bad_contributors=2,
-        number_of_freerider_contributors=0,
-        minimum_rounds=10,
-        epochs=1,
-        batch_size=32,
-        use_outlier_detection=[True],
-        contribution_score_strategy=["loss_only"],
-        freerider_noise_scale=None,
-        freerider_start_round=None,
-        freerider_attack_type=None,
-        malicious_noise_scale=[0.01, 0.1, 1.0, 10.0],
-        malicious_start_round=[3],
-        malicious_attack_type=["noise"],
-        aggregation_rule=["FedAVG"],
-        data_distribution=["random_split_42"],
-        dirichlet_alpha=None,
-        number_of_runs=3,
-    ),
-
-    "malicious_byzantine_mnist": ExperimentPreset(
-        number_of_good_contributors=4,
-        number_of_bad_contributors=2,
-        number_of_freerider_contributors=0,
-        minimum_rounds=10,
-        epochs=1,
-        batch_size=32,
-        use_outlier_detection=[True],
-        contribution_score_strategy=["loss_only"],
-        freerider_noise_scale=None,
-        freerider_start_round=None,
-        freerider_attack_type=None,
-        malicious_noise_scale=[0.01, 0.1, 1.0, 10.0],
-        malicious_start_round=[3],
-        malicious_attack_type=["byzantine"],
-        aggregation_rule=["FedAVG"],
-        data_distribution=["random_split_42"],
-        dirichlet_alpha=None,
-        number_of_runs=3,
-    ),
 }
 
 

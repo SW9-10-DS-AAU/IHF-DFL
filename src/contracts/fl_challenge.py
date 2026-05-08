@@ -140,25 +140,25 @@ class FLChallenge(ConnectionHelper):
         return prev_accuracies, prev_losses
 
 
-    def get_all_n_prior_losses(self, n_rounds: int):
-        # returns whatever rounds are available, up to n_rounds. So:
-        #   - Round 0 or 1: returns empty list []
-        #   - Round 2: returns [round-1] — only one round back
-        #   - Round 3: returns [round-1, round-2]
-        #   - Round 5+: returns [round-1, round-2, round-3, round-4] (if n_rounds=4)
-        #
-        #   The caller checks the length and decides what to do — if fewer than 2 entries, not enough data to compute a trend, fall back to default
-        #   behavior.
-        assert n_rounds >= 2, "n_rounds must be at least 2 to compute a trend"
-        contract_round = self.model.functions.round().call()
-        losses_per_round = []
-
-        for steps_back in range(1, n_rounds + 1):
-            if contract_round >= steps_back:
-                losses = self.model.functions.getAllNPriorLosses(steps_back).call()
-                mad_losses = contribution.remove_outliers_mad(losses)
-                losses_per_round.append(np.mean(mad_losses))
-        return losses_per_round  # [round-1, round-2, ..., round-n]
+    # def get_all_n_prior_losses(self, n_rounds: int):
+    #     # returns whatever rounds are available, up to n_rounds. So:
+    #     #   - Round 0 or 1: returns empty list []
+    #     #   - Round 2: returns [round-1] — only one round back
+    #     #   - Round 3: returns [round-1, round-2]
+    #     #   - Round 5+: returns [round-1, round-2, round-3, round-4] (if n_rounds=4)
+    #     #
+    #     #   The caller checks the length and decides what to do — if fewer than 2 entries, not enough data to compute a trend, fall back to default
+    #     #   behavior.
+    #     assert n_rounds >= 2, "n_rounds must be at least 2 to compute a trend"
+    #     contract_round = self.model.functions.round().call()
+    #     losses_per_round = []
+    #
+    #     for steps_back in range(1, n_rounds + 1):
+    #         if contract_round >= steps_back:
+    #             losses = self.model.functions.getAllNPriorLosses(steps_back).call()
+    #             mad_losses = contribution.remove_outliers_mad(losses)
+    #             losses_per_round.append(np.mean(mad_losses))
+    #     return losses_per_round  # [round-1, round-2, ..., round-n]
 
 
     def get_reward_left(self): # pragma: no cover
@@ -640,14 +640,14 @@ class FLChallenge(ConnectionHelper):
 
 
     def print_round_summary(self, receipt, _current_round_no, contributors):
-        for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
-            user.temporary_grs_evaluation = None
+        # for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
+        #     user.temporary_grs_evaluation = None
 
         events = self.get_events(
             w3=self.w3,
             contract=self.model,
             receipt=receipt,
-            event_names=["EndRound", "Reward", "Punishment", "ContributionPunishment", "PassivePunishment", "Disqualification", "EvaluationVotingReward"]
+            event_names=["EndRound", "Reward", "Punishment", "ContributionPunishment", "PassivePunishment", "Disqualification"]
         )
 
         end_events = events["EndRound"]
@@ -656,7 +656,6 @@ class FLChallenge(ConnectionHelper):
         contrib_punish_events = events["ContributionPunishment"]
         passive_punish_events = events["PassivePunishment"]
         disqualify_events = events["Disqualification"]
-        eval_reward_events = events["EvaluationVotingReward"]
 
         # End of round summary
         # if end_events:
@@ -676,21 +675,21 @@ class FLChallenge(ConnectionHelper):
                 print(green(f"ROUND SCORE:     {args['roundScore']:,}"))
                 print(green(f"PUNISHED TARGET: {args['punishedTarget']}\n"))
 
-        if eval_reward_events:
-            # print(b("EVALUATION VOTING REWARDS DISTRIBUTION"))
-
-            user_map = {u.address: u for u in contributors}
-
-            for ev in eval_reward_events:
-                args = ev["args"]
-                # print(green(f"USER @          {args['user']}"))
-                # print(green(f"STAKED:         {args['staked']:,}"))
-                # print(green(f"REWARDED:       {args['rewarded']:,}"))
-                # print(green(f"NEW REPUTATION: {args['newReputation']:,}\n"))
-
-                user_map[args['user']].temporary_grs_evaluation = args['newReputation']
-
-            print("-----------------------------------------------------------------------------------\n")
+        # if eval_reward_events:
+        #     # print(b("EVALUATION VOTING REWARDS DISTRIBUTION"))
+        #
+        #     user_map = {u.address: u for u in contributors}
+        #
+        #     for ev in eval_reward_events:
+        #         args = ev["args"]
+        #         # print(green(f"USER @          {args['user']}"))
+        #         # print(green(f"STAKED:         {args['staked']:,}"))
+        #         # print(green(f"REWARDED:       {args['rewarded']:,}"))
+        #         # print(green(f"NEW REPUTATION: {args['newReputation']:,}\n"))
+        #
+        #         user_map[args['user']].temporary_grs_evaluation = args['newReputation']
+        #
+        #     print("-----------------------------------------------------------------------------------\n")
 
         # Rewarded users
         if reward_events:
@@ -764,23 +763,23 @@ class FLChallenge(ConnectionHelper):
             print("-----------------------------------------------------------------------------------\n")
 
         logging.log_punishments(self, events, _current_round_no)
-        logging.log_evaluation_voting_rewards(self, events, _current_round_no)
+        # logging.log_evaluation_voting_rewards(self, events, _current_round_no)
 
-        # round grs summary print
-        print(b(f"Round {_current_round_no} completed:"))
-        print(b("Round Rewards (per user):"))
-        print(b("{:>20}  {:>25} -> {:>25} -> {:>25}".format("address" + "...", "previous grs",
-                                                            "evaluation votes grs",
-                                                            "final grs")))
-        for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
-            user._globalrep.append(self.get_global_reputation_of_user(user.address))
-            eval_grs = user.temporary_grs_evaluation
-            if eval_grs is None:
-                j = "NO EVAL GRS (NOT MERGED)"
-            else:
-                j = f"{eval_grs:,.0f}"
-            i, k = user._globalrep[-2:]
-            print(b("{:>20}  {:>25,.0f} -> {:>25} -> {:>25,.0f}".format(user.address[0:16] + "...", i, j, k)))
+        # # round grs summary print
+        # print(b(f"Round {_current_round_no} completed:"))
+        # print(b("Round Rewards (per user):"))
+        # print(b("{:>20}  {:>25} -> {:>25} -> {:>25}".format("address" + "...", "previous grs",
+        #                                                     "evaluation votes grs",
+        #                                                     "final grs")))
+        # for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
+        #     user._globalrep.append(self.get_global_reputation_of_user(user.address))
+            # eval_grs = user.temporary_grs_evaluation
+            # if eval_grs is None:
+            #     j = "NO EVAL GRS (NOT MERGED)"
+            # else:
+            #     j = f"{eval_grs:,.0f}"
+            # i, k = user._globalrep[-2:]
+            # print(b("{:>20}  {:>25,.0f} -> {:>25} -> {:>25,.0f}".format(user.address[0:16] + "...", i, j, k)))
 
 
     def get_round_rewards(self, receipt): # pragma: no cover
@@ -892,11 +891,13 @@ class FLChallenge(ConnectionHelper):
                 warning_collector = []
 
 
-                # Ordering of the merge. If dotproduct we merge before contribution score
-                if self.experiment_config.contribution_score_strategy == "dotproduct":
-                    aggregation.the_merge(self.pytorch_model, _current_round, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, warning_collector=warning_collector)
-                    for msg in warning_collector:
-                        logging.log_warning(self, msg, round=_current_round)
+                # # Ordering of the merge. If dotproduct we merge before contribution score
+                # if self.experiment_config.contribution_score_strategy == "dotproduct":
+                #     aggregation.the_merge(self.pytorch_model, _current_round, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, warning_collector=warning_collector)
+                #     for msg in warning_collector:
+                #         logging.log_warning(self, msg, round=_current_round)
+
+                aggregation.the_merge(self.pytorch_model, _current_round, contributors, warning_collector=warning_collector)
 
                 print(b("\n▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n"))
                 contribution_score(self, contributors, _current_round)
@@ -904,12 +905,12 @@ class FLChallenge(ConnectionHelper):
                 receipt = self.close_round() # Increments round number by 1
                 _current_round = self.pytorch_model.round - 1 # Minus 1 since close_round increments. Reassign _current_round
 
-                # If not dotproduct, we calculate contribution score before the merge
-                if not self.experiment_config.contribution_score_strategy == "dotproduct":
-                    avg_losses = self.get_all_n_prior_losses(3)
-                    aggregation.the_merge(self.pytorch_model, _current_round, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_losses=avg_losses, warning_collector=warning_collector)
-                    for msg in warning_collector:
-                        logging.log_warning(self, msg, round=_current_round)
+                # # If not dotproduct, we calculate contribution score before the merge
+                # if not self.experiment_config.contribution_score_strategy == "dotproduct":
+                #     avg_losses = self.get_all_n_prior_losses(3)
+                #     aggregation.the_merge(self.pytorch_model, _current_round, contributors, aggregation_rule=self.experiment_config.aggregation_rule, merge_weight_collector=users_weight_collector, agg_switch_collector=agg_switch_collector, avg_prior_losses=avg_losses, warning_collector=warning_collector)
+                #     for msg in warning_collector:
+                #         logging.log_warning(self, msg, round=_current_round)
 
                 if receipt is not None:
                     self.print_round_summary(receipt, _current_round, contributors)
