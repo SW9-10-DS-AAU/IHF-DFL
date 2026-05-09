@@ -46,7 +46,7 @@ def test_finalize_returns_all_tables():
     tables = logger.finalize()
     assert set(tables.keys()) == {
         "global", "users", "votes", "receipts", "contributions", "warnings",
-        "punishments", "evaluation_rewards", "evaluation_votes",
+        "punishments",
     }
 
 

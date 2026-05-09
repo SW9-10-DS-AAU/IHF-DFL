@@ -17,8 +17,8 @@ class RunData:
     contributions:      pd.DataFrame
     warnings:           pd.DataFrame
     punishments:        pd.DataFrame
-    evaluation_rewards: pd.DataFrame
-    evaluation_votes:   pd.DataFrame
+    # evaluation_rewards: pd.DataFrame
+    # evaluation_votes:   pd.DataFrame
 
 
 def load_run(path: Path) -> RunData:
@@ -38,8 +38,8 @@ def load_run(path: Path) -> RunData:
         contributions=      tables.get("contributions",       pd.DataFrame()),
         warnings=           tables.get("warnings",            pd.DataFrame()),
         punishments=        tables.get("punishments",         pd.DataFrame()),
-        evaluation_rewards= tables.get("evaluation_rewards",  pd.DataFrame()),
-        evaluation_votes=   tables.get("evaluation_votes",    pd.DataFrame()),
+        # evaluation_rewards= tables.get("evaluation_rewards",  pd.DataFrame()),
+        # evaluation_votes=   tables.get("evaluation_votes",    pd.DataFrame()),
     )
 
 

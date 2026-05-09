@@ -88,6 +88,6 @@ def minimal_run():
         contributions=pd.DataFrame(),
         warnings=pd.DataFrame(),
         punishments=pd.DataFrame(),
-        evaluation_rewards=pd.DataFrame(),
-        evaluation_votes=pd.DataFrame(),
+        # evaluation_rewards=pd.DataFrame(),
+        # evaluation_votes=pd.DataFrame(),
     )
