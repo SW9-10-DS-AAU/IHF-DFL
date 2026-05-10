@@ -64,47 +64,6 @@ def agg_global_accuracy_loss_by_round(merged_global: pd.DataFrame) -> pd.DataFra
     return agg
 
 
-# def agg_accuracy_by_strategy(merged_global: pd.DataFrame) -> pd.DataFrame:
-#     """
-#     Mean and std of global_accuracy grouped by [contribution_score_strategy, round].
-#
-#     Returns DataFrame with columns: contribution_score_strategy, round,
-#     accuracy_mean, accuracy_std.
-#     """
-#     agg = (
-#         merged_global
-#         .groupby(["contribution_score_strategy", "round"])
-#         .agg(
-#             accuracy_mean=("global_accuracy", "mean"),
-#             accuracy_std= ("global_accuracy", "std"),
-#         )
-#         .reset_index()
-#     )
-#     return agg
-
-
-# def agg_final_round_accuracy_by_strategy(merged_global: pd.DataFrame) -> pd.DataFrame:
-#     """
-#     Final-round accuracy per run, one row per (experiment_id, strategy).
-#     Suitable for box plots.
-#
-#     Returns DataFrame with columns: contribution_score_strategy, experiment_id,
-#     final_accuracy.
-#     """
-#     # Pick the maximum round per experiment
-#     max_rounds = (
-#         merged_global
-#         .groupby("experiment_id")["round"]
-#         .max()
-#         .reset_index()
-#         .rename(columns={"round": "max_round"})
-#     )
-#     merged = merged_global.merge(max_rounds, on="experiment_id")
-#     final = merged[merged["round"] == merged["max_round"]].copy()
-#     final = final.rename(columns={"global_accuracy": "final_accuracy"})
-#     return final[["contribution_score_strategy", "experiment_id", "final_accuracy"]]
-
-
 def _require_consistent_activation(merged_users: pd.DataFrame, metadata: pd.DataFrame) -> None:
     """Raise if loaded experiments have different activation rounds."""
     eids = merged_users["experiment_id"].unique()
@@ -221,68 +180,6 @@ def grs_by_user(merged_users: pd.DataFrame) -> pd.DataFrame:
     # Role: Just fetch from first value on user
 
     return df[["experiment_id", "grs", "user_id", "role", "round"]].sort_values("round")
-
-
-def global_acc_by_aggregation_strategy(acc_over_agg: pd.DataFrame, metadata: pd.DataFrame) -> pd.DataFrame:
-    """
-    Two-stage aggregation of global accuracy by aggregation rule and round.
-
-    Stage 1: mean accuracy per (experiment_id, aggregation_rule, round).
-    Stage 2: mean and std of those per-experiment means across runs.
-
-    Returns DataFrame with columns: aggregation_rule, round,
-    accuracy_mean, accuracy_std.
-    """
-    _require_nonempty(acc_over_agg, "acc_over_agg")
-    df = _with_meta(acc_over_agg, metadata, ["aggregation_rule"])
-    per_experiment = (
-        df
-        .groupby(["experiment_id", "aggregation_rule", "round"])
-        .agg(accuracy=("objective_global_accuracy", "mean"))
-        .reset_index()
-    )
-    agg = (
-        per_experiment
-        .groupby(["aggregation_rule", "round"])
-        .agg(
-            accuracy_mean=("accuracy", "mean"),
-            accuracy_std= ("accuracy", "std"),
-        )
-        .reset_index()
-    )
-    return agg
-
-
-def global_loss_by_aggregation_strategy(loss_over_agg: pd.DataFrame, metadata: pd.DataFrame) -> pd.DataFrame:
-    """
-    Two-stage aggregation of global loss by aggregation rule and round.
-
-    Stage 1: mean loss per (experiment_id, aggregation_rule, round).
-    Stage 2: mean and std of those per-experiment means across runs.
-
-    Returns DataFrame with columns: aggregation_rule, round,
-    loss_mean, loss_std.
-    """
-    _require_nonempty(loss_over_agg, "loss_over_agg")
-    df = _with_meta(loss_over_agg, metadata, ["aggregation_rule"])
-    per_experiment = (
-        df
-        .groupby(["experiment_id", "aggregation_rule", "round"])
-        .agg(loss=("objective_global_loss", "mean"))
-        .reset_index()
-    )
-    agg = (
-        per_experiment
-        .groupby(["aggregation_rule", "round"])
-        .agg(
-            loss_mean=("loss", "mean"),
-            loss_std= ("loss", "std"),
-        )
-        .reset_index()
-    )
-    return agg
-
-
 
 
 def agg_contribution_score_by_role(merged_users: pd.DataFrame, merged_contributions: pd.DataFrame, metadata: pd.DataFrame) -> pd.DataFrame:
@@ -479,67 +376,4 @@ def agg_round_kicked_by_strategy(
 
     return agg[["contribution_score_strategy", "role",
                 "mean_round_kicked", "low_err", "high_err"]]
-
-
-
-def agg_merge_weights_by_behavior(users: pd.DataFrame) -> pd.DataFrame:
-    """
-    Display merge weights for each round out of x axis and merge_weight out of y axis.
-    Average across values
-    If no merge weight. Then not merged show box with stats: Total round, number of rounds merged, percentage of these.
-    Show this for each behaviour (what they currently are.)
-    """
-
-    per_behavior = (
-        users.groupby(["experiment_id", "behavior", "round"])
-        .agg(merge_weight=("merge_weight", "mean"))
-        .reset_index()
-    )
-
-    agg = (
-        per_behavior
-        .groupby(["behavior", "round"])
-        .agg(
-            weight_mean=("merge_weight", "mean"),
-            weight_std= ("merge_weight", "std"),
-        )
-        .reset_index()
-    )
-
-    return agg
-
-
-def agg_merge_stats_by_behavior(users: pd.DataFrame) -> pd.DataFrame:
-    # Exclude round 0 (initialization round — no merging occurs)
-    training = users[users["round"] > 0]
-
-    # Count distinct rounds per (behavior, experiment) then sum across experiments
-    # so that rounds in different experiments are not collapsed into one.
-    total = (
-        training.groupby(["behavior", "experiment_id"])["round"]
-        .nunique()
-        .groupby("behavior")
-        .sum()
-        .reset_index(name="total_rounds")
-    )
-    rounds_merged = (
-        training[training["merged"] == False]
-        .groupby(["behavior", "experiment_id"])["round"]
-        .nunique()
-        .groupby("behavior")
-        .sum()
-        .reset_index(name="rounds_merged")
-    )
-    user_counts = (
-        training.groupby("behavior")["user_id"]
-        .nunique()
-        .reset_index(name="user_count")
-    )
-
-    total = total.merge(rounds_merged, on="behavior", how="left")
-    total = total.merge(user_counts, on="behavior", how="left")
-    total["rounds_merged"] = total["rounds_merged"].fillna(0).astype(int)
-    total["pct_merged"] = total["rounds_merged"] / total["total_rounds"] * 100
-    return total
-
 

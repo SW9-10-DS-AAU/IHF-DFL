@@ -303,69 +303,6 @@ def plot_grs_by_user(
     return fig
 
 
-def plot_global_acc_by_aggregation_strategy(acc_by_strategy: pd.DataFrame) -> plt.Figure:
-    """
-    One line per aggregation rule, mean accuracy over rounds with ±1 std shading.
-
-    Expects columns: aggregation_rule, round, accuracy_mean, accuracy_std.
-    """
-    fig, ax = plt.subplots(figsize=(12, 6))
-
-    for strategy, group in acc_by_strategy.groupby("aggregation_rule"):
-        color = STRATEGY_COLORS.get(strategy)
-        group = group.sort_values("round")
-        ax.plot(group["round"], group["accuracy_mean"], label=strategy, color=color, linewidth=2)
-        if "accuracy_std" in group.columns:
-            ax.fill_between(
-                group["round"],
-                group["accuracy_mean"] - group["accuracy_std"],
-                group["accuracy_mean"] + group["accuracy_std"],
-                alpha=0.15, color=color,
-            )
-
-    ax.set_xlabel("Round")
-    ax.set_ylabel("Global Accuracy (%)")
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    ax.legend(title="Agg. Strategy")
-    ax.grid(True, alpha=0.3)
-    fig.tight_layout()
-
-    return fig
-
-
-
-def plot_global_loss_by_aggregation_strategy(loss_by_strategy: pd.DataFrame) -> plt.Figure:
-    """
-    One line per aggregation rule, mean loss over rounds with ±1 std shading.
-
-    Expects columns: aggregation_rule, round, loss_mean, loss_std.
-    """
-    fig, ax = plt.subplots(figsize=(9, 4))
-
-    for strategy, group in loss_by_strategy.groupby("aggregation_rule"):
-        color = STRATEGY_COLORS.get(strategy)
-        group = group.sort_values("round")
-        ax.plot(group["round"], group["loss_mean"], label=strategy, color=color, linewidth=2)
-        if "loss_std" in group.columns:
-            ax.fill_between(
-                group["round"],
-                group["loss_mean"] - group["loss_std"],
-                group["loss_mean"] + group["loss_std"],
-                alpha=0.15, color=color,
-            )
-
-    ax.set_xlabel("Round")
-    ax.set_ylabel("Global Loss")
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    ax.legend(title="Agg. Strategy")
-    ax.grid(True, alpha=0.3)
-    fig.tight_layout()
-
-    return fig
-
-
-
-
 def plot_gas_cost_by_tx_type(agg_gas: pd.DataFrame) -> plt.Figure:
     """
     Grouped bar chart of mean gas used per transaction type, one bar group per
@@ -497,68 +434,6 @@ def plot_round_kicked_by_strategy(
     ax.set_axisbelow(True)
     fig.tight_layout()
     return fig
-
-
-
-def plot_merge_weights_by_behavior(agg_weights: pd.DataFrame, stats: pd.DataFrame | None = None) -> plt.Figure:
-    """
-    One line per behavior, average merge weight over rounds with ±1 std shading.
-    Rounds where a behavior was never merged will have no point (NaN weight_mean).
-
-    Expects agg_weights columns: behavior, round, weight_mean, weight_std.
-    Expects stats columns: behavior, total_rounds, rounds_merged, pct_merged, users_merged.
-    """
-    fig, ax = plt.subplots(figsize=(9, 4))
-
-    for behavior, group in agg_weights.groupby("behavior"):
-        color = BEHAVIOR_COLORS.get(behavior, None)
-        group = group.sort_values("round")
-        ax.plot(group["round"], group["weight_mean"],
-                label=ROLE_LABELS.get(behavior, behavior), color=color, linewidth=2)
-        if "weight_std" in group.columns:
-            ax.fill_between(
-                group["round"],
-                group["weight_mean"] - group["weight_std"],
-                group["weight_mean"] + group["weight_std"],
-                alpha=0.15, color=color,
-            )
-
-    ax.set_xlabel("Round")
-    ax.set_ylabel("Merge Weight")
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    ax.grid(True, alpha=0.3)
-
-    if stats is not None:
-        stats_by_behavior = stats.set_index("behavior")
-        handles, labels = [], []
-        for behavior in agg_weights["behavior"].unique():
-            color = BEHAVIOR_COLORS.get(behavior, "black")
-            role  = ROLE_LABELS.get(behavior, behavior)
-            handle = Line2D([0], [0], color=color, linewidth=2)
-            if behavior in stats_by_behavior.index:
-                row    = stats_by_behavior.loc[behavior]
-                merged = int(row["rounds_merged"]) if pd.notna(row["rounds_merged"]) else 0
-                total  = int(row["total_rounds"])
-                users  = int(row["user_count"])
-                label  = f"{role:<14}  {merged:>2}/{total:<2} rounds  ·  {users} user(s)"
-            else:
-                label = role
-            handles.append(handle)
-            labels.append(label)
-        ax.legend(
-            handles, labels,
-            title="Not-merged by behavior",
-            loc="lower right",
-            fontsize=8,
-            prop={"family": "monospace", "size": 8},
-            framealpha=0.9,
-            edgecolor="#cccccc",
-        )
-    else:
-        ax.legend(title="Behavior")
-    fig.tight_layout()
-    return fig
-
 
 
 def save_figure(fig: plt.Figure, path, dpi: int = 150):
