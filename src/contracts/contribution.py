@@ -97,7 +97,7 @@ def print_shapley_warnings():
 
 # ===== Strategy implementations =====
 
-def _calculate_scores_dotproduct(challenge, users): # pragma: no cover
+def _calculate_scores_dotproduct(challenge, users, _current_round_no): # pragma: no cover
     """
     MAD-based scoring: robust per-weight outlier filtering before scoring.
     """
