@@ -128,7 +128,7 @@ def _calculate_scores_dotproduct(challenge, users): # pragma: no cover
     return scores
 
 
-def _calculate_scores_naive(challenge, users): # pragma: no cover
+def _calculate_scores_naive(challenge, users, _current_round_no): # pragma: no cover
     """
     Equal-share scoring: everyone contributing gets 1 / num_mergers.
     """  # unused; included for signature consistency
@@ -140,7 +140,7 @@ def _calculate_scores_naive(challenge, users): # pragma: no cover
     return scores
 
 
-def _calculate_scores_accuracy_loss(challenge, users, mad_threshold=1.1): # pragma: no cover
+def _calculate_scores_accuracy_loss(challenge, users, _current_round_no, mad_threshold=1.1): # pragma: no cover
     """
     Accuracy-Loss-based scoring: use accuracy and loss directly as contribution score.
     """
