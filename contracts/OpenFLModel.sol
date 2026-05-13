@@ -732,6 +732,9 @@ contract OpenFLModel {
             prev_loss >= 0 && prev_loss <= 65535,
             "PREVIOUS LOSS NOT BETWEEN 0 AND 65535 in submitFeedbackBytesAndAccuraciesLosses"
         );
+        prev_accs[round][msg.sender] = prev_acc;
+        prev_losses[round][msg.sender] = prev_loss;
+
         // EXACT same for-loop as fallback
         for (uint i = 0; i < ads.length; i++) {
             if (!testing) {
