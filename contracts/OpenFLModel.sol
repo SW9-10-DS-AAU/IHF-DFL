@@ -63,6 +63,7 @@ contract OpenFLModel {
     mapping(uint8 => mapping(address => int256)) public contributionScore; // round => user => score
 //    mapping(uint8 => mapping(address => uint256)) public evaluationScore; // round => user => score
 //    mapping(uint8 => mapping(address => bool)) public hasSubmittedEvaluationScore; // round => user => has submitted evaluation score
+    mapping(uint8 => mapping(address => bool)) public hasSubmittedContributionScore; // round => user => has submitted contribution score
     mapping(uint8 => uint16) public nrOfContributionScores; // round => number of submissions
 //    mapping(uint8 => uint16) public nrOfEvaluationScores; // round => number of submissions
 
@@ -238,6 +239,7 @@ contract OpenFLModel {
         );
     }
 
+    // NOTE: Self-evaluation not blocked in loss submission path! Will give error if setTesting=True
     function setTesting(bool _testing) external {
         testing = _testing;
     }
@@ -341,7 +343,7 @@ contract OpenFLModel {
     function submitContributionScore(int256 contribScore) external {
         require(users[msg.sender].isRegistered, "User not registered");
         require(
-            contributionScore[round][msg.sender] == 0,
+            hasSubmittedContributionScore[round][msg.sender] == false,
             "Contribution Score already submitted"
         );
 //        require(
@@ -350,6 +352,7 @@ contract OpenFLModel {
 //        );
 
         contributionScore[round][msg.sender] = contribScore;
+        hasSubmittedContributionScore[round][msg.sender] == true;
         nrOfContributionScores[round] += 1;
 
 //        evaluationScore[round][msg.sender] = evalScore;
@@ -609,6 +612,7 @@ contract OpenFLModel {
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             if (_isEligibleForRewards(user) && contributionScore[round][user.addr] >= 0) {
+                require(hasSubmittedContributionScore[round][user.addr], "User (who is eligible for rewards) has not submitted contribution score");
                 uint personalReward = (reward * uint(user.weightedContribScore)) / positiveSumOfWeightedContribScore;
                 user.globalReputationScore += personalReward;
 
