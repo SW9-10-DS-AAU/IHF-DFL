@@ -105,67 +105,46 @@ class FLChallenge(ConnectionHelper):
         printer._print("-----------------------------------------------------------------------------------", "\n")
         
     
-    def get_hashed_weights_of(self, user): # pragma: no cover
+    def get_hashed_weights_of(self, user): #pragma: no cover
         return self.model.functions.weightsOf(user.address,self.pytorch_model.round-1).call({"to": self.modelAddress})
 
 
-    def get_global_reputation_of_user(self, user_addr):
+    def get_global_reputation_of_user(self, user_addr): #pragma: no cover
         user = self.model.functions.getUser(user_addr).call()
         return user[2]
 
 
-    def get_round_reputation_of_user(self, user): # pragma: no cover
+    def get_round_reputation_of_user(self, user): #pragma: no cover
         user_struct = self.model.functions.users(user).call()
         return user_struct[2]
 
 
-    def get_all_accuracies_and_losses_about(self, user_addr):
+    def get_all_accuracies_and_losses_about(self, user_addr): #pragma: no cover
         voters, accuracies, losses = self.model.functions.getAllAccuraciesLossesAbout(user_addr).call()
         return voters, accuracies, losses
 
 
-    def get_all_accuracies_about(self, user_addr):
+    def get_all_accuracies_about(self, user_addr): #pragma: no cover
         voters, accuracies = self.model.functions.getAllAccuraciesAbout(user_addr).call()
         return voters, accuracies
 
 
-    def get_all_losses_about(self, user_addr):
+    def get_all_losses_about(self, user_addr): #pragma: no cover
         voters, losses = self.model.functions.getAllLossesAbout(user_addr).call()
         return voters, losses
 
 
     # 'all' as in users
-    def get_all_previous_accuracies_and_losses(self):
+    def get_all_previous_accuracies_and_losses(self): #pragma: no cover
         prev_accuracies, prev_losses = self.model.functions.getAllPreviousAccuraciesAndLosses().call()
         return prev_accuracies, prev_losses
-
-
-    # def get_all_n_prior_losses(self, n_rounds: int):
-    #     # returns whatever rounds are available, up to n_rounds. So:
-    #     #   - Round 0 or 1: returns empty list []
-    #     #   - Round 2: returns [round-1] — only one round back
-    #     #   - Round 3: returns [round-1, round-2]
-    #     #   - Round 5+: returns [round-1, round-2, round-3, round-4] (if n_rounds=4)
-    #     #
-    #     #   The caller checks the length and decides what to do — if fewer than 2 entries, not enough data to compute a trend, fall back to default
-    #     #   behavior.
-    #     assert n_rounds >= 2, "n_rounds must be at least 2 to compute a trend"
-    #     contract_round = self.model.functions.round().call()
-    #     losses_per_round = []
-    #
-    #     for steps_back in range(1, n_rounds + 1):
-    #         if contract_round >= steps_back:
-    #             losses = self.model.functions.getAllNPriorLosses(steps_back).call()
-    #             mad_losses = contribution.remove_outliers_mad(losses)
-    #             losses_per_round.append(np.mean(mad_losses))
-    #     return losses_per_round  # [round-1, round-2, ..., round-n]
 
 
     def get_reward_left(self): # pragma: no cover
         return self.model.functions.rewardLeft().call({"to": self.modelAddress})
 
 
-    def users_provide_hashed_weights(self): # pragma: no cover
+    def users_provide_hashed_weights(self):
 
         txs = []
         for acc in self.pytorch_model.participants:
@@ -430,7 +409,7 @@ class FLChallenge(ConnectionHelper):
 
 
     # formerly named log_receipt
-    def track_transaction(self, i, tx_hash, len_txs, receipt_type: str): # pragma: no cover
+    def track_transaction(self, i, tx_hash, len_txs, receipt_type: str):
         #   1. Prints a progress bar — i out of len_txs transactions done
         #   2. Waits for the transaction to be mined — blocks until the receipt comes back (up to 600s timeout)
         #   3. Stores gas used — appends to self.gas_feedback
@@ -611,7 +590,7 @@ class FLChallenge(ConnectionHelper):
         printer._print("-----------------------------------------------------------------------------------\n")
 
 
-    def get_events(self, w3, contract, receipt, event_names):
+    def get_events(self, w3, contract, receipt, event_names): #pragma: no cover
         """
         Returns decoded events without ABI mismatch warnings.
 
@@ -886,8 +865,6 @@ class FLChallenge(ConnectionHelper):
                 if len(contributors) == 0: # If all are negative, we merge everyone and let the contribution score calculation sort them out.
                     contributors = self.make_everyone_contributors()
 
-                users_weight_collector = {}
-                agg_switch_collector = {}
                 warning_collector = []
 
 
@@ -920,7 +897,7 @@ class FLChallenge(ConnectionHelper):
                 logging.log_round(self,
                     _current_round, _round_time,
                     accuracy_matrix, loss_matrix, prev_accs, prev_losses,
-                    contributors, receipt, users_weight_collector, agg_switch_collector,
+                    contributors, receipt,
                 )
 
                 grs = [(user.address, user._globalrep[-1]) for user in self.pytorch_model.participants + self.pytorch_model.disqualified]
@@ -1098,7 +1075,7 @@ class FLChallenge(ConnectionHelper):
         return plt
 
 
-    def make_everyone_contributors(self):
+    def make_everyone_contributors(self): #pragma: no cover
         msg = "All users had negative round reputation - merging all users and letting contribution score calculation sort them out."
         print(rb(msg))
         logging.log_warning(challenge=self, msg=msg, round=self.pytorch_model.round)

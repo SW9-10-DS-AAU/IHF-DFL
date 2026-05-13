@@ -54,7 +54,7 @@ class PytorchModel:
         self.max_collateral = max_collateral
         self.force_merge_all = force_merge_all
         self.use_nobody_is_kicked = use_nobody_is_kicked
-        self.has_switched = False
+        # self.has_switched = False
 
 
         if freerider_noise_scale is not None and freerider_noise_scale < 0:
@@ -90,8 +90,8 @@ class PytorchModel:
         self.loss = [loss]
 
         self.round = 1
-        self.previous_global_model = None
-        self.two_previous_global_model = None
+        # self.previous_global_model = None
+        # self.two_previous_global_model = None
         print("===================================================================================")
         print("Pytorch Model created:\n")
         print(str(self.global_model))

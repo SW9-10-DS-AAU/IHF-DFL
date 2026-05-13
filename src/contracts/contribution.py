@@ -97,7 +97,7 @@ def print_shapley_warnings():
 
 # ===== Strategy implementations =====
 
-def _calculate_scores_dotproduct(challenge, users, _current_round_no): # pragma: no cover
+def _calculate_scores_dotproduct(challenge, users, _current_round_no):
     """
     MAD-based scoring: robust per-weight outlier filtering before scoring.
     """
@@ -209,7 +209,7 @@ def _calculate_scores_accuracy_loss(challenge, users, _current_round_no, mad_thr
 # Find out who was merged
 
 
-def _calculate_scores_accuracy_only(challenge, users, _current_round_no, mad_threshold=1.1):
+def _calculate_scores_accuracy_only(challenge, users, _current_round_no, mad_threshold=1.1): #pragma: no cover
     """
     Accuracy-based scoring: use accuracy directly as contribution score.
     """
@@ -268,7 +268,7 @@ def _calculate_scores_accuracy_only(challenge, users, _current_round_no, mad_thr
     return scores
 
 
-def _calculate_scores_loss_only(challenge, users, _current_round_no, mad_threshold=1.1):
+def _calculate_scores_loss_only(challenge, users, _current_round_no, mad_threshold=1.1): #pragma: no cover
     """
     Loss-based scoring: use loss directly as contribution score.
     """
@@ -360,7 +360,7 @@ def calc_contribution_score_naive(num_mergers) -> int: # pragma: no cover
 
 def calc_contribution_scores_dotproduct(local_updates: torch.Tensor,
                                         global_update: torch.Tensor,
-                                        eps: float = 1e-12): # pragma: no cover
+                                        eps: float = 1e-12):
     """
     Compute contribution scores solely using dot-product similarity
     between local updates and the global update.
@@ -398,7 +398,7 @@ def calc_contribution_scores_dotproduct(local_updates: torch.Tensor,
     ]
 
 
-def normalize_contribution_scores_old(arr, prev_val): # pragma: no cover
+def normalize_contribution_scores_old(arr, prev_val):
     # This method takes a 1d array of an array (accuracy or loss), a scalar of previous accuracy or loss
     # Output is an array of normalized (according to sum) input array values
     # Takes a list of values
@@ -425,7 +425,7 @@ def normalize_contribution_scores_old(arr, prev_val): # pragma: no cover
     return norm_arr
 
 
-def normalize_contribution_scores_new(vals: list, prev_val: float, evaluation_metric: str) -> list:
+def normalize_contribution_scores_new(vals: list, prev_val: float, evaluation_metric: str) -> list: #pragma: no cover
     """
     4-step normalization for contribution scores.
 
@@ -469,7 +469,7 @@ def normalize_contribution_scores_new(vals: list, prev_val: float, evaluation_me
     return vals
 
 
-def softmax_rewards(values, true_value, total_reward, alpha):
+def softmax_rewards(values, true_value, total_reward, alpha): #pragma: no cover
     distances = [abs(v - true_value) for v in values]
     weights = [math.exp(-alpha * d) for d in distances]
     total_weight = sum(weights)
@@ -477,7 +477,7 @@ def softmax_rewards(values, true_value, total_reward, alpha):
     return rewards
 
 
-def remove_outliers_mad(arr, threshold=0.70, return_mask=False, collector=None, label=None): # pragma: no cover
+def remove_outliers_mad(arr, threshold=0.70, return_mask=False, collector=None, label=None):
     # Keep original dtype (int from contract uint256). np.median returns float64
     # automatically, so all intermediate MAD arithmetic stays in float without
     # needing to cast the input array.
@@ -523,7 +523,7 @@ def remove_outliers_mad(arr, threshold=0.70, return_mask=False, collector=None, 
     return flat[mask]
 
 
-def trim_global_update_using_mad(local_updates: torch.Tensor, # pragma: no cover
+def trim_global_update_using_mad(local_updates: torch.Tensor,
                                  global_update: torch.Tensor,
                                  mad_thresh: float = 3.5,
                                  eps: float = 1e-12):

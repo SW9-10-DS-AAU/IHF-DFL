@@ -155,11 +155,11 @@ def the_merge(pm, _current_round_no, _users, warning_collector=None):
     print("-----------------------------------------------------------------------------------\n")
 
 
-def models_are_equal(sd_a, sd_b):
-    # Changed from model objects to state_dict snapshots, so compare mapping keys/tensors directly.
-    if sd_a.keys() != sd_b.keys():
-        return False
-    return all(torch.equal(sd_a[k], sd_b[k]) for k in sd_a)
+# def models_are_equal(sd_a, sd_b):
+#     # Changed from model objects to state_dict snapshots, so compare mapping keys/tensors directly.
+#     if sd_a.keys() != sd_b.keys():
+#         return False
+#     return all(torch.equal(sd_a[k], sd_b[k]) for k in sd_a)
 
 
 # def invoke_partial_switch(pm, users_contrib_scores, switch_type: str, func1: Callable, func2: Callable, avg_prior_losses=None, agg_switch_collector=None):

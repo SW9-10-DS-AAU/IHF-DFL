@@ -69,11 +69,10 @@ def log_round_zero(challenge):
             round_reputation_assigned=None,
             reward_delta=None,
             merged=None,
-            merge_weight=None
         )
 
 
-def log_global_round(challenge, round, round_time, punishment_pool, agg_switch_collector=None):
+def log_global_round(challenge, round, round_time, punishment_pool):
     if challenge._logger is None:
         return
     challenge._logger.global_round(
@@ -83,16 +82,12 @@ def log_global_round(challenge, round, round_time, punishment_pool, agg_switch_c
         obj_global_loss=challenge.pytorch_model.loss[-1] if challenge.pytorch_model.loss else 0,
         reward_pool=challenge._reward_balance[-1],
         punishment_pool=punishment_pool,
-        agg_func_1=agg_switch_collector.get("func_1") if agg_switch_collector else None,
-        agg_weight_1=agg_switch_collector.get("weight_1") if agg_switch_collector else None,
-        agg_func_2=agg_switch_collector.get("func_2") if agg_switch_collector else None,
-        agg_weight_2=agg_switch_collector.get("weight_2") if agg_switch_collector else None,
     )
 
 
 def log_round(challenge, current_round, round_time,
                accuracy_matrix, loss_matrix, prev_accs, prev_losses,
-               contributors, receipt, users_weight_collector, agg_switch_collector=None):
+               contributors, receipt):
     if challenge._logger is None:
         return
 
@@ -137,8 +132,6 @@ def log_round(challenge, current_round, round_time,
             round_reputation_assigned=_user._roundrep[-1] if _user._roundrep else None,
             reward_delta=_addr_to_reward.get(_user.address, None),
             merged=any(u.id == _user.id for u in contributors),
-            merge_weight=users_weight_collector.get(_user.address, None),
-            attack_type=_user.last_attack_type,
         )
     for _user in challenge.pytorch_model.disqualified:
         challenge._logger.user_round(
@@ -152,13 +145,11 @@ def log_round(challenge, current_round, round_time,
             round_reputation_assigned=_user._roundrep[-1] if _user._roundrep else None,
             reward_delta=_addr_to_reward.get(_user.address, None),
             merged=False,
-            merge_weight=None,
-            attack_type=_user.last_attack_type,
         )
 
     # ---- global round ----
     _punishment_total = sum(p[1] for p in challenge._punishments if p[0] == current_round)
-    log_global_round(challenge, current_round, round_time, _punishment_total, agg_switch_collector)
+    log_global_round(challenge, current_round, round_time, _punishment_total)
 
 
 def log_punishments(challenge, events, current_round_no):
