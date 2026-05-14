@@ -38,23 +38,11 @@ class PytorchModel:
         self.EPOCHS = epochs
         self.BATCHSIZE = batchsize
         self.run_id = 0 if run_id is None else run_id
-
-        # if data_distribution is None:
-        #     self.data_distribution = "random_split"
-        # else:
-        #     self.data_distribution = data_distribution
-        #
-        # if dirichlet_alpha is None:
-        #     self.dirichlet_alpha = 0.5
-        # else:
-        #     self.dirichlet_alpha = dirichlet_alpha
-
         self.train, self.val, self.test = data.load_data(self, _print=True)
         self.default_collateral = default_collateral
         self.max_collateral = max_collateral
         self.force_merge_all = force_merge_all
         self.use_nobody_is_kicked = use_nobody_is_kicked
-        # self.has_switched = False
 
 
         if freerider_noise_scale is not None and freerider_noise_scale < 0:
@@ -73,16 +61,6 @@ class PytorchModel:
             raise ValueError("malicious_noise_scale must be non-negative")
         self.malicious_noise_scale = malicious_noise_scale
 
-        # valid_malicious_attack_types = {"noise", "byzantine"}
-        # if malicious_attack_type is not None and malicious_attack_type not in valid_malicious_attack_types:
-        #     raise ValueError(f"malicious_attack_type must be one of {valid_malicious_attack_types}, got '{malicious_attack_type}'")
-        # self.malicious_attack_type = malicious_attack_type
-
-        # valid_freerider_attack_types = {"noise", "delta_weight"}
-        # if freerider_attack_type is not None and freerider_attack_type not in valid_freerider_attack_types:
-        #     raise ValueError(f"freerider_attack_type must be one of {valid_freerider_attack_types}, got '{freerider_attack_type}'")
-        # self.freerider_attack_type = freerider_attack_type
-
         loss, accuracy = training.test(self.global_model,self.test,DEVICE)
 
         # INTERFACE VARIABLES
@@ -90,8 +68,6 @@ class PytorchModel:
         self.loss = [loss]
 
         self.round = 1
-        # self.previous_global_model = None
-        # self.two_previous_global_model = None
         print("===================================================================================")
         print("Pytorch Model created:\n")
         print(str(self.global_model))

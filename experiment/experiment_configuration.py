@@ -42,13 +42,8 @@ class ExperimentConfiguration:
             self.contribution_score_strategy = _unwrap_first(p.contribution_score_strategy)
             self.freerider_noise_scale = _unwrap_first(p.freerider_noise_scale)
             self.freerider_start_round = _unwrap_first(p.freerider_start_round)
-            # self.aggregation_rule = _unwrap_first(p.aggregation_rule)
             self.malicious_noise_scale = _unwrap_first(p.malicious_noise_scale) if _unwrap_first(p.malicious_noise_scale) is not None else self.freerider_noise_scale
             self.malicious_start_round = _unwrap_first(p.malicious_start_round) if _unwrap_first(p.malicious_start_round) is not None else self.freerider_start_round
-            # self.malicious_attack_type = _unwrap_first(p.malicious_attack_type) if p.malicious_attack_type is not None else "noise"
-            # self.freerider_attack_type = _unwrap_first(p.freerider_attack_type) if p.freerider_attack_type is not None else "noise"
-            # self.data_distribution = _unwrap_first(p.data_distribution)
-            # self.dirichlet_alpha = _unwrap_first(p.dirichlet_alpha) if _unwrap_first(p.dirichlet_alpha) is not None else None
             self.number_of_runs = _unwrap_first(p.number_of_runs)
 
         else:

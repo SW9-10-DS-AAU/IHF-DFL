@@ -46,13 +46,6 @@ _CONTRIB_LIST_COLS = [
 # Punishments table — Wei columns (round_score is int256 roundReputation, same scale as round_reputation_assigned)
 _PUNISHMENT_WEI_COLS = ["loss", "new_reputation", "round_score"]
 
-# # Evaluation rewards table — Wei columns
-# _EVAL_REWARD_WEI_COLS = ["staked", "rewarded", "new_reputation"]
-#
-# # Evaluation votes table — same raw scale as vote_loss (actual_loss * 100)
-# _EVAL_VOTE_LOSS_COLS = ["loss_vote", "avg_loss_true_value"]
-
-
 # Metadata keys stored in the "metadata" lookup table returned by merge_runs.
 # Data tables only carry experiment_id; join on it when you need config values.
 MERGE_META_KEYS = [
@@ -63,15 +56,12 @@ MERGE_META_KEYS = [
     "freerider_noise_scale",
     "malicious_start_round",
     "malicious_noise_scale",
-    # "aggregation_rule",
     "force_merge_all",
     "number_of_good_contributors",
     "number_of_bad_contributors",
     "number_of_freerider_contributors",
     "number_of_inactive_contributors",
     "minimum_rounds",
-    # "data_distribution",
-    # "dirichlet_alpha",
 ]
 
 
@@ -92,8 +82,6 @@ def normalize_run(run: RunData, make_readable: bool = True) -> RunData:
     c  = run.contributions.copy()      if not run.contributions.empty      else pd.DataFrame()
     w  = run.warnings.copy()           if not run.warnings.empty           else pd.DataFrame()
     p  = run.punishments.copy()        if not run.punishments.empty        else pd.DataFrame()
-    # er = run.evaluation_rewards.copy() if not run.evaluation_rewards.empty else pd.DataFrame()
-    # ev = run.evaluation_votes.copy()   if not run.evaluation_votes.empty   else pd.DataFrame()
 
 
     wei_divisor         = 1e18  # Wei → ETH
@@ -137,18 +125,6 @@ def normalize_run(run: RunData, make_readable: bool = True) -> RunData:
             for col in _PUNISHMENT_WEI_COLS:
                 if col in p.columns:
                     p[col] = p[col] / wei_divisor
-
-        # # Evaluation rewards table
-        # if not er.empty:
-        #     for col in _EVAL_REWARD_WEI_COLS:
-        #         if col in er.columns:
-        #             er[col] = er[col] / wei_divisor
-        #
-        # # Evaluation votes table (loss columns same raw scale as vote_loss)
-        # if not ev.empty:
-        #     for col in _EVAL_VOTE_LOSS_COLS:
-        #         if col in ev.columns:
-        #             ev[col] = ev[col] / vote_loss_unscaler
 
     # Votes table — flag whether the voted accuracy was excluded as an outlier.
     # Only current_excluded_values is pulled from contributions; it's dropped after use.
@@ -205,8 +181,6 @@ def normalize_run(run: RunData, make_readable: bool = True) -> RunData:
         contributions=      c,
         warnings=           w,
         punishments=        p,
-        # evaluation_rewards= er,
-        # evaluation_votes=   ev,
     )
 
 
@@ -232,8 +206,6 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
     contributions        = []
     warnings             = []
     punishments          = []
-    # evaluation_rewards   = []
-    # evaluation_votes     = []
 
     for run in runs:
         eid = run.experiment_id
@@ -265,10 +237,6 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
             warnings.append(_tag(run.warnings))
         if not run.punishments.empty:
             punishments.append(_tag(run.punishments))
-        # if not run.evaluation_rewards.empty:
-        #     evaluation_rewards.append(_tag(run.evaluation_rewards))
-        # if not run.evaluation_votes.empty:
-        #     evaluation_votes.append(_tag(run.evaluation_votes))
 
     def _concat(frames):
         if not frames:
@@ -288,6 +256,4 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
         "contributions":      _concat(contributions),
         "warnings":           _concat(warnings),
         "punishments":        _concat(punishments),
-        # "evaluation_rewards": _concat(evaluation_rewards),
-        # "evaluation_votes":   _concat(evaluation_votes),
     }

@@ -29,13 +29,8 @@ class ExperimentPreset:
     contribution_score_strategy: list[str]
     freerider_noise_scale: list[float] | None
     freerider_start_round: list[int] | None
-    # freerider_attack_type: list[str] | None
     malicious_noise_scale: list[float] | None
     malicious_start_round: list[int] | None
-    # malicious_attack_type: list[str] | None
-    # aggregation_rule: list[str]
-    # data_distribution: list[str]
-    # dirichlet_alpha: list[float] | None
     number_of_runs: int
 
 
@@ -71,13 +66,8 @@ PRESETS = {
         contribution_score_strategy=["accuracy_loss"],
         freerider_noise_scale=[0],
         freerider_start_round=[2],
-        # freerider_attack_type=["delta_weight"],
         malicious_noise_scale=[0.1],
         malicious_start_round=[2],
-        # malicious_attack_type=["byzantine"],
-        # aggregation_rule=["binary_switch[positives_only,FedAVG]"],
-        # data_distribution=["dirichlet_split"],
-        # dirichlet_alpha=[0.5],
         number_of_runs=3
     ),
 
@@ -92,13 +82,8 @@ PRESETS = {
         contribution_score_strategy=["loss_only", "accuracy_only", "accuracy_loss", "naive", "dotproduct"],
         freerider_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         freerider_start_round=[1, 3, 5],
-        # freerider_attack_type=None,
         malicious_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         malicious_start_round=[1, 3, 5],
-        # malicious_attack_type=None,
-        # aggregation_rule=["FedAVG"],
-        # data_distribution=["random_split"],
-        # dirichlet_alpha=None,
         number_of_runs=1
     ),
 
@@ -113,13 +98,8 @@ PRESETS = {
         contribution_score_strategy=["dotproduct"],
         freerider_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         freerider_start_round=[1, 3, 5],
-        # freerider_attack_type=None,
         malicious_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         malicious_start_round=[1, 3, 5],
-        # malicious_attack_type=None,
-        # aggregation_rule=["FedAVG"],
-        # data_distribution=["random_split"],
-        # dirichlet_alpha=None,
         number_of_runs=1
     ),
 
@@ -134,13 +114,8 @@ PRESETS = {
         contribution_score_strategy=["loss_only", "accuracy_only", "accuracy_loss", "naive", "dotproduct"],
         freerider_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         freerider_start_round=[1, 3, 5],
-        # freerider_attack_type=None,
         malicious_noise_scale=None,
         malicious_start_round=None,
-        # malicious_attack_type=None,
-        # aggregation_rule=["FedAVG"],
-        # data_distribution=["random_split"],
-        # dirichlet_alpha=None,
         number_of_runs=1
     ),
 
@@ -155,13 +130,8 @@ PRESETS = {
         contribution_score_strategy=["dotproduct"],
         freerider_noise_scale=[0, 0.01, 0.1, 0.5, 1.0],
         freerider_start_round=[1, 3, 5],
-        # freerider_attack_type=None,
         malicious_noise_scale=None,
         malicious_start_round=None,
-        # malicious_attack_type=None,
-        # aggregation_rule=["FedAVG"],
-        # data_distribution=["random_split"],
-        # dirichlet_alpha=None,
         number_of_runs=1
     ),
 

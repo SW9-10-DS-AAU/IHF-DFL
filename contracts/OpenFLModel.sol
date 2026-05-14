@@ -61,10 +61,7 @@ contract OpenFLModel {
     mapping(address => mapping(uint8 => bytes32)) public secretOf;
     mapping(address => mapping(uint8 => bytes32)) public weightsOf;
     mapping(uint8 => mapping(address => int256)) public contributionScore; // round => user => score
-//    mapping(uint8 => mapping(address => uint256)) public evaluationScore; // round => user => score
-//    mapping(uint8 => mapping(address => bool)) public hasSubmittedEvaluationScore; // round => user => has submitted evaluation score
     mapping(uint8 => uint16) public nrOfContributionScores; // round => number of submissions
-//    mapping(uint8 => uint16) public nrOfEvaluationScores; // round => number of submissions
 
     struct AccuracyLossSubmission {
         address[] adrs;
@@ -160,11 +157,6 @@ contract OpenFLModel {
         int256 newRoundReputation
     );
 
-//    event ContributionScoreAndEvalSubmitted(
-//        address indexed user,
-//        int256 contributionScore,
-//        uint256 evaluationScore
-//    );
 
     event ContributionScoreSubmitted(
         address indexed user,
@@ -201,7 +193,6 @@ contract OpenFLModel {
 
     event Reward                (address user, int256 roundScore, uint win, uint newReputation);
     event ContributionPunishment(address user, int256 roundScore, uint loss, uint newReputation);
-//    event EvaluationVotingReward(address user, uint rewarded, uint staked, uint newReputation);
 
     constructor(
         bytes32 _modelHash,
@@ -344,20 +335,11 @@ contract OpenFLModel {
             contributionScore[round][msg.sender] == 0,
             "Contribution Score already submitted"
         );
-//        require(
-//            evaluationScore[round][msg.sender] == 0,
-//            "Evaluation score already submitted"
-//        );
 
         contributionScore[round][msg.sender] = contribScore;
         nrOfContributionScores[round] += 1;
 
-//        evaluationScore[round][msg.sender] = evalScore;
-//        hasSubmittedEvaluationScore[round][msg.sender] = true;
-//        nrOfEvaluationScores[round] += 1;
-
-//        emit ContributionScoreAndEvalSubmitted(msg.sender, contribScore, evalScore);
-           emit ContributionScoreSubmitted(msg.sender, contribScore);
+        emit ContributionScoreSubmitted(msg.sender, contribScore);
     }
 
 
@@ -399,14 +381,10 @@ contract OpenFLModel {
             }
         }
         require(nrOfContributionScores[round] >= mergedUsers, "Not enough contribution scores submitted yet");
-//        require(nrOfEvaluationScores[round] >= mergedUsers, "Not enough evaluation scores submitted yet");
 
         if (nrOfContributionScores[round] < mergedUsers) {
             return false;
         }
-//        if (nrOfEvaluationScores[round] < mergedUsers) {
-//            return false;
-//        }
 
         return true;
     }
@@ -416,7 +394,6 @@ contract OpenFLModel {
         uint totalPunishment = punishMaliciousUsers();
         punishHelpers();
         totalPunishment += paybackFreeriders(freeriderLock);
-//        uint evaluation_disqualification_pool = settleEvaluationScores();
         uint positiveSumOfWeightedContribScore = settleContributionScores(
             totalPunishment
         );
@@ -516,39 +493,6 @@ contract OpenFLModel {
         }
         return additionalPunishment;
     }
-
-//    // Evaluation scores based on evaluation votes.
-//    function settleEvaluationScores() internal returns (uint evaluation_disqualification_pool) {
-//        for (uint i = 0; i < participants.length; i++) {
-//            User storage user = users[participants[i]];
-//            if (_isEligibleForRewards(user)) {
-//                require(hasSubmittedEvaluationScore[round][user.addr], "Evaluation score not submitted for user"); // 0 means no evaluation score submitted. // 0 means no evaluation score submitted.
-//                uint staking_min_grs = min_collateral / punishfactorContrib;
-//                uint evaluation_reward = (evaluationScore[round][user.addr] * staking_min_grs) / 1e18;
-//                uint new_global_rep = user.globalReputationScore + evaluation_reward - staking_min_grs;
-//
-//                if (new_global_rep >= disq_threshold) { // reward (can be smaller than what participant staked)
-//                    if (user.isPassivePunished && evaluation_reward > staking_min_grs) { // if users with passive punishment get rewarded, strip that reward and add surplus to pool.
-//                        evaluation_disqualification_pool += evaluation_reward - staking_min_grs;
-//                        evaluation_reward = staking_min_grs;
-//                    }
-//                    user.globalReputationScore = new_global_rep;
-//
-//                    emit EvaluationVotingReward(
-//                        user.addr,
-//                        evaluation_reward,
-//                        staking_min_grs,
-//                        user.globalReputationScore
-//                    );
-//                }
-//                else { // disqualify
-//                    evaluation_disqualification_pool += user.globalReputationScore;
-//                    _disqualifyUser(user);
-//                }
-//            }
-//        }
-//        return evaluation_disqualification_pool;
-//    }
 
     // Divide reward between every user who provided (non-malicious) feedback
     // Pay back freeriderLock(totalpunishment) funds to good users
@@ -854,38 +798,6 @@ contract OpenFLModel {
             }
         }
     }
-
-
-//    function getAllNPriorLosses(uint8 stepsBack) // n steps back compared to previous
-//    external
-//    view
-//    returns (
-////      address[] memory addresses,
-//        uint16[] memory previous_losses
-//    )
-//    {
-//        require(round >= stepsBack, "Not enough completed rounds");
-//
-//        uint8 count_merged_participants = 0;
-//        for (uint i = 0; i < participants.length; i++) {
-//            User storage u = users[participants[i]];
-//            if (u.isRegistered && !u.isDisqualified && u.roundReputation >= 0) {
-//                count_merged_participants += 1;
-//            }
-//        }
-//
-////      addresses = new address[](count_merged_participants);
-//        previous_losses = new uint16[](count_merged_participants);
-//        uint8 j = 0;
-//        for (uint i = 0; i < participants.length; i++) {
-//            User storage u = users[participants[i]];
-//            if (u.isRegistered && !u.isDisqualified && u.roundReputation >= 0) {
-////              addresses[j] = participants[i];
-//                previous_losses[j] = prev_losses[round - stepsBack][participants[i]];
-//                j++;
-//            }
-//        }
-//    }
 
 
     function getAllPreviousAccuraciesAndLosses() // this is the newest values we have about accuracy/loss. Essentially the "current" values, but we call them previous, because they are from the perspective of the next round

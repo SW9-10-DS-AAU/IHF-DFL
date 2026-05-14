@@ -147,37 +147,6 @@ class ExperimentLogger:
             "new_reputation": new_reputation,
         })
 
-    # # -------- EVALUATION VOTING REWARD --------
-    #
-    # def evaluation_voting_reward(self, round=None, user_id=None, user_address=None,
-    #                              staked=None, rewarded=None, new_reputation=None):
-    #     self._eval_reward_rows.append({
-    #         "experiment_id":  self.experiment_id,
-    #         "round":          round,
-    #         "user_id":        user_id,
-    #         "user_address":   user_address,
-    #         "staked":         staked,
-    #         "rewarded":       rewarded,
-    #         "new_reputation": new_reputation,
-    #     })
-    #
-    # # -------- EVALUATION VOTE (softmax) --------
-    #
-    # def evaluation_vote(self, round=None,
-    #                     evaluated_user_id=None, evaluated_user_address=None,
-    #                     voter_user_id=None, voter_user_address=None,
-    #                     loss_vote=None, avg_loss_true_value=None, softmax_reward=None):
-    #     self._eval_vote_rows.append({
-    #         "experiment_id":         self.experiment_id,
-    #         "round":                 round,
-    #         "evaluated_user_id":     evaluated_user_id,
-    #         "evaluated_user_address": evaluated_user_address,
-    #         "voter_user_id":         voter_user_id,
-    #         "voter_user_address":    voter_user_address,
-    #         "loss_vote":             loss_vote,
-    #         "avg_loss_true_value":   avg_loss_true_value,
-    #         "softmax_reward":        softmax_reward,
-    #     })
 
     # -------- RECEIPT --------
 

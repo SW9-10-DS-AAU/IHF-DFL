@@ -73,16 +73,10 @@ def load_runs(
             continue
         if experiment_ids is not None and not any(guid in pkl_file.stem for guid in experiment_ids):
             continue
-        # if aggregation_rule is not None and aggregation_rule not in pkl_file.stem:
-        #     continue
         if contribution_score is not None and contribution_score not in pkl_file.stem:
             continue
         if dataset is not None and dataset not in pkl_file.stem:
             continue
-        # if data_distribution is not None and data_distribution not in pkl_file.stem:
-        #     continue
-        # if dirichlet_alpha is not None and dirichlet_alpha not in pkl_file.stem:
-        #     continue
         try:
             runs.append(load_run(pkl_file))
         except Exception as e:

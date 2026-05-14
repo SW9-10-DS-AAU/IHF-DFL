@@ -57,19 +57,15 @@ WRITERBUFFERSIZE = 200
 (
     config.freerider_start_round,
     config.freerider_noise_scale,
-    # config.freerider_attack_type,
     config.malicious_start_round,
     config.malicious_noise_scale,
-    # config.malicious_attack_type,
 ) = resolve_attack_params(
     has_bad=config.number_of_bad_contributors > 0,
     has_freerider=config.number_of_freerider_contributors > 0,
     freerider_round=config.freerider_start_round,
     freerider_noise=config.freerider_noise_scale,
-    # freerider_attack_type=config.freerider_attack_type,
     malicious_activation_round=config.malicious_start_round,
     malicious_noise=config.malicious_noise_scale,
-    # malicious_attack_type=config.malicious_attack_type,
     warn=True,
 )
 
