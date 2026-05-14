@@ -353,9 +353,8 @@ def _calculate_scores_loss_only(challenge, users, _current_round_no, mad_thresho
 
 # ===== Helper functions =====
 
-def calc_contribution_score_naive(num_mergers) -> int: # pragma: no cover
-    score = Decimal(1) / Decimal(num_mergers)
-    return int(score * Decimal('1e18'))
+def calc_contribution_score_naive(num_mergers) -> float: # pragma: no cover
+    return float(Decimal(1) / Decimal(num_mergers))
 
 
 def calc_contribution_scores_dotproduct(local_updates: torch.Tensor,
@@ -391,11 +390,7 @@ def calc_contribution_scores_dotproduct(local_updates: torch.Tensor,
     dots = torch.mv(local_updates, global_update)  # (num_mergers,)
     scores = dots / (num_mergers * norm_U_sq)
 
-    # Convert to integer fixed-point (×1e18)
-    return [
-        int(Decimal(score.item()) * Decimal('1e18'))
-        for score in scores
-    ]
+    return [float(score.item()) for score in scores]
 
 
 def normalize_contribution_scores_old(arr, prev_val): # pragma: no cover
