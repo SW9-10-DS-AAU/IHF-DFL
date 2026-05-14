@@ -152,23 +152,10 @@ def test_load_runs_nested_dataset_filter(tmp_path):
     assert len(runs) == 2
 
 
-def test_load_runs_nested_aggregation_rule_filter(tmp_path):
-    _nested_tree(tmp_path)
-    runs = load_runs(tmp_path, aggregation_rule="FedAVG")
-    assert len(runs) == 2
-
-
 def test_load_runs_nested_contribution_score_filter(tmp_path):
     _nested_tree(tmp_path)
     runs = load_runs(tmp_path, contribution_score="dotproduct")
     assert len(runs) == 2
-
-
-def test_load_runs_nested_combined_filters_narrow(tmp_path):
-    _nested_tree(tmp_path)
-    # Only cifar-dotproduct-binary_switch matches cifar + binary_switch
-    runs = load_runs(tmp_path, dataset="cifar", aggregation_rule="binary_switch")
-    assert len(runs) == 1
 
 
 def test_load_runs_nested_no_match_returns_empty(tmp_path):

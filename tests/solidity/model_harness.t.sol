@@ -50,6 +50,7 @@ contract OpenFLModelHarness is OpenFLModel {
             address voter = p.participants[i];
             _initUser(voter, p.reputations[i], p.roundReps[i], p.nrOfVotesOfUser[i]);
             contributionScore[p.round][voter] = p.contributionScores[i];
+            hasSubmittedContributionScore[p.round][voter] = true;
         }
         votesPerRound = uint8(len);
         nrOfActiveParticipants = len;
@@ -67,11 +68,6 @@ contract OpenFLModelHarness is OpenFLModel {
         user.nrOfRoundsParticipated = 1;
         user.addr = u;
     }
-
-//    function _setEvalScore(uint8 _round, address user, uint256 score) public {
-//        evaluationScore[_round][user] = score;
-//        hasSubmittedEvaluationScore[_round][user] = true;
-//    }
 
     function _setUserGRSAtAddress(address userAddr, uint value) public {
         users[userAddr].globalReputationScore = value;
@@ -153,10 +149,6 @@ contract OpenFLModelHarnessTest is Test {
                 contributionScores: scores
             })
         );
-
-//        model._setEvalScore(2, a, 1e18);
-//        model._setEvalScore(2, b, 1e18);
-//        model._setEvalScore(2, c, 1e18);
 
         model.settle();
 

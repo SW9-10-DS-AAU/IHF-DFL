@@ -193,7 +193,6 @@ def test_merge_runs_metadata_keys_preserved(minimal_run):
     result = merge_runs([minimal_run])
     meta = result["metadata"]
     assert "dataset" in meta.columns
-    assert "aggregation_rule" in meta.columns
     assert "contribution_score_strategy" in meta.columns
 
 

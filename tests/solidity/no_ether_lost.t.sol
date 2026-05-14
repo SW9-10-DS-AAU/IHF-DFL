@@ -142,14 +142,6 @@ contract NoEtherLost is Test {
         assertEq(address(model).balance, REWARD, "Contract should only hold undistributed reward");
     }
 
-//    // settle() reverts when evaluation scores are missing
-//    function testSettleRevertsWithoutEvaluationScore() public {
-//        playRoundWithoutScores();
-//
-//        vm.expectRevert("Evaluation score not submitted for user");
-//        model.settle();
-//    }
-
     // settle() does not destroy ether
     function testSettleDoesNotDestroyEther() public {
         assertExactInvariant("Pre-settle: balance != totalGRS + rewardLeft");

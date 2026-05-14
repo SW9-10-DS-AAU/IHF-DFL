@@ -334,7 +334,7 @@ class TestCalcContributionScore:
         self.aggregator.get_all_accuracies_and_losses_about.side_effect = mock_get_accuracies_losses
 
         scores = contribution._calculate_scores_accuracy_loss(
-            self.aggregator, users, mad_threshold=1.1
+            self.aggregator, users, mad_threshold=1.1, _current_round_no=1
         )
         print(f"scores = {scores}")
 
@@ -592,7 +592,7 @@ class TestCalcContributionScoresMAD:
             user.model = merged_model
             participants.append(user)
 
-        scores = contribution._calculate_scores_dotproduct(fl_challenge, participants)
+        scores = contribution._calculate_scores_dotproduct(fl_challenge, participants,1)
 
         expected_scores = calc_contribution_scores_dotproduct(local_updates, global_update)
 
@@ -626,7 +626,7 @@ class TestCalcContributionScoresMAD:
 
         with patch('contracts.contribution.trim_global_update_using_mad', return_value=(filtered_global_update, {})) as mock_trim:
             with patch('contracts.contribution.calc_contribution_scores_dotproduct', return_value=[10, 20, 30]) as mock_math:
-                scores = contribution._calculate_scores_dotproduct(fl_challenge, participants)
+                scores = contribution._calculate_scores_dotproduct(fl_challenge, participants,1)
 
         assert scores == [10, 20, 30]
 
@@ -663,7 +663,7 @@ class TestCalcContributionScoresMAD:
 
         with patch('contracts.contribution.trim_global_update_using_mad') as mock_trim:
             with patch('contracts.contribution.calc_contribution_scores_dotproduct', return_value=[1, 2, 3]) as mock_math:
-                scores = contribution._calculate_scores_dotproduct(fl_challenge, participants)
+                scores = contribution._calculate_scores_dotproduct(fl_challenge, participants,1)
 
         assert scores == [1, 2, 3]
         mock_trim.assert_not_called()
@@ -951,7 +951,7 @@ class TestFLChallengeFeatures:
         with patch('contracts.contribution.calc_contribution_scores_dotproduct') as mock_math:
             mock_math.return_value = [1000, 2000, 3000]
 
-            scores = contribution._calculate_scores_dotproduct(fl_challenge, mock_participants)
+            scores = contribution._calculate_scores_dotproduct(fl_challenge, mock_participants,1)
 
             assert scores == [1000, 2000, 3000]
 
@@ -1089,8 +1089,8 @@ class TestFLChallengeWorkflow:
 
     # Test naive score calculation wrapper
     def test_calculate_scores_naive_helper(self, fl_challenge, mock_participants):
-        scores = contribution._calculate_scores_naive(fl_challenge, mock_participants)
-        expected_val = int((Decimal(1) / Decimal(len(mock_participants))) * Decimal('1e18'))
+        scores = contribution._calculate_scores_naive(fl_challenge, mock_participants,1)
+        expected_val = float((Decimal(1) / Decimal(len(mock_participants))))
         assert scores == [expected_val] * len(mock_participants)
 
     @patch('time.sleep', return_value=None)

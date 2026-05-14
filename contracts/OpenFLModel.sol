@@ -352,7 +352,7 @@ contract OpenFLModel {
 //        );
 
         contributionScore[round][msg.sender] = contribScore;
-        hasSubmittedContributionScore[round][msg.sender] == true;
+        hasSubmittedContributionScore[round][msg.sender] = true;
         nrOfContributionScores[round] += 1;
 
 //        evaluationScore[round][msg.sender] = evalScore;
@@ -360,7 +360,7 @@ contract OpenFLModel {
 //        nrOfEvaluationScores[round] += 1;
 
 //        emit ContributionScoreAndEvalSubmitted(msg.sender, contribScore, evalScore);
-           emit ContributionScoreSubmitted(msg.sender, contribScore);
+        emit ContributionScoreSubmitted(msg.sender, contribScore);
     }
 
 
