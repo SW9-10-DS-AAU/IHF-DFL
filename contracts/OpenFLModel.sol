@@ -61,6 +61,7 @@ contract OpenFLModel {
     mapping(address => mapping(uint8 => bytes32)) public secretOf;
     mapping(address => mapping(uint8 => bytes32)) public weightsOf;
     mapping(uint8 => mapping(address => int256)) public contributionScore; // round => user => score
+    mapping(uint8 => mapping(address => bool)) public hasSubmittedContributionScore; // round => user => has submitted contribution score
     mapping(uint8 => uint16) public nrOfContributionScores; // round => number of submissions
 
     struct AccuracyLossSubmission {
@@ -229,6 +230,7 @@ contract OpenFLModel {
         );
     }
 
+    // NOTE: Self-evaluation not blocked in loss submission path! Will give error if setTesting=True
     function setTesting(bool _testing) external {
         testing = _testing;
     }
@@ -332,11 +334,12 @@ contract OpenFLModel {
     function submitContributionScore(int256 contribScore) external {
         require(users[msg.sender].isRegistered, "User not registered");
         require(
-            contributionScore[round][msg.sender] == 0,
+            hasSubmittedContributionScore[round][msg.sender] == false,
             "Contribution Score already submitted"
         );
 
         contributionScore[round][msg.sender] = contribScore;
+        hasSubmittedContributionScore[round][msg.sender] = true;
         nrOfContributionScores[round] += 1;
 
         emit ContributionScoreSubmitted(msg.sender, contribScore);
@@ -553,6 +556,7 @@ contract OpenFLModel {
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             if (_isEligibleForRewards(user) && contributionScore[round][user.addr] >= 0) {
+                require(hasSubmittedContributionScore[round][user.addr], "User (who is eligible for rewards) has not submitted contribution score");
                 uint personalReward = (reward * uint(user.weightedContribScore)) / positiveSumOfWeightedContribScore;
                 user.globalReputationScore += personalReward;
 
@@ -676,6 +680,9 @@ contract OpenFLModel {
             prev_loss >= 0 && prev_loss <= 65535,
             "PREVIOUS LOSS NOT BETWEEN 0 AND 65535 in submitFeedbackBytesAndAccuraciesLosses"
         );
+        prev_accs[round][msg.sender] = prev_acc;
+        prev_losses[round][msg.sender] = prev_loss;
+
         // EXACT same for-loop as fallback
         for (uint i = 0; i < ads.length; i++) {
             if (!testing) {

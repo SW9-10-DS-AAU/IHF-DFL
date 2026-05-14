@@ -50,6 +50,7 @@ contract OpenFLModelHarness is OpenFLModel {
             address voter = p.participants[i];
             _initUser(voter, p.reputations[i], p.roundReps[i], p.nrOfVotesOfUser[i]);
             contributionScore[p.round][voter] = p.contributionScores[i];
+            hasSubmittedContributionScore[p.round][voter] = true;
         }
         votesPerRound = uint8(len);
         nrOfActiveParticipants = len;
