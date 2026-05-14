@@ -61,6 +61,7 @@ def agg_global_accuracy_loss_by_round(merged_global: pd.DataFrame) -> pd.DataFra
         )
         .reset_index()
     )
+    agg.attrs["experiment_ids"] = list(merged_global["experiment_id"].unique())
     return agg
 
 
@@ -110,6 +111,7 @@ def agg_grs_by_role(merged_users: pd.DataFrame, metadata: pd.DataFrame) -> pd.Da
         )
         .reset_index()
     )
+    agg.attrs["experiment_ids"] = list(merged_users["experiment_id"].unique())
     return agg
 
 
@@ -149,11 +151,13 @@ def agg_grs_by_role_relative(merged_users: pd.DataFrame, metadata: pd.DataFrame)
         df.groupby(["experiment_id", "role", "relative_round"])
         .agg(grs=("grs", "mean")).reset_index()
     )
-    return (
+    agg = (
         per_experiment.groupby(["role", "relative_round"])
         .agg(grs_mean=("grs", "mean"), grs_std=("grs", "std"))
         .reset_index()
     )
+    agg.attrs["experiment_ids"] = list(merged_users["experiment_id"].unique())
+    return agg
 
 
 def grs_by_user(merged_users: pd.DataFrame) -> pd.DataFrame:
@@ -179,7 +183,9 @@ def grs_by_user(merged_users: pd.DataFrame) -> pd.DataFrame:
 
     # Role: Just fetch from first value on user
 
-    return df[["experiment_id", "grs", "user_id", "role", "round"]].sort_values("round")
+    result = df[["experiment_id", "grs", "user_id", "role", "round"]].sort_values("round")
+    result.attrs["experiment_ids"] = list(df["experiment_id"].unique())
+    return result
 
 
 def agg_contribution_score_by_role(merged_users: pd.DataFrame, merged_contributions: pd.DataFrame, metadata: pd.DataFrame) -> pd.DataFrame:
@@ -225,6 +231,7 @@ def agg_contribution_score_by_role(merged_users: pd.DataFrame, merged_contributi
         )
         .reset_index()
     )
+    agg.attrs["experiment_ids"] = list(merged_users["experiment_id"].unique())
     return agg
 
 
@@ -281,11 +288,13 @@ def agg_contribution_score_by_role_relative(
         .agg(contribution_score=("contribution_score", "mean"))
         .reset_index()
     )
-    return (
+    agg = (
         per_experiment.groupby(["role", "relative_round"])
         .agg(score_mean=("contribution_score", "mean"), score_std=("contribution_score", "std"))
         .reset_index()
     )
+    agg.attrs["experiment_ids"] = list(merged_users["experiment_id"].unique())
+    return agg
 
 
 def agg_gas_used_by_tx_type(merged_receipts: pd.DataFrame, metadata: pd.DataFrame) -> pd.DataFrame:
@@ -315,6 +324,7 @@ def agg_gas_used_by_tx_type(merged_receipts: pd.DataFrame, metadata: pd.DataFram
         )
         .reset_index()
     )
+    agg.attrs["experiment_ids"] = list(merged_receipts["experiment_id"].unique())
     return agg
 
 
@@ -374,6 +384,8 @@ def agg_round_kicked_by_strategy(
     agg["low_err"]  = agg["mean_round_kicked"] - agg["min_round_kicked"]
     agg["high_err"] = agg["max_round_kicked"]  - agg["mean_round_kicked"]
 
-    return agg[["contribution_score_strategy", "role",
-                "mean_round_kicked", "low_err", "high_err"]]
+    result = agg[["contribution_score_strategy", "role",
+                  "mean_round_kicked", "low_err", "high_err"]]
+    result.attrs["experiment_ids"] = list(merged_users["experiment_id"].unique())
+    return result
 
