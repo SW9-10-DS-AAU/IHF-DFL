@@ -11,7 +11,9 @@ from unittest.mock import MagicMock, patch, call
 from web3.exceptions import ContractLogicError
 from contracts import contribution
 from contracts.fl_challenge import FLChallenge
+from tests.unit.conftest import mock_participants
 from utils.shapley import check_shapley_compliance
+import ml.evaluation as evaluation
 
 from contracts.contribution import (
     calc_contribution_scores_dotproduct,
@@ -900,6 +902,77 @@ class TestFLChallengeFeatures:
 
         fl_challenge.model.functions.feedback.assert_called_with(target.address, 1)
 
+
+    # Test accuracy matrix and loss matrix for sizing and indexing when removing participant live
+
+    def test_feedback_filtering_skips_self_inactive_disqualified(self, fl_challenge): # pragma: no cover
+        # Test the indexing with idx by removing or adding users.
+        # Assert equal before, then remove /add, then assert again.
+
+        # Get count of users registered
+        pytorch_model = MagicMock()
+
+        UINT256_MAX = 2 ** 256 - 1
+
+        users = []
+
+        user1 = MagicMock()
+        user1.address = "0xSomeAddress1"
+        user1.id = 0
+        user1.attitude = "honest"
+
+        user2 = MagicMock()
+        user2.address = "0xSomeAddress2"
+        user2.id = 1
+        user2.attitude = "freerider"
+
+        user3 = MagicMock()
+        user3.address = "0xSomeAddress3"
+        user3.id = 2
+        user3.attitude = "malicious"
+
+        user4 = MagicMock()
+        user4.address = "0xSomeAddress4"
+        user4.id = 3
+        user4.attitude = "inactive"
+
+        users = [user1, user2, user3, user4]
+
+        pytorch_model.disqualified = [user3]
+
+        users_count = len(users)
+
+        # Assuming 5 users
+        am = [[30, 40, 50, 30, 40], [20, 40, 30, 40, 20], [40, 30, 60, 20, 30], [10, 60, 30, 40, 20]]
+        lm = [[300, 400, 500, 300, 400], [400, 600, 200, 400, 500], [300, 500, 300, 400, 600], [600, 300, 500, 400, 500]]
+        fbm = [[0, 1, -1, 1, 0], [1, -1, 0, 1, 0], [-1, -1, 0, 1, 1], [1, 1, -1, 0, 1]]
+
+        for idx, user in enumerate(users):
+            accs = am[idx]
+            losses = lm[idx]
+            filtered_accs = []
+            filtered_losses = []
+            user_votes = fbm[idx]
+
+            for ix, vote in enumerate(user_votes):
+                if user.id == ix: # why this? skips self-evaluation. But will it index correctly?
+                    continue
+                if user.attitude == "inactive":
+                    continue
+                if ix in [i.id for i in pytorch_model.disqualified]:
+                    continue
+                filtered_accs.append(accs[ix])
+                filtered_losses.append(min(UINT256_MAX, losses[ix]))
+
+            #  - user1 (honest, id=0): skip self (ix=0), skip disqualified (ix=2) → 3 ✓
+            #  - user2 (freerider, id=1): skip self (ix=1), skip disqualified (ix=2) → 3 ✓
+            #  - user3 (malicious, id=2): skip self (ix=2) only — ix=2 is skipped by self-check before reaching the disqualified check → 4 ✗
+            #  - user4 (inactive, id=3): continue on every inner iteration → 0 ✗
+
+            expected = {0: 3, 1: 3, 2: 4, 3:0 }
+            assert len(filtered_accs) == expected[user.id]
+
+
     # Test feedback giving when a cheater is detected
     def test_give_feedback_cheater_detected(self, fl_challenge):
         """
@@ -1223,3 +1296,42 @@ class TestReporting:
 
         with patch.object(fl_challenge, 'get_events', return_value=expected_events):
             fl_challenge.print_round_summary(mock_receipt, _current_round_no=1, contributors=5)
+
+
+
+
+class TestEvaluatePeers:
+    def test_matrix_sized_by_max_id_not_participant_count(self): # pragma: no cover
+        """
+        Regression test: after a middle user is disqualified (e.g. ID=1 from a 4-user group),
+        the remaining active users still have IDs 0, 2, 3. The matrix must be 4x4 (max_id+1),
+        not 3x3 (len(participants)). The old bug used n=len(participants), making
+        accuracy_matrix[3] an IndexError for the user with ID=3.
+        """
+        # Simulate: originally 4 users (IDs 0-3), user ID=1 disqualified mid-round
+        active_ids = [0, 2, 3]
+        participants = []
+        for i in active_ids:
+            user = MagicMock()
+            user.id = i
+            user.attitude = "honest"
+            user.userToEvaluate = []
+            participants.append(user)
+
+        disqualified = MagicMock()
+        disqualified.id = 1
+
+        pm = MagicMock()
+        pm.participants = participants
+        pm.disqualified = [disqualified]
+
+        _, accuracy_matrix, loss_matrix, _, _ = evaluation.evaluate_peers(pm)
+
+        # Must be 4×4 (max_id=3 → n=4), not 3×3 (len(participants)=3)
+        assert len(accuracy_matrix) == 4
+        assert len(accuracy_matrix[0]) == 4
+        assert len(loss_matrix) == 4
+
+        # Active user with ID=3 must be accessible — old bug caused IndexError here
+        assert accuracy_matrix[3] == [0, 0, 0, 0]
+        assert loss_matrix[3] == [0, 0, 0, 0]

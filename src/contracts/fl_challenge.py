@@ -255,37 +255,37 @@ class FLChallenge(ConnectionHelper):
         print("\n==================================================================================\n")
     
             
-    def feedback_round(self, fbm): # pragma: no cover
-        txs = []
-        for user in self.pytorch_model.participants:
-            user_votes = fbm[user.id]
-            for ix, vote in enumerate(user_votes):
-                if user.id == ix:
-                    continue
-                if user.attitude == "inactive":
-                    continue
-                txHash = self.giveFeedback(user, self.pytorch_model.participants[ix], int(vote))
-                txs.append(txHash)
-           
-        l = len(txs)
-        for i, txHash in enumerate(txs):
-            if txHash == None:
-                continue
-            printer.print_bar(i, l)
-            receipt = self.w3.eth.wait_for_transaction_receipt(txHash,
-                                                            timeout=600, 
-                                                            poll_latency=1)
-            
-            self.gas_feedback.append(receipt["gasUsed"])
-            self.txHashes.append(("feedback", receipt["transactionHash"].hex(), receipt["gasUsed"]))
-            logging.log_receipt(self, receipt, "feedback")
-        for user in self.pytorch_model.participants:
-            user._roundrep.append(self.get_round_reputation_of_user(user.address))
-
-        for user in self.pytorch_model.disqualified:
-            user._roundrep.append(self.get_round_reputation_of_user(user.address))
-        # printer._print("                                                   ")
-        # print("\n-----------------------------------------------------------------------------------")
+    # def feedback_round(self, fbm): # pragma: no cover
+    #     txs = []
+    #     for user in self.pytorch_model.participants:
+    #         user_votes = fbm[user.id]
+    #         for ix, vote in enumerate(user_votes):
+    #             if user.id == ix:
+    #                 continue
+    #             if user.attitude == "inactive":
+    #                 continue
+    #             txHash = self.giveFeedback(user, self.pytorch_model.participants[ix], int(vote))
+    #             txs.append(txHash)
+    #
+    #     l = len(txs)
+    #     for i, txHash in enumerate(txs):
+    #         if txHash == None:
+    #             continue
+    #         printer.print_bar(i, l)
+    #         receipt = self.w3.eth.wait_for_transaction_receipt(txHash,
+    #                                                         timeout=600,
+    #                                                         poll_latency=1)
+    #
+    #         self.gas_feedback.append(receipt["gasUsed"])
+    #         self.txHashes.append(("feedback", receipt["transactionHash"].hex(), receipt["gasUsed"]))
+    #         logging.log_receipt(self, receipt, "feedback")
+    #     for user in self.pytorch_model.participants:
+    #         user._roundrep.append(self.get_round_reputation_of_user(user.address))
+    #
+    #     for user in self.pytorch_model.disqualified:
+    #         user._roundrep.append(self.get_round_reputation_of_user(user.address))
+    #     # printer._print("                                                   ")
+    #     # print("\n-----------------------------------------------------------------------------------")
 
 
     def build_feedback_bytes(self, a, v): # pragma: no cover
@@ -306,7 +306,7 @@ class FLChallenge(ConnectionHelper):
     def quick_feedback_round(self, fbm, am = None, lm = None, prev_accs = None, prev_losses = None): # pragma: no cover
         print("Users exchanging feedback...")
         txs = []
-        for idx, user in enumerate(self.pytorch_model.participants):
+        for user in self.pytorch_model.participants:
             if user.disqualified:
                 break
             addrs = []
@@ -316,8 +316,8 @@ class FLChallenge(ConnectionHelper):
             filtered_losses = []
 
             # Add null.check
-            accs = am[idx]
-            losses = lm[idx]
+            accs = am[user.id]
+            losses = lm[user.id]
 
             for ix, vote in enumerate(user_votes):
                 if user.id == ix:
@@ -351,8 +351,8 @@ class FLChallenge(ConnectionHelper):
                 txs.append(tx_hash)
 
             elif self.experiment_config.contribution_score_strategy == "accuracy_loss":
-                prev_acc = prev_accs[idx]
-                prev_loss = prev_losses[idx]
+                prev_acc = prev_accs[user.id]
+                prev_loss = prev_losses[user.id]
                 if self.fork:
                     tx = super().build_tx(user.address, self.modelAddress)
                     tx_hash = self.model.functions.submitFeedbackBytesAndAccuraciesLosses(rb_fbb, filtered_accs, filtered_losses, prev_acc, prev_loss).transact(tx)
@@ -364,7 +364,7 @@ class FLChallenge(ConnectionHelper):
                 txs.append(tx_hash)
 
             elif self.experiment_config.contribution_score_strategy == "accuracy_only":
-                prev_acc = prev_accs[idx]
+                prev_acc = prev_accs[user.id]
                 if self.fork:
                     tx = super().build_tx(user.address, self.modelAddress)
                     tx_hash = self.model.functions.submitFeedbackBytesAndAccuracies(rb_fbb, filtered_accs, prev_acc).transact(tx)
@@ -377,7 +377,7 @@ class FLChallenge(ConnectionHelper):
                 txs.append(tx_hash)
 
             elif self.experiment_config.contribution_score_strategy == "loss_only":
-                prev_loss = prev_losses[idx]
+                prev_loss = prev_losses[user.id]
                 if self.fork:
                     tx = super().build_tx(user.address, self.modelAddress)
                     tx_hash = self.model.functions.submitFeedbackBytesAndLosses(rb_fbb, filtered_losses, prev_loss).transact(tx)

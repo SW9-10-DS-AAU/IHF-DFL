@@ -58,10 +58,13 @@ def evaluate_peers(pm): # pragma: no cover
 
     scalar = 100  # Adds more decimals for precision (Adding 0 gives another decimal, vice versa)
     MAX_UINT16_SIZE = 65535
-    count_dq = len(pm.disqualified)
 
-    feedback_matrix = np.zeros((1, len(pm.participants) + count_dq, len(pm.participants) + count_dq))[0]
-    n = len(pm.participants) + count_dq
+    all_users = pm.participants + pm.disqualified
+    n = max((user.id for user in all_users), default=-1) + 1
+    feedback_matrix = np.zeros((n, n))
+
+    # the matrices are accessed by user.id, so their size should be based on the largest possible user.id, not the current active participant count.
+
     accuracy_matrix = [[0 for _ in range(n)] for _ in range(n)]
     loss_matrix = [[0 for _ in range(n)] for _ in range(n)]
     prev_accs = [0 for _ in range(n)]

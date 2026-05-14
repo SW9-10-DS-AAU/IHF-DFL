@@ -93,9 +93,9 @@ def log_round(challenge, current_round, round_time,
 
     # ---- votes ----
     fbm = challenge.feedback_matrix
-    for _idx, _giver in enumerate(challenge.pytorch_model.participants):
-        _user_acc = prev_accs[_idx] if prev_accs and _idx < len(prev_accs) else None
-        _user_loss = prev_losses[_idx] if prev_losses and _idx < len(prev_losses) else None
+    for _giver in challenge.pytorch_model.participants:
+        _user_acc = prev_accs[_giver.id] if prev_accs and _giver.id < len(prev_accs) else None
+        _user_loss = prev_losses[_giver.id] if prev_losses and _giver.id < len(prev_losses) else None
         for _receiver in challenge.pytorch_model.participants:
             if _giver.id == _receiver.id:
                 continue
