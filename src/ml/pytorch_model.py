@@ -8,6 +8,7 @@ import torch.optim as optim
 import torch.multiprocessing as mp
 import os
 import time
+import psutil
 import ml.training as training
 import ml.data as data
 import ml.evaluation as evaluation
@@ -144,14 +145,37 @@ class PytorchModel:
             self._pool = ctx.Pool(processes=self._pool_size)
         elif num_gpus == 0:
             ctx = mp.get_context("spawn")
-            self._pool_size = min(len(self.participants), os.cpu_count() or 1)
-            self._pool = ctx.Pool(processes=self._pool_size)
+            self._pool_size = self.resolve_cpu_pool_size()
+            if self._pool_size > 1:
+                self._pool = ctx.Pool(processes=self._pool_size)
         else:
             self._pool_size = 1
-        # Single GPU: _pool stays None, run_sequential() used instead
+        # Single-worker CPU and single-GPU runs stay sequential.
         if self._pool is not None:
             atexit.register(self.close_pool)
             signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+
+
+    def resolve_cpu_pool_size(self):
+        override = os.getenv("IHP-DFL_CPU_WORKERS")
+        if override is not None:
+            try:
+                workers = int(override)
+            except ValueError as exc:
+                raise ValueError("IHP-DFL_CPU_WORKERS must be an integer") from exc
+            if workers < 1:
+                raise ValueError("IHP-DFL_CPU_WORKERS must be at least 1")
+            return max(1, min(workers, len(self.participants)))
+
+        logical_cores = os.cpu_count() or 1
+        physical_cores = psutil.cpu_count(logical=False) or logical_cores
+        available_gb = psutil.virtual_memory().available / (1024 ** 3)
+
+        core_cap = max(1, physical_cores - 1)
+        ram_cap = max(1, int((available_gb - 2) // 2))
+        return max(1, min(len(self.participants), core_cap, ram_cap))
+
+
 
     def federated_training(self):
         if not debugging:
@@ -164,7 +188,11 @@ class PytorchModel:
 
         if _sequential:
             if self._pool is None and not debugging:
-                print(yellow("Single GPU detected → running sequential training"))
+                num_gpus = torch.cuda.device_count()
+                if num_gpus == 0:
+                    print(yellow("CPU detected → running sequential training"))
+                else:
+                    print(yellow("Single GPU detected → running sequential training"))
             elif debugging:
                 print(yellow("Debugging mode detected → running sequential training"))
             results = self.run_sequential()
