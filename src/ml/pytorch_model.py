@@ -154,7 +154,8 @@ class PytorchModel:
             signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
 
     def federated_training(self):
-        self.create_pool()
+        if not debugging:
+            self.create_pool()
         _sequential = debugging or self._pool is None
         mode = "SEQUENTIAL" if _sequential else "PARALLEL"
         print(b(f"\n================ {mode} FEDERATED TRAINING START ================"))
