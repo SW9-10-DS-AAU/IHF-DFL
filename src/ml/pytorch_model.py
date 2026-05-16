@@ -13,6 +13,7 @@ import ml.training as training
 import ml.data as data
 import ml.evaluation as evaluation
 from utils.colors import green, red, yellow, b
+from utils.printer import print_divider
 from ml.cnn_models import Net_CIFAR, Net_MNIST
 from ml.runtime import DEVICE, PIN_MEMORY, print_training_mode
 from ml.participant import Participant
@@ -69,10 +70,11 @@ class PytorchModel:
         self.loss = [loss]
 
         self.round = 1
-        print("===================================================================================")
+        print_divider("=")
         print("Pytorch Model created:\n")
         print(str(self.global_model))
-        print("\n===================================================================================")
+        print() # New line before
+        print_divider("=")
 
         for i in range(self.NUMBER_OF_GOOD_CONTRIBUTORS):
             self.add_participant("good")

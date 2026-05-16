@@ -2,6 +2,7 @@ import torch
 from collections import OrderedDict
 import ml.training as training
 from utils.colors import yellow, red, b
+from utils.printer import print_divider
 from ml.runtime import DEVICE
 
 
@@ -10,9 +11,9 @@ def the_merge(pm, _current_round_no, _users, warning_collector=None):
     # No qualified users → skip merge this round
     if not _users:
         msg = f"[Round {_current_round_no}] No participants qualified for merge – skipping aggregation"
-        print("-----------------------------------------------------------------------------------")
+        print_divider()
         print(red(msg))
-        print("-----------------------------------------------------------------------------------\n")
+        print_divider(blank_line_after=True)
         if warning_collector is not None:
             warning_collector.append(msg)
         return
@@ -53,7 +54,7 @@ def the_merge(pm, _current_round_no, _users, warning_collector=None):
     pm.accuracy.append(accuracy)
     pm.loss.append(loss)
 
-    print("-----------------------------------------------------------------------------------")
+    print_divider()
     print(b("Merged Model: Accuracy {:>3.0f} % | Loss {:>6,.2f}".format(accuracy * 100, loss)))
 
     # -------------------------
@@ -65,4 +66,4 @@ def the_merge(pm, _current_round_no, _users, warning_collector=None):
         u.previousModel = OrderedDict((k, v.detach().clone()) for k, v in u.model.state_dict().items())
         u.model.load_state_dict(pm.global_model.state_dict())
 
-    print("-----------------------------------------------------------------------------------\n")
+    print_divider(blank_line_after=True)

@@ -2,6 +2,7 @@ import numpy as np
 import ml.training as training
 import math
 from utils.colors import green, red, yellow, b, rb
+from utils.printer import print_divider
 from web3 import Web3
 from ml.runtime import DEVICE
 
@@ -16,7 +17,7 @@ def exchange_models(pm): # pragma: no cover
             if j.model in user.userToEvaluate:
                 continue
             user.userToEvaluate.append(j)
-    print("-----------------------------------------------------------------------------------")
+    print_divider()
 
 
 def verify_models(pm, on_chain_hashes): # pragma: no cover
@@ -29,7 +30,7 @@ def verify_models(pm, on_chain_hashes): # pragma: no cover
                     red(f"Account {_user.id}: Account {user.address[0:16]}... could not provide the registered model"))
                 _user.cheater.append(user)
 
-    print("-----------------------------------------------------------------------------------")
+    print_divider()
 
 
 def get_hash(_state_dict): # pragma: no cover

@@ -3,6 +3,7 @@ import torch
 from termcolor import colored
 from decimal import Decimal
 from utils.colors import green, red
+from utils.printer import print_divider
 from utils.shapley import check_shapley_compliance
 from contracts import logging
 
@@ -20,9 +21,9 @@ def contribution_score(challenge, _users, _current_round_no): # pragma: no cover
 
     # Guard: no users → nothing to score
     if not _users:
-        print("-----------------------------------------------------------------------------------")
+        print_divider()
         print("No users passed to contribution_score – skipping.")
-        print("-----------------------------------------------------------------------------------")
+        print_divider()
         return
 
     print("Calculating contribution scores...\n")
@@ -74,7 +75,7 @@ def contribution_score(challenge, _users, _current_round_no): # pragma: no cover
     for u in _users:
         print(green(f"\nUSER @ {u.address}"))
         print(green(f"{'CONTRIBUTION SCORE:':25}{u.contribution_score}"))
-    print("-----------------------------------------------------------------------------------\n")
+    print_divider(blank_line_after=True)
 
 
 def print_shapley_warnings():

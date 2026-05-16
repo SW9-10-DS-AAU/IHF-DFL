@@ -13,6 +13,7 @@ from termcolor import colored
 from web3.exceptions import ContractLogicError
 from utils.colors import rb, b, green, red
 from utils import printer, config
+from utils.printer import print_divider
 from api.connection_helper import ConnectionHelper
 from utils.async_writer import AsyncWriter, NullWriter
 from contracts import contribution
@@ -246,13 +247,15 @@ class FLChallenge(ConnectionHelper):
 
     
     def return_stats(self): # pragma: no cover
-        print("\n==================================================================================\n")
+        print() # New line before
+        print_divider("=", blank_line_after=True)
         print("\n{:<8}{:^32}  {:^32}".format(f"ROUND {self.pytorch_model.round}","GLOBAL REPUTATION", "ROUND REPUTATION"))
         for acc in self.pytorch_model.participants:
             gs = self.get_global_reputation_of_user(acc.address)
             rs = self.get_round_reputation_of_user(acc.address)
             print("{}..: {:>27,.0f}  {:>27,.0f} WEI".format(acc.address[0:7],gs,rs))
-        print("\n==================================================================================\n")
+        print() # New line before
+        print_divider("=", blank_line_after=True)
     
             
     # def feedback_round(self, fbm): # pragma: no cover
@@ -396,7 +399,8 @@ class FLChallenge(ConnectionHelper):
             self.track_transaction(i, txHash, len(txs), "feedback")
 
         printer._print("                                                   ")
-        print("\n-----------------------------------------------------------------------------------")
+        print() # New line before
+        print_divider()
 
 
     def sign_and_send_tx(self, user, contract_fn_call): # pragma: no cover
@@ -666,7 +670,7 @@ class FLChallenge(ConnectionHelper):
                         # print(green(f"TOTAL REWARD:     {args['win']:,}"))
                         # print(green(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
                 else: warnings.warn(f"User {args['user']} had negative round score but was rewarded? Score: {args['roundScore']}, Reward: {args['win']}")
-            print("-----------------------------------------------------------------------------------\n")
+            print_divider(blank_line_after=True)
 
         # Punished users
         if punish_events:
@@ -723,7 +727,7 @@ class FLChallenge(ConnectionHelper):
                 print(red(f"ROUND SCORE:      {args['roundScore']:,}"))
                 print(red(f"TOTAL LOSS:       {args['loss']:,}"))
                 print(red(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
-            print("-----------------------------------------------------------------------------------\n")
+            print_divider(blank_line_after=True)
 
         logging.log_punishments(self, events, _current_round_no)
 
