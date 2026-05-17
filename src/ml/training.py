@@ -20,10 +20,14 @@ def train(
         epochs: int,
         device: torch.device,
 ) -> None:
-    # Compile ONCE per process (not per batch)
+    # Compile ONCE per process (not per batch).
+    # NOTE: mode="reduce-overhead" enables CUDA Graphs (cudagraph_trees), which
+    # preallocate static memory pools per graph. With multiple worker processes
+    # sharing a single GPU this caused CUBLAS_STATUS_ALLOC_FAILED. Default mode
+    # keeps the inductor speedup without the static allocation.
     if device.type == "cuda":
         try:
-            net = torch.compile(net, mode="reduce-overhead")
+            net = torch.compile(net)
         except Exception:
             pass
 
