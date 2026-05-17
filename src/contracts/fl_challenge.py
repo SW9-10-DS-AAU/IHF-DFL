@@ -861,7 +861,7 @@ class FLChallenge(ConnectionHelper):
                 round_punishment = [(punishment[0], punishment[1]) for punishment in self._punishments if punishment[0] == _current_round]
                 round_kicked = [punishment[2] for punishment in self._punishments if punishment[0] == _current_round]
                 roundTx = self.txHashes[self.writeTxProgress:]
-                self.writeTxProgress = len(self.txHashes) - 1
+                self.writeTxProgress = len(self.txHashes)
                 self.writer.writeResult({
                     "round": _current_round,
                     "GRS": grs,
