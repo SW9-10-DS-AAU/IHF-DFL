@@ -80,8 +80,85 @@ def test_load_run_tables_are_dataframes(tmp_path):
     assert isinstance(run.contributions, pd.DataFrame)
     assert isinstance(run.warnings, pd.DataFrame)
     assert isinstance(run.punishments, pd.DataFrame)
+    assert isinstance(run.contributions_mad, pd.DataFrame)
     # assert isinstance(run.evaluation_rewards, pd.DataFrame)
     # assert isinstance(run.evaluation_votes, pd.DataFrame)
+
+
+def test_load_run_preserves_new_contributions_mad_table(tmp_path):
+    pkl = tmp_path / "run.pkl"
+    mad = pd.DataFrame([{
+        "experiment_id": "run",
+        "round": 1,
+        "user_id": 0,
+        "user_address": "0x0",
+        "metric": "accuracy",
+        "user_mad_avg": 8700,
+    }])
+    payload = {
+        "experiment_id": "run",
+        "metadata": {"contribution_score_strategy": "accuracy_loss"},
+        "setup": {},
+        "tables": {
+            "global":              pd.DataFrame(),
+            "users":               pd.DataFrame(),
+            "votes":               pd.DataFrame(),
+            "receipts":            pd.DataFrame(),
+            "contributions":       pd.DataFrame([{
+                "experiment_id": "run",
+                "round": 1,
+                "user_id": 0,
+                "user_address": "0x0",
+                "contribution_score": 0.5,
+            }]),
+            "contributions_mad":   mad,
+            "warnings":            pd.DataFrame(),
+            "punishments":         pd.DataFrame(),
+        },
+    }
+    with open(pkl, "wb") as f:
+        pickle.dump(payload, f)
+
+    run = load_run(pkl)
+
+    pd.testing.assert_frame_equal(run.contributions_mad, mad)
+    assert list(run.contributions.columns) == [
+        "experiment_id", "round", "user_id", "user_address", "contribution_score"
+    ]
+
+
+def test_load_run_splits_legacy_inline_contribution_mad_columns(tmp_path):
+    pkl = tmp_path / "legacy.pkl"
+    payload = {
+        "experiment_id": "legacy",
+        "metadata": {"contribution_score_strategy": "accuracy_only"},
+        "setup": {},
+        "tables": {
+            "global":              pd.DataFrame(),
+            "users":               pd.DataFrame(),
+            "votes":               pd.DataFrame(),
+            "receipts":            pd.DataFrame(),
+            "contributions":       pd.DataFrame([{
+                "experiment_id": "legacy",
+                "round": 1,
+                "user_id": 0,
+                "user_address": "0x0",
+                "contribution_score": 0.5,
+                "user_mad_avg": 8700,
+                "current_excluded_values": [100],
+            }]),
+            "warnings":            pd.DataFrame(),
+            "punishments":         pd.DataFrame(),
+        },
+    }
+    with open(pkl, "wb") as f:
+        pickle.dump(payload, f)
+
+    run = load_run(pkl)
+
+    assert "user_mad_avg" not in run.contributions.columns
+    assert run.contributions_mad["metric"].iloc[0] == "accuracy"
+    assert run.contributions_mad["user_mad_avg"].iloc[0] == 8700
 
 
 def test_load_run_metadata_preserved(tmp_path):

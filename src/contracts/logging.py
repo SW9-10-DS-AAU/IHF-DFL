@@ -28,7 +28,7 @@ def log_warning(challenge, msg, round=None):
     challenge._logger.warning(r, msg)
 
 
-def log_contribution_scores(challenge, users, scores, raw_values, outlier_info, previous_avg):
+def log_contribution_scores(challenge, users, scores):
     if challenge._logger is None:
         return
     challenge._logger.contribution_scores(
@@ -36,6 +36,17 @@ def log_contribution_scores(challenge, users, scores, raw_values, outlier_info, 
         user_ids=[u.id for u in users],
         user_addresses=[u.address for u in users],
         scores=scores,
+    )
+
+
+def log_contribution_score_mad(challenge, users, metric, raw_values, outlier_info, previous_avg):
+    if challenge._logger is None:
+        return
+    challenge._logger.contribution_score_mad(
+        round=challenge.pytorch_model.round,
+        user_ids=[u.id for u in users],
+        user_addresses=[u.address for u in users],
+        metric=metric,
         raw_values=raw_values,
         outlier_info=outlier_info,
         previous_avg=previous_avg,
