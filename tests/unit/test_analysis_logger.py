@@ -45,8 +45,8 @@ def test_finalize_returns_all_tables():
     logger = ExperimentLogger("exp", {})
     tables = logger.finalize()
     assert set(tables.keys()) == {
-        "global", "users", "votes", "receipts", "contributions", "warnings",
-        "punishments",
+        "global", "users", "votes", "receipts", "contributions", "contributions_mad",
+        "warnings", "punishments",
     }
 
 
@@ -207,8 +207,9 @@ def test_null_logger_all_methods_do_not_raise():
                   giver_address="0x0", receiver_address="0x1",
                   vote_feedback_score=1, vote_prev_accuracy=0,
                   vote_prev_loss=0, vote_accuracy=0, vote_loss=0)
-    null.contribution_scores(round=1, user_ids=[0], user_addresses=["0x0"],
-                                 scores=[100], raw_values=None, outlier_info=None, previous_avg=0)
+    null.contribution_scores(round=1, user_ids=[0], user_addresses=["0x0"], scores=[100])
+    null.contribution_score_mad(round=1, user_ids=[0], user_addresses=["0x0"],
+                                metric="accuracy", raw_values=None, outlier_info=None, previous_avg=0)
     null.receipt(round=1, tx_type="weights", tx_hash="0x0", gas_used=21000)
     null.warning(round=1, message="warn")
     null.setup(total_experiment_time=1.0, hardware="cpu", config={})

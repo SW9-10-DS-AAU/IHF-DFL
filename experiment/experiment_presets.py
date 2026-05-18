@@ -135,6 +135,69 @@ PRESETS = {
         number_of_runs=1
     ),
 
+    "mnist_openfl_low_noise": ExperimentPreset(
+        number_of_good_contributors=4,
+        number_of_bad_contributors=1,
+        number_of_freerider_contributors=1,
+        minimum_rounds=10,
+        epochs=1,
+        batch_size=32,
+        use_outlier_detection=[True],
+        contribution_score_strategy=["loss_only", "accuracy_only", "accuracy_loss", "naive"],
+        freerider_noise_scale=[0.01],
+        freerider_start_round=[1, 3, 5],
+        malicious_noise_scale=None,
+        malicious_start_round=None,
+        number_of_runs=10
+    ),
+
+    "mnist_openfl_high_noise": ExperimentPreset(
+        number_of_good_contributors=4,
+        number_of_bad_contributors=1,
+        number_of_freerider_contributors=1,
+        minimum_rounds=10,
+        epochs=1,
+        batch_size=32,
+        use_outlier_detection=[True],
+        contribution_score_strategy=["loss_only", "accuracy_only", "accuracy_loss", "naive"],
+        freerider_noise_scale=[0.1],
+        freerider_start_round=[1, 3, 5],
+        malicious_noise_scale=None,
+        malicious_start_round=None,
+        number_of_runs=10
+    ),
+
+    "cifar_openfl_low_noise": ExperimentPreset(
+        number_of_good_contributors=6,
+        number_of_bad_contributors=1,
+        number_of_freerider_contributors=1,
+        minimum_rounds=25,
+        epochs=25,
+        batch_size=128,
+        use_outlier_detection=[True],
+        contribution_score_strategy=["loss_only", "accuracy_only", "accuracy_loss", "naive"],
+        freerider_noise_scale=[0.01],
+        freerider_start_round=[1, 3, 5],
+        malicious_noise_scale=None,
+        malicious_start_round=None,
+        number_of_runs=10
+    ),
+
+    "cifar_openfl_high_noise": ExperimentPreset(
+        number_of_good_contributors=6,
+        number_of_bad_contributors=1,
+        number_of_freerider_contributors=1,
+        minimum_rounds=25,
+        epochs=25,
+        batch_size=128,
+        use_outlier_detection=[True],
+        contribution_score_strategy=["loss_only", "accuracy_only", "accuracy_loss", "naive"],
+        freerider_noise_scale=[0.1],
+        freerider_start_round=[1, 3, 5],
+        malicious_noise_scale=None,
+        malicious_start_round=None,
+        number_of_runs=10
+    ),
 }
 
 

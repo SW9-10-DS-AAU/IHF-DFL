@@ -88,6 +88,17 @@ def test_plot_grs_by_role_has_four_lines(agg_grs):
     assert len(lines) == 4
 
 
+def test_plot_grs_by_user_skips_missing_activation_round(two_exp_users, two_exp_metadata):
+    users = two_exp_users[two_exp_users["experiment_id"] == "exp-A"]
+    metadata = two_exp_metadata.copy()
+    metadata.loc[metadata["experiment_id"] == "exp-A", "malicious_start_round"] = None
+
+    fig = plots.plot_grs_by_user(users, metadata=metadata)
+
+    assert isinstance(fig, plt.Figure)
+    assert fig.axes[0].get_xlabel() == "Round"
+
+
 # ---------------------------------------------------------------------------
 # plot_gas_cost_by_tx_type
 # ---------------------------------------------------------------------------

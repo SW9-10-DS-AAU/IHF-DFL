@@ -348,6 +348,42 @@ class TestCalcContributionScore:
             assert scores == pytest.approx(expected_scores, rel=1e-9), \
                 f"Expected {expected_scores}, got {scores}"
 
+    def test_accuracy_loss_logs_contribution_scores_and_mad_details(self):
+        users = []
+        for i in range(4):
+            user = MagicMock()
+            user.id = i
+            user.address = f"0xAddressUser{i}"
+            user._accuracies = [80 + i]
+            user._losses = [20 - i]
+            users.append(user)
+
+        self.aggregator._logger = MagicMock()
+        self.aggregator.get_all_previous_accuracies_and_losses.return_value = (
+            [80, 81, 82, 83],
+            [20, 19, 18, 17],
+        )
+
+        def mock_get_accuracies_losses(address):
+            user = next(u for u in users if u.address == address)
+            return ([], user._accuracies, user._losses)
+
+        self.aggregator.get_all_accuracies_and_losses_about.side_effect = mock_get_accuracies_losses
+
+        scores = contribution._calculate_scores_accuracy_loss(
+            self.aggregator, users, mad_threshold=1.1
+        )
+
+        self.aggregator._logger.contribution_scores.assert_called_once_with(
+            round=1,
+            user_ids=[0, 1, 2, 3],
+            user_addresses=[u.address for u in users],
+            scores=scores,
+        )
+        mad_calls = self.aggregator._logger.contribution_score_mad.call_args_list
+        assert [call.kwargs["metric"] for call in mad_calls] == ["accuracy", "loss"]
+        assert all(call.kwargs["round"] == 1 for call in mad_calls)
+
 
     @pytest.mark.parametrize("user_accuracies, prev_accuracies, expected_scores", [
         (

@@ -17,7 +17,7 @@ _USERS_ACC_COLS   = ["subjective_personal_accuracy", "subjective_global_accuracy
 _VOTES_ACC_COLS  = ["vote_accuracy", "vote_prev_accuracy"]
 _VOTES_LOSS_COLS = ["vote_loss", "vote_prev_loss"]
 
-# Contributions table — scalar columns stored in raw scale (accuracy_only: 0..10000; loss_only: loss*100).
+# Contributions MAD table — scalar columns stored in raw scale (accuracy_only: 0..10000; loss_only: loss*100).
 # Divide by contrib_divisor (100) to get % or actual loss.
 # Dotproduct strategy is excluded — its values are weight-space with no fixed scale,
 # and current_mad_max_deviation is the literal threshold parameter, not a computed boundary.
@@ -33,8 +33,8 @@ _CONTRIB_SCALAR_COLS = [
     "previous_mad_max_deviation",
 ]
 
-# Contributions table — list columns in raw scale.
-# MUST convert AFTER the is_outlier merge: current_excluded_values is read from `c`
+# Contributions MAD table — list columns in raw scale.
+# MUST convert AFTER the is_outlier merge: current_excluded_values is read from `cm`
 # in raw scale and compared against raw vote_accuracy via np.isclose.
 _CONTRIB_LIST_COLS = [
     "current_excluded_values",
@@ -80,6 +80,7 @@ def normalize_run(run: RunData, make_readable: bool = True) -> RunData:
     v  = run.votes.copy()              if not run.votes.empty              else pd.DataFrame()
     r  = run.receipts.copy()           if not run.receipts.empty           else pd.DataFrame()
     c  = run.contributions.copy()      if not run.contributions.empty      else pd.DataFrame()
+    cm = run.contributions_mad.copy()  if not run.contributions_mad.empty  else pd.DataFrame()
     w  = run.warnings.copy()           if not run.warnings.empty           else pd.DataFrame()
     p  = run.punishments.copy()        if not run.punishments.empty        else pd.DataFrame()
 
@@ -114,11 +115,15 @@ def normalize_run(run: RunData, make_readable: bool = True) -> RunData:
                 if col in u.columns:
                     u[col] = u[col] * acc_multiplier
 
-        # Contributions table — scalar columns
-        if contrib_convertible and not c.empty:
+        # Parent contributions table is passed through unchanged.
+        # It now only stores the model-side contribution_score, which is logged
+        # before contract Wei scaling. MAD/raw metric values live in cm below.
+
+        # Contributions MAD child table — scalar columns
+        if contrib_convertible and not cm.empty:
             for col in _CONTRIB_SCALAR_COLS:
-                if col in c.columns:
-                    c[col] = c[col] / contrib_divisor
+                if col in cm.columns:
+                    cm[col] = cm[col] / contrib_divisor
 
         # Punishments table
         if not p.empty:
@@ -127,9 +132,10 @@ def normalize_run(run: RunData, make_readable: bool = True) -> RunData:
                     p[col] = p[col] / wei_divisor
 
     # Votes table — flag whether the voted accuracy was excluded as an outlier.
-    # Only current_excluded_values is pulled from contributions; it's dropped after use.
-    if not v.empty and not c.empty:
-        contrib_res = c[['round', 'user_id', 'current_excluded_values']]
+    # Pull current_excluded_values from the accuracy child rows (votes are accuracy votes).
+    if not v.empty and not cm.empty and "metric" in cm.columns and "current_excluded_values" in cm.columns:
+        acc_mad = cm[cm["metric"] == "accuracy"]
+        contrib_res = acc_mad[['round', 'user_id', 'current_excluded_values']]
 
         v = v.merge(contrib_res, left_on=['round', 'receiver_id'],
                     right_on=['round', 'user_id'], how='left') \
@@ -154,11 +160,11 @@ def normalize_run(run: RunData, make_readable: bool = True) -> RunData:
                 if col in v.columns:
                     v[col] = v[col] / vote_loss_unscaler
 
-        # Contributions list columns — must run after is_outlier merge (see note above)
-        if contrib_convertible and not c.empty:
+        # Contributions MAD child table — list columns. Must run after is_outlier merge above.
+        if contrib_convertible and not cm.empty:
             for col in _CONTRIB_LIST_COLS:
-                if col in c.columns:
-                    c[col] = c[col].apply(
+                if col in cm.columns:
+                    cm[col] = cm[col].apply(
                         lambda lst: [x / contrib_divisor for x in lst]
                         if isinstance(lst, list) else lst
                     )
@@ -179,6 +185,7 @@ def normalize_run(run: RunData, make_readable: bool = True) -> RunData:
         votes=              v,
         receipts=           r,
         contributions=      c,
+        contributions_mad=  cm,
         warnings=           w,
         punishments=        p,
     )
@@ -204,6 +211,7 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
     votes_frames         = []
     receipts_frames      = []
     contributions        = []
+    contributions_mad    = []
     warnings             = []
     punishments          = []
 
@@ -233,6 +241,8 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
             receipts_frames.append(_tag(run.receipts))
         if not run.contributions.empty:
             contributions.append(_tag(run.contributions))
+        if not run.contributions_mad.empty:
+            contributions_mad.append(_tag(run.contributions_mad))
         if not run.warnings.empty:
             warnings.append(_tag(run.warnings))
         if not run.punishments.empty:
@@ -254,6 +264,7 @@ def merge_runs(runs: list[RunData]) -> dict[str, pd.DataFrame]:
         "votes":              _concat(votes_frames),
         "receipts":           _concat(receipts_frames),
         "contributions":      _concat(contributions),
+        "contributions_mad":  _concat(contributions_mad),
         "warnings":           _concat(warnings),
         "punishments":        _concat(punishments),
     }
