@@ -16,140 +16,148 @@ def run_experiment(dataset_name: str, experiment_config, _run_id: int,  writer: 
     experiment_config.dataset = dataset_name
     experiment_start = time.perf_counter()
     RPC_ENDPOINT = require_env_var("RPC_URL")
+    pytorch_model = None
 
-    # Only for the real-net simulation
-    # In order to use a non-locally forked blockchain,
-    # private keys are required to unlock accounts
-    if experiment_config.fork == False:
-        w3 = Web3(Web3.HTTPProvider(RPC_ENDPOINT))
+    try:
+        # Only for the real-net simulation
+        # In order to use a non-locally forked blockchain,
+        # private keys are required to unlock accounts
+        if experiment_config.fork == False:
+            w3 = Web3(Web3.HTTPProvider(RPC_ENDPOINT))
 
-        raw_keys = require_env_var("PRIVATE_KEYS")
-        privKeys = [k.strip() for k in raw_keys.splitlines() if k.strip()]
+            raw_keys = require_env_var("PRIVATE_KEYS")
+            privKeys = [k.strip() for k in raw_keys.splitlines() if k.strip()]
 
-        # Convert to Web3 Account objects
-        loaded_accounts = [Account.from_key(k) for k in privKeys]
+            # Convert to Web3 Account objects
+            loaded_accounts = [Account.from_key(k) for k in privKeys]
 
-        # Wrap for compatibility with older code expecting `.privateKey`
-        PRIVKEYS = [
-            SimpleNamespace(privateKey=acc._private_key, address=acc.address)
-            for acc in loaded_accounts
-        ]
+            # Wrap for compatibility with older code expecting `.privateKey`
+            PRIVKEYS = [
+                SimpleNamespace(privateKey=acc._private_key, address=acc.address)
+                for acc in loaded_accounts
+            ]
 
-        print(f"Loaded {len(PRIVKEYS)} private keys.")
-    else:
-        PRIVKEYS = None
+            print(f"Loaded {len(PRIVKEYS)} private keys.")
+        else:
+            PRIVKEYS = None
 
-    if experiment_config.number_of_runs == 1:
-        run_id = 0
-    else:
-        run_id = _run_id
+        if experiment_config.number_of_runs == 1:
+            run_id = 0
+        else:
+            run_id = _run_id
 
-    pytorch_model = PM.PytorchModel(dataset_name,
-                                    experiment_config.number_of_good_contributors,
-                                    experiment_config.number_of_bad_contributors,
-                                    experiment_config.number_of_freerider_contributors,
-                                    experiment_config.epochs,
-                                    experiment_config.batch_size,
-                                    experiment_config.standard_buy_in,
-                                    experiment_config.max_buy_in,
-                                    experiment_config.freerider_noise_scale,
-                                    experiment_config.freerider_start_round,
-                                    experiment_config.malicious_start_round,
-                                    experiment_config.malicious_noise_scale,
-                                    experiment_config.force_merge_all,
-                                    experiment_config.use_nobody_is_kicked,
-                                    run_id)
+        pytorch_model = PM.PytorchModel(dataset_name,
+                                        experiment_config.number_of_good_contributors,
+                                        experiment_config.number_of_bad_contributors,
+                                        experiment_config.number_of_freerider_contributors,
+                                        experiment_config.epochs,
+                                        experiment_config.batch_size,
+                                        experiment_config.standard_buy_in,
+                                        experiment_config.max_buy_in,
+                                        experiment_config.freerider_noise_scale,
+                                        experiment_config.freerider_start_round,
+                                        experiment_config.malicious_start_round,
+                                        experiment_config.malicious_noise_scale,
+                                        experiment_config.force_merge_all,
+                                        experiment_config.use_nobody_is_kicked,
+                                        run_id)
 
-    manager = Manager.FLManager(pytorch_model, True).init(
-        experiment_config.number_of_good_contributors,
-        experiment_config.number_of_bad_contributors,
-        experiment_config.number_of_freerider_contributors,
-        experiment_config.number_of_inactive_contributors,
-        experiment_config.minimum_rounds,
-        RPC_ENDPOINT,
-        experiment_config.fork,
-        PRIVKEYS,
-        experiment_config.use_nobody_is_kicked,
-    )
-    manager.build_contract()
-
-    configs = manager.deploy_challenge_contract(experiment_config.min_buy_in,
-                                                experiment_config.max_buy_in,
-                                                experiment_config.reward,
-                                                experiment_config.minimum_rounds,
-                                                experiment_config.punish_factor,
-                                                experiment_config.punish_factor_contrib,
-                                                experiment_config.first_round_fee,
-                                                experiment_config.use_nobody_is_kicked)
-    writer.writeComment(f"$startingUserConfig${[p.getStatus() for p in pytorch_model.participants]}")
-
-    extra_configs = {}
-    if experiment_config.contribution_score_strategy is not None:
-        extra_configs["contribution_score_strategy"] = (
-            experiment_config.contribution_score_strategy
+        manager = Manager.FLManager(pytorch_model, True).init(
+            experiment_config.number_of_good_contributors,
+            experiment_config.number_of_bad_contributors,
+            experiment_config.number_of_freerider_contributors,
+            experiment_config.number_of_inactive_contributors,
+            experiment_config.minimum_rounds,
+            RPC_ENDPOINT,
+            experiment_config.fork,
+            PRIVKEYS,
+            experiment_config.use_nobody_is_kicked,
         )
+        manager.build_contract()
 
-    model = Challenge.FLChallenge(manager,
-                                  configs,
-                                  pytorch_model,
-                                  experiment_config,
-                                  writer,
-                                  logger)
+        configs = manager.deploy_challenge_contract(experiment_config.min_buy_in,
+                                                    experiment_config.max_buy_in,
+                                                    experiment_config.reward,
+                                                    experiment_config.minimum_rounds,
+                                                    experiment_config.punish_factor,
+                                                    experiment_config.punish_factor_contrib,
+                                                    experiment_config.first_round_fee,
+                                                    experiment_config.use_nobody_is_kicked)
+        writer.writeComment(f"$startingUserConfig${[p.getStatus() for p in pytorch_model.participants]}")
 
-    model.simulate(rounds=experiment_config.minimum_rounds)
-    experiment_end = time.perf_counter()
-    total_experiment_time = experiment_end - experiment_start
+        extra_configs = {}
+        if experiment_config.contribution_score_strategy is not None:
+            extra_configs["contribution_score_strategy"] = (
+                experiment_config.contribution_score_strategy
+            )
 
-    print("\n" + "=" * 75)
-    print(f"TOTAL EXPERIMENT TIME: {total_experiment_time:.2f} seconds")
-    writer.writeComment(f"TOTAL EXPERIMENT TIME: {total_experiment_time:.2f} seconds")
-    print("=" * 75 + "\n")
+        model = Challenge.FLChallenge(manager,
+                                      configs,
+                                      pytorch_model,
+                                      experiment_config,
+                                      writer,
+                                      logger)
 
-    if logger is not None:
-        try:
-            import torch
-            gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "None"
-        except (ImportError, Exception):
-            gpu_name = "Unknown"
+        model.simulate(rounds=experiment_config.minimum_rounds)
+        experiment_end = time.perf_counter()
+        total_experiment_time = experiment_end - experiment_start
 
-        hardware = {
-            "cpu_name": platform.processor(),
-            "cpu_cores": psutil.cpu_count(logical=False),
-            "ram_gb": round(psutil.virtual_memory().total / (1024 ** 3), 2),
-            "gpu_name": gpu_name,
-            "os_name": platform.system(),
-        }
+        print("\n" + "=" * 75)
+        print(f"TOTAL EXPERIMENT TIME: {total_experiment_time:.2f} seconds")
+        writer.writeComment(f"TOTAL EXPERIMENT TIME: {total_experiment_time:.2f} seconds")
+        print("=" * 75 + "\n")
 
-        cfg = experiment_config
-        config = {
-            "contribution_score_strategy": cfg.contribution_score_strategy,
-            "use_outlier_detection": cfg.use_outlier_detection,
-            "number_of_good_contributors": cfg.number_of_good_contributors,
-            "number_of_bad_contributors": cfg.number_of_bad_contributors,
-            "number_of_freerider_contributors": cfg.number_of_freerider_contributors,
-            "number_of_inactive_contributors": cfg.number_of_inactive_contributors,
-            "reward": cfg.reward,
-            "minimum_rounds": cfg.minimum_rounds,
-            "min_buy_in": cfg.min_buy_in,
-            "max_buy_in": cfg.max_buy_in,
-            "standard_buy_in": cfg.standard_buy_in,
-            "epochs": cfg.epochs,
-            "batch_size": cfg.batch_size,
-            "punish_factor": cfg.punish_factor,
-            "punish_factor_contrib": cfg.punish_factor_contrib,
-            "first_round_fee": cfg.first_round_fee,
-            "fork": cfg.fork,
-            "dataset": cfg.dataset,
-            "freerider_start_round": cfg.freerider_start_round,
-            "freerider_noise_scale": cfg.freerider_noise_scale,
-            "malicious_start_round": cfg.malicious_start_round,
-            "malicious_noise_scale": cfg.malicious_noise_scale,
-            "force_merge_all": cfg.force_merge_all,
-        }
+        if logger is not None:
+            try:
+                import torch
+                gpu_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "None"
+            except (ImportError, Exception):
+                gpu_name = "Unknown"
 
-        logger.setup(total_experiment_time, hardware, config)
+            hardware = {
+                "cpu_name": platform.processor(),
+                "cpu_cores": psutil.cpu_count(logical=False),
+                "ram_gb": round(psutil.virtual_memory().total / (1024 ** 3), 2),
+                "gpu_name": gpu_name,
+                "os_name": platform.system(),
+            }
 
-    return Experiment(model, manager)
+            cfg = experiment_config
+            config = {
+                "contribution_score_strategy": cfg.contribution_score_strategy,
+                "use_outlier_detection": cfg.use_outlier_detection,
+                "number_of_good_contributors": cfg.number_of_good_contributors,
+                "number_of_bad_contributors": cfg.number_of_bad_contributors,
+                "number_of_freerider_contributors": cfg.number_of_freerider_contributors,
+                "number_of_inactive_contributors": cfg.number_of_inactive_contributors,
+                "reward": cfg.reward,
+                "minimum_rounds": cfg.minimum_rounds,
+                "min_buy_in": cfg.min_buy_in,
+                "max_buy_in": cfg.max_buy_in,
+                "standard_buy_in": cfg.standard_buy_in,
+                "epochs": cfg.epochs,
+                "batch_size": cfg.batch_size,
+                "punish_factor": cfg.punish_factor,
+                "punish_factor_contrib": cfg.punish_factor_contrib,
+                "first_round_fee": cfg.first_round_fee,
+                "fork": cfg.fork,
+                "dataset": cfg.dataset,
+                "freerider_start_round": cfg.freerider_start_round,
+                "freerider_noise_scale": cfg.freerider_noise_scale,
+                "malicious_start_round": cfg.malicious_start_round,
+                "malicious_noise_scale": cfg.malicious_noise_scale,
+                "force_merge_all": cfg.force_merge_all,
+            }
+
+            logger.setup(total_experiment_time, hardware, config)
+
+        return Experiment(model, manager)
+    finally:
+        if pytorch_model is not None:
+            try:
+                pytorch_model.shutdown()
+            except Exception as cleanup_error:
+                print(f"Warning: failed to clean up PyTorch model: {cleanup_error}")
 
 
 def visualizeModel(model):

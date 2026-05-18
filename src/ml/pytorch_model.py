@@ -45,6 +45,8 @@ class PytorchModel:
         self._pool = None
         self._gpu_pools = []
         self._pool_cleanup_registered = False
+        self._pool_cleanup_callback = None
+        self._shutdown_complete = False
         self.participants = []
         self.disqualified = []
         self.EPOCHS = epochs
@@ -171,7 +173,8 @@ class PytorchModel:
             return
 
         if not self._pool_cleanup_registered:
-            atexit.register(self.close_pool)
+            self._pool_cleanup_callback = self.close_pool
+            atexit.register(self._pool_cleanup_callback)
             signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
             self._pool_cleanup_registered = True
 
@@ -357,6 +360,18 @@ class PytorchModel:
         self._pool = None
         self._gpu_pools = []
 
+    def _unregister_pool_cleanup(self):
+        if not self._pool_cleanup_registered:
+            return
+
+        try:
+            atexit.unregister(self._pool_cleanup_callback)
+        except (AttributeError, ValueError):
+            pass
+
+        self._pool_cleanup_callback = None
+        self._pool_cleanup_registered = False
+
     @staticmethod
     def _shutdown_loader(loader):
         if loader is None:
@@ -369,7 +384,11 @@ class PytorchModel:
             loader._iterator = None
 
     def shutdown(self):
+        if self._shutdown_complete:
+            return
+
         self.close_pool()
+        self._unregister_pool_cleanup()
 
         self._shutdown_loader(self.test)
         for loader in (self.train if isinstance(self.train, list) else [self.train]):
@@ -382,9 +401,20 @@ class PytorchModel:
             self._shutdown_loader(getattr(p, "val", None))
             p.train = None
             p.val = None
+            p.model = None
+            p.previousModel = None
+            p.optimizer = None
+            p.criterion = None
 
         self.train = None
         self.val = None
         self.test = None
         self.DATA = None
+        self.global_model = None
+        self.participants = []
+        self.disqualified = []
         gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+        self._shutdown_complete = True
