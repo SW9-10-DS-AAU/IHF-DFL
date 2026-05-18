@@ -15,6 +15,13 @@ def _print(string, end= ""):
         return
     print(string, end=end)
 
+# Horizontal divider line — replaces hard-coded "-----..." / "=====..." strings.
+def print_divider(char: str = "-", blank_line_after: bool = False):
+    print(char * 83)
+    if blank_line_after:
+        print()
+
+
 def print_bar(i, l):
         p = "-" * (i+1)
         r = "." *((l-1)-i)

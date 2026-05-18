@@ -13,6 +13,7 @@ from termcolor import colored
 from web3.exceptions import ContractLogicError
 from utils.colors import rb, b, green, red
 from utils import printer, config
+from utils.printer import print_divider
 from api.connection_helper import ConnectionHelper
 from utils.async_writer import AsyncWriter, NullWriter
 from contracts import contribution
@@ -246,46 +247,48 @@ class FLChallenge(ConnectionHelper):
 
     
     def return_stats(self): # pragma: no cover
-        print("\n==================================================================================\n")
+        print() # New line before
+        print_divider("=", blank_line_after=True)
         print("\n{:<8}{:^32}  {:^32}".format(f"ROUND {self.pytorch_model.round}","GLOBAL REPUTATION", "ROUND REPUTATION"))
         for acc in self.pytorch_model.participants:
             gs = self.get_global_reputation_of_user(acc.address)
             rs = self.get_round_reputation_of_user(acc.address)
             print("{}..: {:>27,.0f}  {:>27,.0f} WEI".format(acc.address[0:7],gs,rs))
-        print("\n==================================================================================\n")
+        print() # New line before
+        print_divider("=", blank_line_after=True)
     
             
-    def feedback_round(self, fbm): # pragma: no cover
-        txs = []
-        for user in self.pytorch_model.participants:
-            user_votes = fbm[user.id]
-            for ix, vote in enumerate(user_votes):
-                if user.id == ix:
-                    continue
-                if user.attitude == "inactive":
-                    continue
-                txHash = self.giveFeedback(user, self.pytorch_model.participants[ix], int(vote))
-                txs.append(txHash)
-           
-        l = len(txs)
-        for i, txHash in enumerate(txs):
-            if txHash == None:
-                continue
-            printer.print_bar(i, l)
-            receipt = self.w3.eth.wait_for_transaction_receipt(txHash,
-                                                            timeout=600, 
-                                                            poll_latency=1)
-            
-            self.gas_feedback.append(receipt["gasUsed"])
-            self.txHashes.append(("feedback", receipt["transactionHash"].hex(), receipt["gasUsed"]))
-            logging.log_receipt(self, receipt, "feedback")
-        for user in self.pytorch_model.participants:
-            user._roundrep.append(self.get_round_reputation_of_user(user.address))
-
-        for user in self.pytorch_model.disqualified:
-            user._roundrep.append(self.get_round_reputation_of_user(user.address))
-        # printer._print("                                                   ")
-        # print("\n-----------------------------------------------------------------------------------")
+    # def feedback_round(self, fbm): # pragma: no cover
+    #     txs = []
+    #     for user in self.pytorch_model.participants:
+    #         user_votes = fbm[user.id]
+    #         for ix, vote in enumerate(user_votes):
+    #             if user.id == ix:
+    #                 continue
+    #             if user.attitude == "inactive":
+    #                 continue
+    #             txHash = self.giveFeedback(user, self.pytorch_model.participants[ix], int(vote))
+    #             txs.append(txHash)
+    #
+    #     l = len(txs)
+    #     for i, txHash in enumerate(txs):
+    #         if txHash == None:
+    #             continue
+    #         printer.print_bar(i, l)
+    #         receipt = self.w3.eth.wait_for_transaction_receipt(txHash,
+    #                                                         timeout=600,
+    #                                                         poll_latency=1)
+    #
+    #         self.gas_feedback.append(receipt["gasUsed"])
+    #         self.txHashes.append(("feedback", receipt["transactionHash"].hex(), receipt["gasUsed"]))
+    #         logging.log_receipt(self, receipt, "feedback")
+    #     for user in self.pytorch_model.participants:
+    #         user._roundrep.append(self.get_round_reputation_of_user(user.address))
+    #
+    #     for user in self.pytorch_model.disqualified:
+    #         user._roundrep.append(self.get_round_reputation_of_user(user.address))
+    #     # printer._print("                                                   ")
+    #     # print("\n-----------------------------------------------------------------------------------")
 
 
     def build_feedback_bytes(self, a, v): # pragma: no cover
@@ -306,9 +309,9 @@ class FLChallenge(ConnectionHelper):
     def quick_feedback_round(self, fbm, am = None, lm = None, prev_accs = None, prev_losses = None): # pragma: no cover
         print("Users exchanging feedback...")
         txs = []
-        for idx, user in enumerate(self.pytorch_model.participants):
+        for user in self.pytorch_model.participants:
             if user.disqualified:
-                break
+                continue
             addrs = []
             votes = []
             user_votes = fbm[user.id]
@@ -316,8 +319,8 @@ class FLChallenge(ConnectionHelper):
             filtered_losses = []
 
             # Add null.check
-            accs = am[idx]
-            losses = lm[idx]
+            accs = am[user.id]
+            losses = lm[user.id]
 
             for ix, vote in enumerate(user_votes):
                 if user.id == ix:
@@ -351,8 +354,8 @@ class FLChallenge(ConnectionHelper):
                 txs.append(tx_hash)
 
             elif self.experiment_config.contribution_score_strategy == "accuracy_loss":
-                prev_acc = prev_accs[idx]
-                prev_loss = prev_losses[idx]
+                prev_acc = prev_accs[user.id]
+                prev_loss = prev_losses[user.id]
                 if self.fork:
                     tx = super().build_tx(user.address, self.modelAddress)
                     tx_hash = self.model.functions.submitFeedbackBytesAndAccuraciesLosses(rb_fbb, filtered_accs, filtered_losses, prev_acc, prev_loss).transact(tx)
@@ -364,7 +367,7 @@ class FLChallenge(ConnectionHelper):
                 txs.append(tx_hash)
 
             elif self.experiment_config.contribution_score_strategy == "accuracy_only":
-                prev_acc = prev_accs[idx]
+                prev_acc = prev_accs[user.id]
                 if self.fork:
                     tx = super().build_tx(user.address, self.modelAddress)
                     tx_hash = self.model.functions.submitFeedbackBytesAndAccuracies(rb_fbb, filtered_accs, prev_acc).transact(tx)
@@ -377,7 +380,7 @@ class FLChallenge(ConnectionHelper):
                 txs.append(tx_hash)
 
             elif self.experiment_config.contribution_score_strategy == "loss_only":
-                prev_loss = prev_losses[idx]
+                prev_loss = prev_losses[user.id]
                 if self.fork:
                     tx = super().build_tx(user.address, self.modelAddress)
                     tx_hash = self.model.functions.submitFeedbackBytesAndLosses(rb_fbb, filtered_losses, prev_loss).transact(tx)
@@ -396,7 +399,8 @@ class FLChallenge(ConnectionHelper):
             self.track_transaction(i, txHash, len(txs), "feedback")
 
         printer._print("                                                   ")
-        print("\n-----------------------------------------------------------------------------------")
+        print() # New line before
+        print_divider()
 
 
     def sign_and_send_tx(self, user, contract_fn_call): # pragma: no cover
@@ -666,7 +670,7 @@ class FLChallenge(ConnectionHelper):
                         # print(green(f"TOTAL REWARD:     {args['win']:,}"))
                         # print(green(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
                 else: warnings.warn(f"User {args['user']} had negative round score but was rewarded? Score: {args['roundScore']}, Reward: {args['win']}")
-            print("-----------------------------------------------------------------------------------\n")
+            print_divider(blank_line_after=True)
 
         # Punished users
         if punish_events:
@@ -723,7 +727,7 @@ class FLChallenge(ConnectionHelper):
                 print(red(f"ROUND SCORE:      {args['roundScore']:,}"))
                 print(red(f"TOTAL LOSS:       {args['loss']:,}"))
                 print(red(f"NEW REPUTATION:   {args['newReputation']:,}\n"))
-            print("-----------------------------------------------------------------------------------\n")
+            print_divider(blank_line_after=True)
 
         logging.log_punishments(self, events, _current_round_no)
 
@@ -857,7 +861,7 @@ class FLChallenge(ConnectionHelper):
                 round_punishment = [(punishment[0], punishment[1]) for punishment in self._punishments if punishment[0] == _current_round]
                 round_kicked = [punishment[2] for punishment in self._punishments if punishment[0] == _current_round]
                 roundTx = self.txHashes[self.writeTxProgress:]
-                self.writeTxProgress = len(self.txHashes) - 1
+                self.writeTxProgress = len(self.txHashes)
                 self.writer.writeResult({
                     "round": _current_round,
                     "GRS": grs,

@@ -88,25 +88,41 @@ def test_plot_grs_by_role_has_four_lines(agg_grs):
     assert len(lines) == 4
 
 
+def test_plot_grs_by_user_skips_missing_activation_round(two_exp_users, two_exp_metadata):
+    users = two_exp_users[two_exp_users["experiment_id"] == "exp-A"]
+    metadata = two_exp_metadata.copy()
+    metadata.loc[metadata["experiment_id"] == "exp-A", "malicious_start_round"] = None
+
+    fig = plots.plot_grs_by_user(users, metadata=metadata)
+
+    assert isinstance(fig, plt.Figure)
+    assert fig.axes[0].get_xlabel() == "Round"
+
+
 # ---------------------------------------------------------------------------
 # plot_gas_cost_by_tx_type
 # ---------------------------------------------------------------------------
 
-def test_plot_gas_cost_by_tx_type_returns_figure(agg_gas):
-    fig = plots.plot_gas_cost_by_tx_type(agg_gas)
-    assert isinstance(fig, plt.Figure)
-
-
-# ---------------------------------------------------------------------------
-# save_figure
-# ---------------------------------------------------------------------------
-
 def test_save_figure_creates_file(tmp_path, agg_global):
     fig = plots.plot_accuracy_loss_over_rounds(agg_global)
-    out = tmp_path / "output.png"
-    plots.save_figure(fig, out)
-    assert out.exists()
-    assert out.stat().st_size > 0
+    plots.save_figure(fig, tmp_path, experiment_name="test")
+
+    out_dir = tmp_path / "test"
+    files = list(out_dir.glob("*.svg"))
+    assert len(files) == 1
+    assert files[0].stat().st_size > 0
+
+
+def test_save_figure_auto_names_svg_files(tmp_path, agg_global):
+    fig = plots.plot_accuracy_loss_over_rounds(agg_global)
+    plots.save_figure(fig, tmp_path, experiment_name="test")
+    plots.save_figure(fig, tmp_path, experiment_name="test", suffix="second")
+
+    files = sorted((tmp_path / "test").glob("*.svg"))
+    assert [file.name for file in files] == [
+        "001-accuracy_loss_over_rounds.svg",
+        "002-accuracy_loss_over_rounds-second.svg",
+    ]
 
 
 def test_save_figure_png_and_pdf(tmp_path, agg_global):

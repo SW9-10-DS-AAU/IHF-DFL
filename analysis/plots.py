@@ -300,9 +300,12 @@ def plot_grs_by_user(
         for role, col in (("bad", "malicious_start_round"), ("freerider", "freerider_start_round")):
             if role not in roles_in_data or col not in meta.index:
                 continue
+            activation_round = meta[col]
+            if pd.isna(activation_round):
+                continue
             color = BEHAVIOR_COLORS.get(role, "black")
             ax.axvline(
-                int(meta[col]),
+                int(activation_round),
                 linestyle="--",
                 color=color,
                 linewidth=2,

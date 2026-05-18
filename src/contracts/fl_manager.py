@@ -1,5 +1,6 @@
 from web3 import Web3
 from utils.colors import b
+from utils.printer import print_divider
 from api import ConnectionHelper
 
 class FLManager(ConnectionHelper):
@@ -74,7 +75,7 @@ class FLManager(ConnectionHelper):
         print("\n{:<17} {} | {}\n".format("Manager deployed", 
                                           "@ Address " + self.manager.address, 
                                           genesisHash.hex()[0:6]+"..."))
-        print("-----------------------------------------------------------------------------------")
+        print_divider()
         return 
 
 
@@ -96,7 +97,7 @@ class FLManager(ConnectionHelper):
     
     def deploy_challenge_contract(self, *args):
         print(b("Starting simulation..."))
-        print(b("-----------------------------------------------------------------------------------"))
+        print_divider()
         min_buyin, max_buyin, reward, min_rounds, punishment, punish_contrib, freerider_fee, use_nobody_is_kicked = args
         p1_collateral = self.pytorch_model.participants[0].collateral
         value = reward + p1_collateral
@@ -158,7 +159,7 @@ class FLManager(ConnectionHelper):
         print("\n{:<17} {} | {}\n".format("Model deployed", 
                                           "@ Address " + self.challenge_contract.address, 
                                           txHash.hex()[0:6]+"..."))
-        print("-----------------------------------------------------------------------------------")
+        print_divider()
         print("{:<17} {} | {} | {:>25,.0f} WEI".format(
             "Account registered:",
             self.pytorch_model.participants[0].address[0:16] + "...",

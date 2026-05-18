@@ -421,7 +421,7 @@ contract OpenFLModel {
                     user.nrOfVotesFromUser = 0;
                     uint punishment = uint(user.globalReputationScore / punishfactor);
 
-                    if (user.globalReputationScore - punishment >= disq_threshold) { //punish
+                    if (punishment < user.globalReputationScore) { //punish
                         user.isPunished = true;
                         user.globalReputationScore = user.globalReputationScore - punishment;
                         user.roundReputation = user.roundReputation - int(punishment);
@@ -530,7 +530,7 @@ contract OpenFLModel {
                 uint punishment = (user.globalReputationScore / punishfactorContrib) * absUint(contributionScore[round][user.addr]);
                 require(punishment > 0, "punishment is <= 0 in settle!");
                 punishment /= 1e18;
-                if (user.globalReputationScore - punishment < disq_threshold) {
+                if (punishment >= user.globalReputationScore) { // this is a disqualification
                     reward += user.globalReputationScore;
                     _disqualifyUser(user);
                 }

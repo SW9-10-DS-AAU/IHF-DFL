@@ -28,7 +28,7 @@ def log_warning(challenge, msg, round=None):
     challenge._logger.warning(r, msg)
 
 
-def log_contribution_scores(challenge, users, scores, raw_values, outlier_info, previous_avg):
+def log_contribution_scores(challenge, users, scores):
     if challenge._logger is None:
         return
     challenge._logger.contribution_scores(
@@ -36,6 +36,17 @@ def log_contribution_scores(challenge, users, scores, raw_values, outlier_info, 
         user_ids=[u.id for u in users],
         user_addresses=[u.address for u in users],
         scores=scores,
+    )
+
+
+def log_contribution_score_mad(challenge, users, metric, raw_values, outlier_info, previous_avg):
+    if challenge._logger is None:
+        return
+    challenge._logger.contribution_score_mad(
+        round=challenge.pytorch_model.round,
+        user_ids=[u.id for u in users],
+        user_addresses=[u.address for u in users],
+        metric=metric,
         raw_values=raw_values,
         outlier_info=outlier_info,
         previous_avg=previous_avg,
@@ -93,9 +104,9 @@ def log_round(challenge, current_round, round_time,
 
     # ---- votes ----
     fbm = challenge.feedback_matrix
-    for _idx, _giver in enumerate(challenge.pytorch_model.participants):
-        _user_acc = prev_accs[_idx] if prev_accs and _idx < len(prev_accs) else None
-        _user_loss = prev_losses[_idx] if prev_losses and _idx < len(prev_losses) else None
+    for _giver in challenge.pytorch_model.participants:
+        _user_acc = prev_accs[_giver.id] if prev_accs and _giver.id < len(prev_accs) else None
+        _user_loss = prev_losses[_giver.id] if prev_losses and _giver.id < len(prev_losses) else None
         for _receiver in challenge.pytorch_model.participants:
             if _giver.id == _receiver.id:
                 continue
