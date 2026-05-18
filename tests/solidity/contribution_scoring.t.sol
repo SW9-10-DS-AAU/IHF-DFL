@@ -179,7 +179,7 @@ contract ContributionScoringTest is Test {
         model._initEligibleUser(a, lowGrs, 1);
         model._initEligibleUser(b, COLLATERAL, 1);
         model._setVotesPerRound(2);
-        model._setContribution(a, -1e18);
+        model._setContribution(a, -4e18);
         model._setContribution(b, 1e18);
 
         uint beforeB = model._getGRS(b);

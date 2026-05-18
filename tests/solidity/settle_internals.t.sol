@@ -72,6 +72,10 @@ contract SettleInternalsHarness is OpenFLModel {
         users[user].isPunished = value;
     }
 
+    function _setGRS(address user, uint256 value) external {
+        users[user].globalReputationScore = value;
+    }
+
     function _setUserPassivePunished(address user, bool value) external {
         users[user].isPassivePunished = value;
     }
@@ -209,15 +213,19 @@ contract SettleInternalsTest is Test {
         assertEq(model._punishedCount(), 1);
     }
 
-    function testPunishMaliciousUsers_DisqualifiesLowGRSUser() public {
-        uint256 lowGrs = 0.4 ether;
-        model._addUser(alice, lowGrs, -1, 2, 1, false);
+    function testPunishMaliciousUsers_DisqualifiesZeroGRSUser() public {
+        model._addUser(alice, COLLATERAL, -1, 2, 1, false);
         model._setVotesPerRound(1);
+
+        assertFalse(model._isDisqualified(alice));
+        assertTrue(model._isRegistered(alice));
+
+        model._setGRS(alice, 0);
 
         uint256 beforeActive = model._getActiveParticipants();
         uint256 totalPunishment = model._punishMaliciousUsers();
 
-        assertEq(totalPunishment, lowGrs);
+        assertEq(totalPunishment, 0);
         assertTrue(model._isDisqualified(alice));
         assertFalse(model._isRegistered(alice));
         assertTrue(model._isPunished(alice));
