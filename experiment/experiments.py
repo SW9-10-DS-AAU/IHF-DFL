@@ -157,27 +157,9 @@ def main(author): # single preset
         ))
 
     total = len(productVar)
-    skipsCount = len(skips)
 
-    time = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
-
-    for i, (
-        strategy,
-        outlier_detection,
-        freerider_round,
-        freerider_noise,
-        malicious_activation_round,
-        malicious_noise,
-        dataset,
-        run_id
-    ) in enumerate(productVar, start=1):
-        progress_bar(i - 1, skipsCount, total)
-
-        config = ExperimentConfiguration(preset=preset, use_defaults=_use_defaults)
-        config.preset_name = preset
-        config.dataset = dataset
-
-        skipConfig = Skip(
+    skipConfigs = [
+        Skip(
             preset=preset,
             dataset=dataset,
             strategy=strategy,
@@ -186,12 +168,44 @@ def main(author): # single preset
             freerider_noise=freerider_noise,
             malicious_activation_round=malicious_activation_round,
             malicious_noise=malicious_noise,
-            run_id=run_id
+            run_id=run_id,
         )
+        for (
+            strategy, outlier_detection, freerider_round, freerider_noise,
+            malicious_activation_round, malicious_noise, dataset, run_id
+        ) in productVar
+    ]
+    skipsCount = sum(1 for sc in skipConfigs if shouldSkip(sc))
 
+    time = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
+
+    done = 0
+    for i, ((
+        strategy,
+        outlier_detection,
+        freerider_round,
+        freerider_noise,
+        malicious_activation_round,
+        malicious_noise,
+        dataset,
+        run_id
+    ), skipConfig) in enumerate(zip(productVar, skipConfigs), start=1):
         if shouldSkip(skipConfig):
             print(f"Skipping: {skipConfig}")
             continue
+        else:
+            # debug
+            print(f"NOT skipped: {normalize_skip(skipConfig)}")
+            for s in skips:
+                if s.run_id == skipConfig.run_id and s.strategy == skipConfig.strategy:
+                    print(f"  candidate: {normalize_skip(s)}")
+
+        progress_bar(done, skipsCount, total)
+        done += 1
+
+        config = ExperimentConfiguration(preset=preset, use_defaults=_use_defaults)
+        config.preset_name = preset
+        config.dataset = dataset
 
 
         # override parameters for this run
@@ -261,7 +275,7 @@ def parseSkips():
     files: list[str] = []
 
     for dir in chosenDirs:
-        files.extend([p.name for p in dir.iterdir() if p.is_file()])
+        files.extend([p.name for p in dir.iterdir() if p.is_file() and p.suffix == ".pkl"])
 
     for file in files:
         m = re.fullmatch(
@@ -269,15 +283,10 @@ def parseSkips():
             r"(?P<dataset>[^-]+)-"
             r"(?P<strategy>[^-]+)-"
             r"(?P<outlierDetection>[^-]+)-"
-            r"(?P<activationRound>[^-]+)-"
-            r"(?P<noise>[^-]+)-"
-            r"(?P<freeriderAttackType>[^-]+)-"
+            r"(?P<freeriderRound>[^-]+)-"
+            r"(?P<freeriderNoise>[^-]+)-"
             r"(?P<maliciousRound>[^-]+)-"
             r"(?P<maliciousNoise>[^-]+)-"
-            r"(?P<maliciousAttackType>[^-]+)-"
-            r"(?P<aggregationRule>[^-]+)"
-            r"-(?P<dataDistribution>[^-]+)"
-            r"(?:-(?P<dirichletAlpha>[^-]+))"
             r"-?(?P<runId>[0-9]+)?"  # <-- optional run ID part
             r"(?:-\{[0-9a-fA-F-]+\})?"  # <-- optional UUID part
             r"\.pkl",
@@ -291,7 +300,6 @@ def parseSkips():
 
         mal_round = m.group("maliciousRound")
         mal_noise = m.group("maliciousNoise")
-        alpha = m.group("dirichletAlpha")
 
 
         skips.append(
@@ -300,8 +308,8 @@ def parseSkips():
                 dataset=m.group("dataset"),
                 strategy=m.group("strategy"),
                 outlier_detection=m.group("outlierDetection") == "True",
-                freerider_activation_round=int(m.group("activationRound")),
-                freerider_noise=float(m.group("noise")),
+                freerider_activation_round=int(m.group("freeriderRound")),
+                freerider_noise=float(m.group("freeriderNoise")),
                 malicious_activation_round=int(mal_round) if mal_round != "None" else None,
                 malicious_noise=float(mal_noise) if mal_noise != "None" else None,
                 run_id=int(m.group("runId")) if m.group("runId") is not None else 0
