@@ -22,7 +22,7 @@
         "--skipFolder",
         "experiment/data",
         "--author",
-        "Nykjaer"
+        "P10"
       ],
       "console": "integratedTerminal",
       "preLaunchTask": "compile-contracts"

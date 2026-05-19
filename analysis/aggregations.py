@@ -61,48 +61,8 @@ def agg_global_accuracy_loss_by_round(merged_global: pd.DataFrame) -> pd.DataFra
         )
         .reset_index()
     )
+    agg.attrs["experiment_ids"] = list(merged_global["experiment_id"].unique())
     return agg
-
-
-# def agg_accuracy_by_strategy(merged_global: pd.DataFrame) -> pd.DataFrame:
-#     """
-#     Mean and std of global_accuracy grouped by [contribution_score_strategy, round].
-#
-#     Returns DataFrame with columns: contribution_score_strategy, round,
-#     accuracy_mean, accuracy_std.
-#     """
-#     agg = (
-#         merged_global
-#         .groupby(["contribution_score_strategy", "round"])
-#         .agg(
-#             accuracy_mean=("global_accuracy", "mean"),
-#             accuracy_std= ("global_accuracy", "std"),
-#         )
-#         .reset_index()
-#     )
-#     return agg
-
-
-# def agg_final_round_accuracy_by_strategy(merged_global: pd.DataFrame) -> pd.DataFrame:
-#     """
-#     Final-round accuracy per run, one row per (experiment_id, strategy).
-#     Suitable for box plots.
-#
-#     Returns DataFrame with columns: contribution_score_strategy, experiment_id,
-#     final_accuracy.
-#     """
-#     # Pick the maximum round per experiment
-#     max_rounds = (
-#         merged_global
-#         .groupby("experiment_id")["round"]
-#         .max()
-#         .reset_index()
-#         .rename(columns={"round": "max_round"})
-#     )
-#     merged = merged_global.merge(max_rounds, on="experiment_id")
-#     final = merged[merged["round"] == merged["max_round"]].copy()
-#     final = final.rename(columns={"global_accuracy": "final_accuracy"})
-#     return final[["contribution_score_strategy", "experiment_id", "final_accuracy"]]
 
 
 def _require_consistent_activation(merged_users: pd.DataFrame, metadata: pd.DataFrame) -> None:
@@ -151,6 +111,7 @@ def agg_grs_by_role(merged_users: pd.DataFrame, metadata: pd.DataFrame) -> pd.Da
         )
         .reset_index()
     )
+    agg.attrs["experiment_ids"] = list(merged_users["experiment_id"].unique())
     return agg
 
 
@@ -190,11 +151,13 @@ def agg_grs_by_role_relative(merged_users: pd.DataFrame, metadata: pd.DataFrame)
         df.groupby(["experiment_id", "role", "relative_round"])
         .agg(grs=("grs", "mean")).reset_index()
     )
-    return (
+    agg = (
         per_experiment.groupby(["role", "relative_round"])
         .agg(grs_mean=("grs", "mean"), grs_std=("grs", "std"))
         .reset_index()
     )
+    agg.attrs["experiment_ids"] = list(merged_users["experiment_id"].unique())
+    return agg
 
 
 def grs_by_user(merged_users: pd.DataFrame) -> pd.DataFrame:
@@ -220,71 +183,9 @@ def grs_by_user(merged_users: pd.DataFrame) -> pd.DataFrame:
 
     # Role: Just fetch from first value on user
 
-    return df[["grs", "user_id", "role", "round"]].sort_values("round")
-
-
-def global_acc_by_aggregation_strategy(acc_over_agg: pd.DataFrame, metadata: pd.DataFrame) -> pd.DataFrame:
-    """
-    Two-stage aggregation of global accuracy by contribution score strategy and round.
-
-    Stage 1: mean accuracy per (experiment_id, contribution_score_strategy, round).
-    Stage 2: mean and std of those per-experiment means across runs.
-
-    Returns DataFrame with columns: contribution_score_strategy, round,
-    accuracy_mean, accuracy_std.
-    """
-    _require_nonempty(acc_over_agg, "acc_over_agg")
-    # TODO: Change to aggregation_strategy when implemented
-    df = _with_meta(acc_over_agg, metadata, ["contribution_score_strategy"])
-    per_experiment = (
-        df
-        .groupby(["experiment_id", "contribution_score_strategy", "round"])
-        .agg(accuracy=("objective_global_accuracy", "mean"))
-        .reset_index()
-    )
-    agg = (
-        per_experiment
-        .groupby(["contribution_score_strategy", "round"])
-        .agg(
-            accuracy_mean=("accuracy", "mean"),
-            accuracy_std= ("accuracy", "std"),
-        )
-        .reset_index()
-    )
-    return agg
-
-
-def global_loss_by_aggregation_strategy(loss_over_agg: pd.DataFrame, metadata: pd.DataFrame) -> pd.DataFrame:
-    """
-    Two-stage aggregation of global loss by contribution score strategy and round.
-
-    Stage 1: mean loss per (experiment_id, contribution_score_strategy, round).
-    Stage 2: mean and std of those per-experiment means across runs.
-
-    Returns DataFrame with columns: contribution_score_strategy, round,
-    loss_mean, loss_std.
-    """
-    _require_nonempty(loss_over_agg, "loss_over_agg")
-    # TODO: Change to aggregation_strategy when implemented
-    df = _with_meta(loss_over_agg, metadata, ["contribution_score_strategy"])
-    per_experiment = (
-        df
-        .groupby(["experiment_id", "contribution_score_strategy", "round"])
-        .agg(loss=("objective_global_loss", "mean"))
-        .reset_index()
-    )
-    agg = (
-        per_experiment
-        .groupby(["contribution_score_strategy", "round"])
-        .agg(
-            loss_mean=("loss", "mean"),
-            loss_std= ("loss", "std"),
-        )
-        .reset_index()
-    )
-    return agg
-
-
+    result = df[["experiment_id", "grs", "user_id", "role", "round"]].sort_values("round")
+    result.attrs["experiment_ids"] = list(df["experiment_id"].unique())
+    return result
 
 
 def agg_contribution_score_by_role(merged_users: pd.DataFrame, merged_contributions: pd.DataFrame, metadata: pd.DataFrame) -> pd.DataFrame:
@@ -330,6 +231,7 @@ def agg_contribution_score_by_role(merged_users: pd.DataFrame, merged_contributi
         )
         .reset_index()
     )
+    agg.attrs["experiment_ids"] = list(merged_users["experiment_id"].unique())
     return agg
 
 
@@ -373,6 +275,12 @@ def agg_contribution_score_by_role_relative(
             return row[freerider_col]
         return 0
 
+    # Exclude round 0 (baseline): no contribution scores exist there, so the left-join
+    # fills them with 0. Those zeros land at negative relative rounds (e.g. round 0 with
+    # freerider_start_round=3 → relative_round=-3), dragging down the pre-activation average
+    # and making scores appear to drop before activation. Fixed 2026-03-19.
+    # df = df[df["round"] > 0]
+
     df["activation_round"] = df.apply(_activation, axis=1)
     df["relative_round"] = df["round"] - df["activation_round"]
     per_experiment = (
@@ -380,11 +288,13 @@ def agg_contribution_score_by_role_relative(
         .agg(contribution_score=("contribution_score", "mean"))
         .reset_index()
     )
-    return (
+    agg = (
         per_experiment.groupby(["role", "relative_round"])
         .agg(score_mean=("contribution_score", "mean"), score_std=("contribution_score", "std"))
         .reset_index()
     )
+    agg.attrs["experiment_ids"] = list(merged_users["experiment_id"].unique())
+    return agg
 
 
 def agg_gas_used_by_tx_type(merged_receipts: pd.DataFrame, metadata: pd.DataFrame) -> pd.DataFrame:
@@ -414,6 +324,7 @@ def agg_gas_used_by_tx_type(merged_receipts: pd.DataFrame, metadata: pd.DataFram
         )
         .reset_index()
     )
+    agg.attrs["experiment_ids"] = list(merged_receipts["experiment_id"].unique())
     return agg
 
 
@@ -430,8 +341,6 @@ def agg_round_kicked_by_strategy(
 
     Mirrors the kickedGraph() chart from scripts/processData.py.
     """
-
-    # TODO: Check this works
 
     df = _with_meta(merged_users, metadata, ["contribution_score_strategy", "freerider_start_round"])
 
@@ -475,5 +384,8 @@ def agg_round_kicked_by_strategy(
     agg["low_err"]  = agg["mean_round_kicked"] - agg["min_round_kicked"]
     agg["high_err"] = agg["max_round_kicked"]  - agg["mean_round_kicked"]
 
-    return agg[["contribution_score_strategy", "role",
-                "mean_round_kicked", "low_err", "high_err"]]
+    result = agg[["contribution_score_strategy", "role",
+                  "mean_round_kicked", "low_err", "high_err"]]
+    result.attrs["experiment_ids"] = list(merged_users["experiment_id"].unique())
+    return result
+

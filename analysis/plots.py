@@ -3,8 +3,11 @@ from pathlib import Path
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
+from matplotlib.lines import Line2D
 import numpy as np
 import pandas as pd
+
+from analysis.uuid_extractor import extract_uuid_from_filename
 
 matplotlib.rcParams.update({"figure.dpi": 200})
 
@@ -66,8 +69,8 @@ def plot_accuracy_loss_over_rounds(agg_global: pd.DataFrame) -> plt.Figure:
         )
 
     ax1.set_xlabel("Round")
-    ax1.set_ylabel("Global Accuracy", color="#2196F3") # TODO: Check values
-    ax2.set_ylabel("Global Loss", color="#FF5722") # TODO: Check values
+    ax1.set_ylabel("Global Accuracy", color="#2196F3")
+    ax2.set_ylabel("Global Loss", color="#FF5722")
     ax1.tick_params(axis="y", labelcolor="#2196F3")
     ax2.tick_params(axis="y", labelcolor="#FF5722")
 
@@ -77,6 +80,8 @@ def plot_accuracy_loss_over_rounds(agg_global: pd.DataFrame) -> plt.Figure:
 
     ax1.grid(True, alpha=0.3)
     fig.tight_layout()
+    fig._plot_name = "accuracy_loss_over_rounds"
+    fig._uuids = agg_global.attrs.get("experiment_ids", [])
     return fig
 
 
@@ -107,6 +112,8 @@ def plot_strategy_comparison_lines(agg_by_strategy: pd.DataFrame) -> plt.Figure:
     ax.legend(title="Strategy")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
+    fig._plot_name = "strategy_comparison_lines"
+    fig._uuids = agg_by_strategy.attrs.get("experiment_ids", [])
     return fig
 
 
@@ -136,6 +143,8 @@ def plot_strategy_comparison_boxplot(agg_final: pd.DataFrame) -> plt.Figure:
     ax.set_ylabel("Final-Round Accuracy (%)")
     ax.grid(True, alpha=0.3, axis="y")
     fig.tight_layout()
+    fig._plot_name = "strategy_comparison_boxplot"
+    fig._uuids = agg_final.attrs.get("experiment_ids", [])
     return fig
 
 
@@ -165,6 +174,8 @@ def plot_grs_by_role(agg_grs: pd.DataFrame) -> plt.Figure:
     ax.legend(title="Role")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
+    fig._plot_name = "grs_by_role"
+    fig._uuids = agg_grs.attrs.get("experiment_ids", [])
     return fig
 
 
@@ -195,6 +206,8 @@ def plot_contribution_score_by_role(agg_scores: pd.DataFrame) -> plt.Figure:
     ax.legend(title="Role")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
+    fig._plot_name = "contribution_score_by_role"
+    fig._uuids = agg_scores.attrs.get("experiment_ids", [])
     return fig
 
 
@@ -226,6 +239,8 @@ def plot_grs_by_role_relative(agg_grs: pd.DataFrame) -> plt.Figure:
     ax.legend(title="Role")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
+    fig._plot_name = "grs_by_role_relative"
+    fig._uuids = agg_grs.attrs.get("experiment_ids", [])
     return fig
 
 
@@ -257,94 +272,56 @@ def plot_contribution_score_by_role_relative(agg_scores: pd.DataFrame) -> plt.Fi
     ax.legend(title="Role")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
+    fig._plot_name = "contribution_score_by_role_relative"
+    fig._uuids = agg_scores.attrs.get("experiment_ids", [])
     return fig
 
 
-def plot_grs_by_user(grs_users: pd.DataFrame) -> plt.Figure:
-    # x-axis: Round: 0,1,...,n
-    # y-axis: GRS
-    # Plot user as a line
-    fig, ax = plt.subplots(figsize=(9, 4))
+def plot_grs_by_user(
+    grs_users: pd.DataFrame,
+    metadata: pd.DataFrame | None = None,
+) -> plt.Figure:
+    """
+    One line per user, GRS over rounds.
 
-    # for user_id, group in grs_users.groupby("user_id, behavior"):
-    #     ax.plot(group["round"], group["grs"], label=f"User {user_id}", alpha=0.5)
+    metadata: optional full metadata DataFrame. If provided, vertical dashed lines
+    are drawn at malicious_start_round / freerider_start_round for roles present
+    in the data, extracted automatically from the matching experiment row.
+    """
+    fig, ax = plt.subplots(figsize=(9, 4))
 
     for (user_id, behavior), group in grs_users.groupby(["user_id", "role"]):
         ax.plot(group["round"], group["grs"], label=f"User {user_id} ({ROLE_LABELS[behavior]})", alpha=0.5) # alpha: 50% transparency, so overlapping lines show through each other
 
+    if metadata is not None:
+        experiment_id = grs_users["experiment_id"].iloc[0]
+        meta = metadata[metadata["experiment_id"] == experiment_id].iloc[0]
+        roles_in_data = grs_users["role"].unique()
+        for role, col in (("bad", "malicious_start_round"), ("freerider", "freerider_start_round")):
+            if role not in roles_in_data or col not in meta.index:
+                continue
+            activation_round = meta[col]
+            if pd.isna(activation_round):
+                continue
+            color = BEHAVIOR_COLORS.get(role, "black")
+            ax.axvline(
+                int(activation_round),
+                linestyle="--",
+                color=color,
+                linewidth=2,
+                alpha=1.0,
+                label=f"{ROLE_LABELS.get(role, role)} activation",
+            )
+
     ax.set_xlabel("Round")
     ax.set_ylabel("Global Reputation Score (ETH)")
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    ax.legend(title="Users")
+    ax.legend(title="Users", loc="lower left")
     ax.grid(True, alpha=0.3) # alpha: makes the grid subtle/faint so it doesn't compete with the data
     fig.tight_layout()
+    fig._plot_name = "grs_by_user"
+    fig._uuids = grs_users.attrs.get("experiment_ids", [])
     return fig
-
-
-# For each round plot the global accuracy (int)
-# TODO: Need to log aggregation strategy instead of contrib score
-def plot_global_acc_by_aggregation_strategy(acc_by_strategy: pd.DataFrame) -> plt.Figure:
-    """
-    One line per strategy, mean accuracy over rounds with ±1 std shading.
-
-    Expects columns: contribution_score_strategy, round, accuracy_mean, accuracy_std.
-    """
-    fig, ax = plt.subplots(figsize=(9, 4))
-
-    for strategy, group in acc_by_strategy.groupby("contribution_score_strategy"):
-        color = STRATEGY_COLORS.get(strategy)
-        group = group.sort_values("round")
-        ax.plot(group["round"], group["accuracy_mean"], label=strategy, color=color, linewidth=2)
-        if "accuracy_std" in group.columns:
-            ax.fill_between(
-                group["round"],
-                group["accuracy_mean"] - group["accuracy_std"],
-                group["accuracy_mean"] + group["accuracy_std"],
-                alpha=0.15, color=color,
-            )
-
-    ax.set_xlabel("Round")
-    ax.set_ylabel("Global Accuracy") # TODO: Not a percentage
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    ax.legend(title="Strategy")
-    ax.grid(True, alpha=0.3)
-    fig.tight_layout()
-
-    return fig
-
-
-
-# TODO: Need to log aggregation strategy instead of contrib score
-def plot_global_loss_by_aggregation_strategy(loss_by_strategy: pd.DataFrame) -> plt.Figure:
-    """
-    One line per strategy, mean loss over rounds with ±1 std shading.
-
-    Expects columns: contribution_score_strategy, round, loss_mean, loss_std.
-    """
-    fig, ax = plt.subplots(figsize=(9, 4))
-
-    for strategy, group in loss_by_strategy.groupby("contribution_score_strategy"):
-        color = STRATEGY_COLORS.get(strategy)
-        group = group.sort_values("round")
-        ax.plot(group["round"], group["loss_mean"], label=strategy, color=color, linewidth=2)
-        if "loss_std" in group.columns:
-            ax.fill_between(
-                group["round"],
-                group["loss_mean"] - group["loss_std"],
-                group["loss_mean"] + group["loss_std"],
-                alpha=0.15, color=color,
-            )
-
-    ax.set_xlabel("Round")
-    ax.set_ylabel("Global Loss") # TODO: Not a percentage
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-    ax.legend(title="Strategy")
-    ax.grid(True, alpha=0.3)
-    fig.tight_layout()
-
-    return fig
-
-
 
 
 def plot_gas_cost_by_tx_type(agg_gas: pd.DataFrame) -> plt.Figure:
@@ -386,6 +363,8 @@ def plot_gas_cost_by_tx_type(agg_gas: pd.DataFrame) -> plt.Figure:
     ax.grid(True, alpha=0.3, axis="y")
     ax.set_axisbelow(True)
     fig.tight_layout()
+    fig._plot_name = "gas_cost_by_tx_type"
+    fig._uuids = agg_gas.attrs.get("experiment_ids", [])
     return fig
 
 
@@ -408,6 +387,8 @@ def plot_round_kicked_by_strategy(
     if agg_kicked.empty:
         fig, ax = plt.subplots()
         ax.text(0.5, 0.5, "No disqualified users", ha="center", va="center", transform=ax.transAxes)
+        fig._plot_name = "round_kicked_by_strategy"
+        fig._uuids = agg_kicked.attrs.get("experiment_ids", [])
         return fig
 
     strategies = sorted(agg_kicked["contribution_score_strategy"].unique())
@@ -477,10 +458,57 @@ def plot_round_kicked_by_strategy(
     ax.grid(axis="y", linestyle="--", alpha=0.5)
     ax.set_axisbelow(True)
     fig.tight_layout()
+    fig._plot_name = "round_kicked_by_strategy"
+    fig._uuids = agg_kicked.attrs.get("experiment_ids", [])
     return fig
 
 
-def save_figure(fig: plt.Figure, path, dpi: int = 150):
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(path, dpi=dpi, bbox_inches="tight")
+def _next_graph_id(directory: Path) -> str:
+    existing = [p.name for p in directory.glob("*.svg")]
+    ids = []
+    for name in existing:
+        part = name.split("-")[0]
+        if part.isdigit():
+            ids.append(int(part))
+    next_id = max(ids) + 1 if ids else 1
+    return f"{next_id:03d}"
+
+
+def delete_figure(directory: str | Path, graph_id: str) -> None:
+    directory = Path(directory)
+    matches = list(directory.glob(f"{graph_id}-*.svg"))
+    if not matches:
+        raise FileNotFoundError(f"No SVG with graph_id '{graph_id}' in {directory}")
+
+    for svg in matches:
+        svg.unlink()
+
+    mappings_path = directory / "mappings.txt"
+
+    if mappings_path.exists():
+        lines = mappings_path.read_text().splitlines(keepends=True)
+        kept = [l for l in lines if not l.startswith(f"{graph_id}:") and l.strip()]
+        if kept:
+            mappings_path.write_text("".join(kept))
+        else:
+            mappings_path.unlink()
+
+
+def save_figure(fig: plt.Figure, base_dir, experiment_name=None, suffix: str = "", dpi: int = 300):
+    plot_name = getattr(fig, "_plot_name", "figure")
+    uuids = getattr(fig, "_uuids", [])
+    directory = Path(base_dir) / experiment_name if experiment_name is not None else Path(base_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+
+    graph_id = _next_graph_id(directory)
+    stem = f"{graph_id}-{plot_name}{f'-{suffix}' if suffix else ''}"
+    fig.savefig(directory / f"{stem}.svg", dpi=dpi, bbox_inches="tight")
+
+    if uuids:
+        with open(directory / "mappings.txt", "a") as f:
+            for uid in uuids:
+                try:
+                    uid = extract_uuid_from_filename(uid)
+                except ValueError:
+                    pass  # already a bare UUID or unrecognised format — write as-is
+                f.write(f"{graph_id}: {uid}\n")

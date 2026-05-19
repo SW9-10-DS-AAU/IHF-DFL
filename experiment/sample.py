@@ -2,33 +2,37 @@ from datetime import datetime
 import sys
 import multiprocessing as mp
 from pathlib import Path
-import experiment_runner as ExperimentRunner
-from experiment_configuration import ExperimentConfiguration
-from openfl.utils.async_writer import AsyncWriter
-from helper import getPath
 
-# Add the repo root to sys.path so `analysis` package is importable from here
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# Running this file directly puts experiment/ on sys.path.
+# Insert src/ and repo root before any project imports so they resolve
+# regardless of whether the editable install is present.
+_repo = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_repo / "src"))
+sys.path.insert(0, str(_repo))
+
+from utils.paths import repo_root
+REPO_ROOT = repo_root(Path(__file__))
+
+import experiment.experiment_runner as ExperimentRunner
+from experiment.experiment_configuration import ExperimentConfiguration
+from experiment.helper import getPath, resolve_attack_params
+from utils.async_writer import AsyncWriter
+
 from analysis import ExperimentLogger
 
-config = ExperimentConfiguration(
-    min_buy_in=int(1e18),
-    max_buy_in=int(1e18),
-    contribution_score_strategy="accuracy_loss",
-    use_outlier_detection=True,
-    minimum_rounds=10,
-    force_merge_all=False,
-    freerider_noise_scale=0.5,
-    malicious_noise_scale=0.5,
-    punish_factor=3,
-    punish_factor_contrib=3,
-    freerider_start_round=1,
-    malicious_start_round=1,
-)
+DATA_ROOT = REPO_ROOT / "data"
 
-# OVERSKRIV variabler her for testing. eksempel: config = ExperimentConfiguration(minimum_rounds=1), hvis du kun vil køre een round#DATASET = "cifar-10"
-RESULTDATAFOLDER = Path(__file__).resolve().parent.joinpath("data/sample")
-DATASET = "mnist"
+preset = "test"
+_use_defaults = True
+
+
+config = ExperimentConfiguration(preset=preset, use_defaults=_use_defaults)
+
+DATASETSLOW = "cifar.10"
+DATASETFAST = "mnist"
+RESULTDATAFOLDER = REPO_ROOT / "data" / "runs" / "sample"
+
+DATASET = DATASETFAST
 
 OUTPUTHEADERS = [
     "round",
@@ -50,29 +54,42 @@ OUTPUTHEADERS = [
 
 WRITERBUFFERSIZE = 200
 
+(
+    config.freerider_start_round,
+    config.freerider_noise_scale,
+    config.malicious_start_round,
+    config.malicious_noise_scale,
+) = resolve_attack_params(
+    has_bad=config.number_of_bad_contributors > 0,
+    has_freerider=config.number_of_freerider_contributors > 0,
+    freerider_round=config.freerider_start_round,
+    freerider_noise=config.freerider_noise_scale,
+    malicious_activation_round=config.malicious_start_round,
+    malicious_noise=config.malicious_noise_scale,
+    warn=True,
+)
+
+
+
 def main():
-    startTime = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
+    time = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
+    #
+    # try:
+    path = getPath(config, time, DATASET, preset, RESULTDATAFOLDER, run_id=0)
+    writer = AsyncWriter(path, OUTPUTHEADERS, WRITERBUFFERSIZE, config, "sample")
+    metadata = {**vars(config), "dataset": DATASET, "timestamp": time}
+    logger = ExperimentLogger(experiment_id=path.stem, metadata=metadata)
+    experiment = ExperimentRunner.run_experiment(DATASET, config, 0, writer, logger)
+    writer.finish()
+    logger.save(path.with_suffix(".pkl"))
 
-    try:
-        path = getPath(config, startTime, DATASET, RESULTDATAFOLDER)
-        writer = AsyncWriter(path, OUTPUTHEADERS, WRITERBUFFERSIZE, config, "sample")
-        metadata = {**vars(config), "dataset": DATASET, "timestamp": startTime}
-        logger = ExperimentLogger(experiment_id=path.stem, metadata=metadata)
-        experiment = ExperimentRunner.run_experiment(DATASET, config, writer, logger)
-        writer.finish()
-        logger.save(path.with_suffix(".pkl"))
-
-        experiment.model.visualize_simulation("figures")
-        ExperimentRunner.print_transactions(experiment)
-    except Exception as e:
-        print(f"An error occurred during the experiment: {e}")
-
+    # experiment.model.visualize_simulation(DATA_ROOT / "figures")
+    ExperimentRunner.print_transactions(experiment)
+    # except Exception as e:
+    #     print(f"An error occurred during the experiment: {e}")
 
 
 if __name__ == "__main__":
     mp.freeze_support()
     main()
-    for p in mp.active_children():
-        #print("Terminating:", p.pid)
-        p.terminate()
     print("Done :)")

@@ -27,10 +27,13 @@ contract OpenFLManager {
         uint8 _min_rounds,
         uint8 _punishfactor,
         uint8 _punishfactorContrib,
-        uint8 _freeriderPenalty
+        uint8 _freeriderPenalty,
+        bool _useNobodyIsKicked
     ) public payable {
         ModelCountOf[msg.sender] += 1;
         require(msg.value >= _reward + _min_collateral, "NEV");
+        require(_useNobodyIsKicked == false, "_useNobodyIsKicked is true. Most likely wrong manager contract deployed. -Rune");
+
         OpenFLModel model = new OpenFLModel{value: _reward}(
             _modelHash,
             _min_collateral,
@@ -43,5 +46,6 @@ contract OpenFLManager {
         );
         model.register{value: msg.value - _reward}(msg.sender);
         ModelOf[msg.sender][ModelCountOf[msg.sender]] = address(model);
+
     }
 }

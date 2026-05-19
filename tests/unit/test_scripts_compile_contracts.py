@@ -24,6 +24,8 @@ def test_compile_contracts_runs_with_stubs(tmp_path, monkeypatch):
                 "contracts": {
                     "OpenFLModel.sol": {"OpenFLModel": {"evm": {"bytecode": {"object": "aa"}}, "abi": [1]}},
                     "OpenFLManager.sol": {"OpenFLManager": {"evm": {"bytecode": {"object": "bb"}}, "abi": [2]}},
+                    "OpenFLModel_NobodyIsKicked.sol": {"OpenFLModel_NobodyIsKicked": {"evm": {"bytecode": {"object": "cc"}}, "abi": [3]}},
+                    "OpenFLManager_NobodyIsKicked.sol": {"OpenFLManager_NobodyIsKicked": {"evm": {"bytecode": {"object": "dd"}}, "abi": [4]}},
                 }
             }
 
@@ -44,12 +46,18 @@ def test_compile_contracts_runs_with_stubs(tmp_path, monkeypatch):
     module_path = tmp_path / "pkg" / "compile_contracts.py"
     module_path.parent.mkdir(parents=True, exist_ok=True)
     module_path.write_text(code)
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = \"test\"\n", encoding="utf-8")
 
     # Create fake contract sources
     contracts_dir = tmp_path / "contracts"
     contracts_dir.mkdir()
     (contracts_dir / "OpenFLManager.sol").write_text("pragma solidity ^0.8.9;", encoding="utf-8")
     (contracts_dir / "OpenFLModel.sol").write_text("pragma solidity ^0.8.9;", encoding="utf-8")
+
+    harnesses_dir = contracts_dir / "harnesses"
+    harnesses_dir.mkdir()
+    (harnesses_dir / "OpenFLManager_NobodyIsKicked.sol").write_text("pragma solidity ^0.8.9;", encoding="utf-8")
+    (harnesses_dir / "OpenFLModel_NobodyIsKicked.sol").write_text("pragma solidity ^0.8.9;", encoding="utf-8")
 
     spec = importlib.util.spec_from_file_location("tmp_compile_contracts", module_path)
     module = importlib.util.module_from_spec(spec)
@@ -61,7 +69,12 @@ def test_compile_contracts_runs_with_stubs(tmp_path, monkeypatch):
 
     build_dir = tmp_path / "artifacts" / "bytecode"
     assert build_dir.exists()
-    assert (build_dir / "abi.txt").exists()
-    assert (build_dir / "bytecode.txt").exists()
+    for name in (
+        "abi_mgr.txt", "bytecode_mgr.txt",
+        "abi_mgr_nobody.txt", "bytecode_mgr_nobody.txt",
+        "abi_model.txt", "bytecode_model.txt",
+        "abi_model_nobody.txt", "bytecode_model_nobody.txt",
+    ):
+        assert (build_dir / name).exists(), f"missing {name}"
     assert fake.installed == ["0.8.9"]
     assert fake.version == "0.8.9"

@@ -28,10 +28,19 @@ PRIVATE_KEYS="<Private keys from your accounts colon separated (for non-locally 
 
 ## 3. Requirements
 - Only tested with Python3.10
+Create a virtual environment and activate it.
+- Run ``python3 -m venv .venv``
+- Then Run ``source .venv/bin/activate``
+
+Install requirements:
+Only tested with Python3.10
 - Run ``pip install -e ".[dev]"``
 
 Build the abi and bytecode files from the smart contracts
 ``python3 scripts/compile_contracts.py``
+
+Strip notebook outputs before committing (run once per clone):
+``nbstripout --install``
 
 Install ROCM(AMD) or CUDA(NVIDIA):
 ROCM:
@@ -39,25 +48,78 @@ ROCM:
 CUDA:
 ``pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu130``
 
+
 ## 4. Running an Experiment
+
+Two modes are availble for running an experiment: sample or experiment.
+### Sample
+Just want to see a quick demo of the code? Run the sample.py file with:
+`python ./experiment/sample.py`
+
+### Experiment
+Want to run a systematic experiment with different parameters?
+
 The Experiment folder contains files for running experiments on different datasets.
 To change the experiment setup, modify the experiment_configuration.py file.
 To change the dataset, modify the experiments.py file.
 
 The file experiments.py runs one such experiment and can be run with:
-``ENV=ganache python ./experiment/experiment_runner.py``
+
+`python ./experiment/experiments.py`
+
+Or if you want to specify a different .env file, run with the ENV prefix as described in the Environment Variables section:
+``ENV=ganache python ./experiment/experiments.py``
 
 
 ## 5. Solidity testing
+- All forge commands must be run in the foundry directory.
 - Download Foundry in a Unix-like shell (WSL or Linux): 
   - `curl -L https://foundry.paradigm.xyz | bash && source ~/.bashrc`
   - `foundryup`
-  - `forge soldeer install`
+  - `cd foundry && forge soldeer install`
   
 - To Test:
+  - `cd foundry`
   - `forge build` 
   - `forge test`
 
-# 6. Test Coverage
-To get test coverage, run the following command: \
-`pytest --cov=openfl tests/`
+# 6. Running Tests
+
+Tests are run with pytest from the repo root:
+```
+pytest
+```
+
+By default, tests marked as `slow` are skipped. These are tests that load full datasets (e.g. CIFAR-10)
+and can take significant time. To include them:
+```
+pytest -m slow
+```
+
+To run only the slow tests:
+```
+pytest -m slow --no-header -q
+```
+
+Solidity tests (forge) run automatically as part of the pytest suite on Linux/WSL.
+On Windows they are skipped — run them manually in WSL:
+```
+cd foundry && forge test
+```
+
+# 7. Test Coverage
+
+To get test coverage for python code, run the following command: \
+`pytest --cov tests/`
+
+To get test coverage for solidity code, run the following command: \
+`forge coverage`
+
+(Optional) Output to a file
+`forge coverage --report lcov`
+
+
+# 8. Solidity Compiler (Arm)
+If running on arm cpu, you need to download a recompiled solidity (solc) compiler for arm 
+and place it in the directory ```~/.local/bin/solc```
+The files can be found here: https://github.com/0xidm/solc-bin
