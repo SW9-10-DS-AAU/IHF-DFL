@@ -1,10 +1,8 @@
 import importlib
 import os
 import pathlib
-
 import pytest
-
-import openfl.utils.require_env as require_env
+import utils.require_env as require_env
 
 
 def reset_env_state():
@@ -39,11 +37,13 @@ def test_load_env_uses_expected_path(monkeypatch, tmp_path):
     monkeypatch.setattr(require_env, "load_dotenv", fake_load_dotenv)
     monkeypatch.setenv("ENV", "custom")
 
-    # Point __file__ to a temporary location to control parents[3]
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = \"test\"\n", encoding="utf-8")
+
+    # Point __file__ to a temporary repo so repo_root() resolves from the caller.
     custom_file = tmp_path / "a" / "b" / "c" / "require_env.py"
     monkeypatch.setattr(require_env, "__file__", str(custom_file))
 
     require_env.load_env()
 
-    expected = custom_file.parents[3] / ".env" / ".env.custom"
+    expected = tmp_path / ".env" / ".env.custom"
     assert paths["path"] == expected

@@ -1,9 +1,7 @@
 import builtins
 from types import SimpleNamespace
-
 import importlib
-
-import openfl.utils.config as config
+import utils.config as config
 
 
 def test_get_config_caches_result(monkeypatch):

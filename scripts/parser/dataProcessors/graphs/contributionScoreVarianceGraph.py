@@ -111,6 +111,8 @@ def plot_contribution_score_variance(title, methods: list[Method], attitudes: li
             values.append(vals)
             labels.append(f"{method.display_name}\n{att.display_name}")
 
+    print("groups:", len(values))
+    print("sizes:", [len(v) for v in values])
     fig, ax = plt.subplots(figsize=(12, 5))
 
     # --- plot violins ---
@@ -139,9 +141,9 @@ def plot_contribution_score_variance(title, methods: list[Method], attitudes: li
     if y_range is not None:
         ax.set_ylim(y_range)
         annotate_clipped(ax, values, y_range)
-    else:
-        ax.relim()
-        ax.autoscale_view()
+    #else:
+        #ax.relim()
+        #ax.autoscale_view()
 
     # --- draw zero line without affecting limits ---
     ax.axhline(

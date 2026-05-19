@@ -1,8 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import Enum
-
-from openfl.ml.pytorch_model import Participant
+from ml.pytorch_model import Participant
 
 class Round:
   def __init__(

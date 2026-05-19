@@ -9,16 +9,20 @@ from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, call
 from web3.exceptions import ContractLogicError
+from contracts import contribution
+from contracts.fl_challenge import FLChallenge
+from tests.unit.conftest import mock_participants
+from utils.shapley import check_shapley_compliance
+import ml.evaluation as evaluation
 
-from openfl.contracts.fl_challenge import (
-    FLChallenge,
+from contracts.contribution import (
     calc_contribution_scores_dotproduct,
     remove_outliers_mad,
+    normalize_contribution_scores_new,
+    contribution_score,
     # calc_contribution_score,
     # calc_contribution_scores_accuracy,
-    normalize_contribution_scores_new,
 )
-from openfl.utils.shapley import check_shapley_compliance
 
 
 
@@ -37,7 +41,7 @@ class DummyModel(nn.Module):
 class TensorModel(nn.Module):
     def __init__(self, values):
         super().__init__()
-        self.params = nn.Parameter(torch.tensor(values, dtype=torch.float32))
+        self.params = nn.Parameter(torch.as_tensor(values, dtype=torch.float32).detach().clone())
 
     def parameters(self):
         return [self.params]
@@ -201,11 +205,12 @@ class TestCalcContributionScore:
         self.aggregator.pytorch_model = MagicMock()
         self.aggregator.pytorch_model.round = 1
         self.aggregator._calculate_scores_accuracy_loss = lambda users, mad_threshold=1.1: \
-            FLChallenge._calculate_scores_accuracy_loss(self.aggregator, users, mad_threshold)
+            contribution._calculate_scores_accuracy_loss(self.aggregator, users, mad_threshold)
         self.aggregator._calculate_scores_accuracy_only = lambda users, mad_threshold=1.1: \
-            FLChallenge._calculate_scores_accuracy_only(self.aggregator, users, mad_threshold)
+            contribution._calculate_scores_accuracy_only(self.aggregator, users, 1, mad_threshold)
         self.aggregator._calculate_scores_loss_only = lambda users, mad_threshold=1.1: \
-            FLChallenge._calculate_scores_loss_only(self.aggregator, users, mad_threshold)
+            contribution._calculate_scores_loss_only(self.aggregator, users, 1, mad_threshold)
+
 
     # Basic test case with non-zero global model
     # def test_calc_contribution_score_basic(self):
@@ -322,33 +327,62 @@ class TestCalcContributionScore:
             user._losses = losses
             users.append(user)
 
-        self.aggregator.model.functions \
-            .getAllPreviousAccuraciesAndLosses.return_value \
-            .call.return_value = (prev_accuracies, prev_losses)
+        self.aggregator.get_all_previous_accuracies_and_losses.return_value = (prev_accuracies, prev_losses)
 
         def mock_get_accuracies_losses(address):
             user = next(u for u in users if u.address == address)
-            m = MagicMock()
-            m.call.return_value = (None, user._accuracies, user._losses)
-            return m
+            return ([], user._accuracies, user._losses)
 
-        self.aggregator.model.functions \
-            .getAllAccuraciesLossesAbout.side_effect = mock_get_accuracies_losses
+        self.aggregator.get_all_accuracies_and_losses_about.side_effect = mock_get_accuracies_losses
 
-        scores = FLChallenge._calculate_scores_accuracy_loss(
-            self.aggregator, users, mad_threshold=1.1
+        scores = contribution._calculate_scores_accuracy_loss(
+            self.aggregator, users, mad_threshold=1.1, _current_round_no=1
         )
-        scores_normalized = [s / 1e18 for s in scores]
-        print(f"scores_normalized = {scores_normalized}")
+        print(f"scores = {scores}")
 
         assert isinstance(scores, list)
         assert len(scores) == len(users)
-        assert all(isinstance(s, int) for s in scores)
         assert scores != []
 
         if expected_scores is not None:
-            assert scores_normalized == pytest.approx(expected_scores, rel=1e-9), \
-                f"Expected {expected_scores}, got {scores_normalized}"
+            assert scores == pytest.approx(expected_scores, rel=1e-9), \
+                f"Expected {expected_scores}, got {scores}"
+
+    def test_accuracy_loss_logs_contribution_scores_and_mad_details(self):
+        users = []
+        for i in range(4):
+            user = MagicMock()
+            user.id = i
+            user.address = f"0xAddressUser{i}"
+            user._accuracies = [80 + i]
+            user._losses = [20 - i]
+            users.append(user)
+
+        self.aggregator._logger = MagicMock()
+        self.aggregator.get_all_previous_accuracies_and_losses.return_value = (
+            [80, 81, 82, 83],
+            [20, 19, 18, 17],
+        )
+
+        def mock_get_accuracies_losses(address):
+            user = next(u for u in users if u.address == address)
+            return ([], user._accuracies, user._losses)
+
+        self.aggregator.get_all_accuracies_and_losses_about.side_effect = mock_get_accuracies_losses
+
+        scores = contribution._calculate_scores_accuracy_loss(
+            self.aggregator, users, mad_threshold=1.1
+        )
+
+        self.aggregator._logger.contribution_scores.assert_called_once_with(
+            round=1,
+            user_ids=[0, 1, 2, 3],
+            user_addresses=[u.address for u in users],
+            scores=scores,
+        )
+        mad_calls = self.aggregator._logger.contribution_score_mad.call_args_list
+        assert [call.kwargs["metric"] for call in mad_calls] == ["accuracy", "loss"]
+        assert all(call.kwargs["round"] == 1 for call in mad_calls)
 
 
     @pytest.mark.parametrize("user_accuracies, prev_accuracies, expected_scores", [
@@ -438,33 +472,26 @@ class TestCalcContributionScore:
             user._accuracies = accs
             users.append(user)
 
-        self.aggregator.model.functions \
-            .getAllPreviousAccuraciesAndLosses.return_value \
-            .call.return_value = (prev_accuracies, [])
+        self.aggregator.get_all_previous_accuracies_and_losses.return_value = (prev_accuracies, [])
 
         def mock_get_accuracies(address):
             user = next(u for u in users if u.address == address)
-            m = MagicMock()
-            m.call.return_value = (None, user._accuracies)
-            return m
+            return ([], user._accuracies)
 
-        self.aggregator.model.functions \
-            .getAllAccuraciesAbout.side_effect = mock_get_accuracies
+        self.aggregator.get_all_accuracies_about.side_effect = mock_get_accuracies
 
-        scores = FLChallenge._calculate_scores_accuracy_only(
-            self.aggregator, users, mad_threshold=1.1
+        scores = contribution._calculate_scores_accuracy_only(
+            self.aggregator, users, 1, mad_threshold=1.1
         )
-        scores_normalized = [s / 1e18 for s in scores]
-        print(f"scores_normalized = {scores_normalized}")
+        print(f"scores = {scores}")
 
         assert isinstance(scores, list)
         assert len(scores) == len(users)
-        assert all(isinstance(s, int) for s in scores)
         assert scores != []
 
         if expected_scores is not None:
-            assert scores_normalized == pytest.approx(expected_scores, rel=1e-9), \
-                f"Expected {expected_scores}, got {scores_normalized}"
+            assert scores == pytest.approx(expected_scores, rel=1e-9), \
+                f"Expected {expected_scores}, got {scores}"
 
 
     @pytest.mark.parametrize("user_losses, prev_losses, expected_scores", [
@@ -554,33 +581,26 @@ class TestCalcContributionScore:
             user._losses = losses
             users.append(user)
 
-        self.aggregator.model.functions \
-            .getAllPreviousAccuraciesAndLosses.return_value \
-            .call.return_value = ([], prev_losses)
+        self.aggregator.get_all_previous_accuracies_and_losses.return_value = ([], prev_losses)
 
         def mock_get_losses(address):
             user = next(u for u in users if u.address == address)
-            m = MagicMock()
-            m.call.return_value = (None, user._losses)
-            return m
+            return ([], user._losses)
 
-        self.aggregator.model.functions \
-            .getAllLossesAbout.side_effect = mock_get_losses
+        self.aggregator.get_all_losses_about.side_effect = mock_get_losses
 
-        scores = FLChallenge._calculate_scores_loss_only(
-            self.aggregator, users, mad_threshold=1.1
+        scores = contribution._calculate_scores_loss_only(
+            self.aggregator, users, 1, mad_threshold=1.1
         )
-        scores_normalized = [s / 1e18 for s in scores]
-        print(f"scores_normalized = {scores_normalized}")
+        print(f"scores = {scores}")
 
         assert isinstance(scores, list)
         assert len(scores) == len(users)
-        assert all(isinstance(s, int) for s in scores)
         assert scores != []
 
         if expected_scores is not None:
-            assert scores_normalized == pytest.approx(expected_scores, rel=1e-9), \
-                f"Expected {expected_scores}, got {scores_normalized}"
+            assert scores == pytest.approx(expected_scores, rel=1e-9), \
+                f"Expected {expected_scores}, got {scores}"
 
 
 class TestCalcContributionScoresMAD:
@@ -606,11 +626,11 @@ class TestCalcContributionScoresMAD:
         participants = []
         for update in local_updates:
             user = MagicMock()
-            user.previousModel = TensorModel(update)
+            user.previousModel = TensorModel(update).state_dict()
             user.model = merged_model
             participants.append(user)
 
-        scores = fl_challenge._calculate_scores_dotproduct(participants)
+        scores = contribution._calculate_scores_dotproduct(fl_challenge, participants,1)
 
         expected_scores = calc_contribution_scores_dotproduct(local_updates, global_update)
 
@@ -636,15 +656,15 @@ class TestCalcContributionScoresMAD:
         participants = []
         for update in local_updates:
             user = MagicMock()
-            user.previousModel = TensorModel(update)
+            user.previousModel = TensorModel(update).state_dict()
             user.model = merged_model
             participants.append(user)
 
         filtered_global_update = torch.tensor([0.0, 1.0])
 
-        with patch.object(fl_challenge, 'trim_global_update_using_mad', return_value=(filtered_global_update, [])) as mock_trim:
-            with patch('openfl.contracts.fl_challenge.calc_contribution_scores_dotproduct', return_value=[10, 20, 30]) as mock_math:
-                scores = fl_challenge._calculate_scores_dotproduct(participants)
+        with patch('contracts.contribution.trim_global_update_using_mad', return_value=(filtered_global_update, {})) as mock_trim:
+            with patch('contracts.contribution.calc_contribution_scores_dotproduct', return_value=[10, 20, 30]) as mock_math:
+                scores = contribution._calculate_scores_dotproduct(fl_challenge, participants,1)
 
         assert scores == [10, 20, 30]
 
@@ -675,13 +695,13 @@ class TestCalcContributionScoresMAD:
         participants = []
         for update in local_updates:
             user = MagicMock()
-            user.previousModel = TensorModel(update)
+            user.previousModel = TensorModel(update).state_dict()
             user.model = merged_model
             participants.append(user)
 
-        with patch.object(fl_challenge, 'trim_global_update_using_mad') as mock_trim:
-            with patch('openfl.contracts.fl_challenge.calc_contribution_scores_dotproduct', return_value=[1, 2, 3]) as mock_math:
-                scores = fl_challenge._calculate_scores_dotproduct(participants)
+        with patch('contracts.contribution.trim_global_update_using_mad') as mock_trim:
+            with patch('contracts.contribution.calc_contribution_scores_dotproduct', return_value=[1, 2, 3]) as mock_math:
+                scores = contribution._calculate_scores_dotproduct(fl_challenge, participants,1)
 
         assert scores == [1, 2, 3]
         mock_trim.assert_not_called()
@@ -717,10 +737,10 @@ class TestCalcContributionScoresMAD:
     #     fl_challenge.model.functions.getAllAccuraciesAbout.return_value.call.side_effect = user_metrics
     #
     #     with patch( # Temorarily replace the following functions from fl_challenge module
-    #         "openfl.contracts.fl_challenge.calc_contribution_scores_accuracy",
+    #         "dfl.contracts.fl_challenge.calc_contribution_scores_accuracy",
     #         side_effect=[[0.6, 0.3, 0.1], [0.2, 0.5, 0.3]], # Mock normalized accuracy and loss returned from function, per user
     #     ) as mock_normalize, patch(
-    #         "openfl.contracts.fl_challenge.remove_outliers_mad", # Outlier removal is mocked to do nothing
+    #         "dfl.contracts.fl_challenge.remove_outliers_mad", # Outlier removal is mocked to do nothing
     #         side_effect=lambda arr, z_threshold, return_mask=False: ( # Lambda function to return the original array unchanged. If return mask is true, return mask of all true elements, so all data is kept
     #                 (arr, np.ones_like(arr, dtype=bool)) if return_mask else arr
     #         ),
@@ -772,7 +792,7 @@ class TestCalcContributionScoresMAD:
     #     )
     #
     #     with patch(
-    #         "openfl.contracts.fl_challenge.remove_outliers_mad",
+    #         "dfl.contracts.fl_challenge.remove_outliers_mad",
     #         side_effect=lambda arr, _: arr,
     #     ):
     #         scores = fl_challenge._calculate_scores_accuracy(mock_participants[:2])
@@ -798,7 +818,7 @@ class TestCalcContributionScoresMAD:
     #     fl_challenge.model.functions.getAllAccuraciesAbout.return_value.call.side_effect = user_metrics
     #
     #     with patch(
-    #         "openfl.contracts.fl_challenge.remove_outliers_mad",
+    #         "dfl.contracts.fl_challenge.remove_outliers_mad",
     #         side_effect=lambda arr, _: arr,
     #     ):
     #         scores = fl_challenge._calculate_scores_accuracy(mock_participants[:2])
@@ -918,6 +938,77 @@ class TestFLChallengeFeatures:
 
         fl_challenge.model.functions.feedback.assert_called_with(target.address, 1)
 
+
+    # Test accuracy matrix and loss matrix for sizing and indexing when removing participant live
+
+    def test_feedback_filtering_skips_self_inactive_disqualified(self, fl_challenge): # pragma: no cover
+        # Test the indexing with idx by removing or adding users.
+        # Assert equal before, then remove /add, then assert again.
+
+        # Get count of users registered
+        pytorch_model = MagicMock()
+
+        UINT256_MAX = 2 ** 256 - 1
+
+        users = []
+
+        user1 = MagicMock()
+        user1.address = "0xSomeAddress1"
+        user1.id = 0
+        user1.attitude = "honest"
+
+        user2 = MagicMock()
+        user2.address = "0xSomeAddress2"
+        user2.id = 1
+        user2.attitude = "freerider"
+
+        user3 = MagicMock()
+        user3.address = "0xSomeAddress3"
+        user3.id = 2
+        user3.attitude = "malicious"
+
+        user4 = MagicMock()
+        user4.address = "0xSomeAddress4"
+        user4.id = 3
+        user4.attitude = "inactive"
+
+        users = [user1, user2, user3, user4]
+
+        pytorch_model.disqualified = [user3]
+
+        users_count = len(users)
+
+        # Assuming 5 users
+        am = [[30, 40, 50, 30, 40], [20, 40, 30, 40, 20], [40, 30, 60, 20, 30], [10, 60, 30, 40, 20]]
+        lm = [[300, 400, 500, 300, 400], [400, 600, 200, 400, 500], [300, 500, 300, 400, 600], [600, 300, 500, 400, 500]]
+        fbm = [[0, 1, -1, 1, 0], [1, -1, 0, 1, 0], [-1, -1, 0, 1, 1], [1, 1, -1, 0, 1]]
+
+        for idx, user in enumerate(users):
+            accs = am[idx]
+            losses = lm[idx]
+            filtered_accs = []
+            filtered_losses = []
+            user_votes = fbm[idx]
+
+            for ix, vote in enumerate(user_votes):
+                if user.id == ix: # why this? skips self-evaluation. But will it index correctly?
+                    continue
+                if user.attitude == "inactive":
+                    continue
+                if ix in [i.id for i in pytorch_model.disqualified]:
+                    continue
+                filtered_accs.append(accs[ix])
+                filtered_losses.append(min(UINT256_MAX, losses[ix]))
+
+            #  - user1 (honest, id=0): skip self (ix=0), skip disqualified (ix=2) → 3 ✓
+            #  - user2 (freerider, id=1): skip self (ix=1), skip disqualified (ix=2) → 3 ✓
+            #  - user3 (malicious, id=2): skip self (ix=2) only — ix=2 is skipped by self-check before reaching the disqualified check → 4 ✗
+            #  - user4 (inactive, id=3): continue on every inner iteration → 0 ✗
+
+            expected = {0: 3, 1: 3, 2: 4, 3:0 }
+            assert len(filtered_accs) == expected[user.id]
+
+
     # Test feedback giving when a cheater is detected
     def test_give_feedback_cheater_detected(self, fl_challenge):
         """
@@ -963,13 +1054,13 @@ class TestFLChallengeFeatures:
         merged_model = DummyModel(10.0)
 
         for i, user in enumerate(mock_participants):
-            user.previousModel = DummyModel(float(i + 1))
+            user.previousModel = DummyModel(float(i + 1)).state_dict()
             user.model = merged_model
 
-        with patch('openfl.contracts.fl_challenge.calc_contribution_scores_dotproduct') as mock_math:
+        with patch('contracts.contribution.calc_contribution_scores_dotproduct') as mock_math:
             mock_math.return_value = [1000, 2000, 3000]
 
-            scores = fl_challenge._calculate_scores_dotproduct(mock_participants)
+            scores = contribution._calculate_scores_dotproduct(fl_challenge, mock_participants,1)
 
             assert scores == [1000, 2000, 3000]
 
@@ -1000,9 +1091,8 @@ class TestFLChallengeWorkflow:
 
         challenge = FLChallenge(manager, configs, pytorch_model, experiment_config)
 
-        assert challenge._contribution_score_strategy == 'dotproduct'
+        assert challenge.experiment_config.contribution_score_strategy == 'dotproduct'
         assert challenge.experiment_config.use_outlier_detection is True
-        assert challenge._get_contribution_score_calculator() == challenge._calculate_scores_dotproduct
 
     # Test strategy selection for naive mode
     def test_strategy_selection_naive(self, mock_w3, mock_contract):
@@ -1016,8 +1106,7 @@ class TestFLChallengeWorkflow:
 
         challenge = FLChallenge(manager, configs, pytorch_model, experiment_config)
 
-        assert challenge._contribution_score_strategy == 'naive'
-        assert challenge._get_contribution_score_calculator() == challenge._calculate_scores_naive
+        assert challenge.experiment_config.contribution_score_strategy == 'naive'
 
     # Test invalid strategy selection
     def test_strategy_selection_invalid(self, mock_w3, mock_contract):
@@ -1032,7 +1121,7 @@ class TestFLChallengeWorkflow:
         challenge = FLChallenge(manager, configs, pytorch_model, experiment_config)
 
         with pytest.raises(ValueError) as excinfo:
-            challenge._get_contribution_score_calculator()
+            contribution_score(challenge, [MagicMock() for _ in range(4)], 1)
         assert "Unknown contribution score strategy" in str(excinfo.value)
 
     # Test hashed weights provision filtering inactive users
@@ -1073,41 +1162,44 @@ class TestFLChallengeWorkflow:
         """
         Test the contribution_score method (submission logic).
         """
-        mock_strategy_fn = MagicMock(return_value=[100, 200, 300])
-
-        fl_challenge._get_contribution_score_calculator = MagicMock(return_value=mock_strategy_fn)
-
-        # Mock model / contract calls:
-        # getAllAccuraciesAbout(address).call() -> (voters, accuracies, losses)
-        fl_challenge.model.functions.getAllAccuraciesAbout.return_value.call.return_value = (
-            ["0xvoter1", "0xvoter2"],  # voters
-            [90, 95],  # accuracies
-            [1, 2],  # losses
-        )
-
-        # getAllPreviousAccuraciesAndLosses().call() -> (prev_accs, prev_losses)
-        fl_challenge.model.functions.getAllPreviousAccuraciesAndLosses.call.return_value = (
-            [],  # prev_accs
-            [],  # prev_losses
-        )
+        # contribution_score takes an equal-shares shortcut when len(users) <= 3,
+        # so we need a 4th participant to exercise the strategy path.
+        extra = MagicMock()
+        extra.address = "0xAddressUser3"
+        extra.privateKey = "privateKey3"
+        extra.collateral = 1000
+        extra.isRegistered = False
+        extra.attitude = "honest"
+        extra.cheater = []
+        extra.id = 3
+        extra.hashedModel = b'hash'
+        extra.secret = 103
+        mock_participants.append(extra)
 
         for u in mock_participants:
             u.model = DummyModel(1.0)
-            u.previousModel = DummyModel(1.0)
+            u.previousModel = DummyModel(1.0).state_dict()
+            u.evaluation_reward = 1
 
-        fl_challenge.contribution_score(mock_participants)
+        mock_strategy_fn = MagicMock(return_value=[100, 200, 300, 400])
 
-        assert fl_challenge.model.functions.submitContributionScore.call_count == 3
+        with patch('contracts.contribution._STRATEGIES', {'dotproduct': mock_strategy_fn}):
+            contribution_score(fl_challenge, mock_participants, 1)
 
-        fl_challenge.model.functions.submitContributionScore.assert_any_call(300)
+        assert fl_challenge.model.functions.submitContributionScore.call_count == 4
+
+        # contribution_score scales raw score by 1e18 before submitting (WEI fixed-point)
+        fl_challenge.model.functions.submitContributionScore.assert_any_call(
+            int(Decimal(400) * Decimal('1e18')),
+        )
 
         assert mock_participants[0].contribution_score == 100
-        assert mock_participants[2].contribution_score == 300
+        assert mock_participants[3].contribution_score == 400
 
     # Test naive score calculation wrapper
     def test_calculate_scores_naive_helper(self, fl_challenge, mock_participants):
-        scores = fl_challenge._calculate_scores_naive(mock_participants)
-        expected_val = int((Decimal(1) / Decimal(len(mock_participants))) * Decimal('1e18'))
+        scores = contribution._calculate_scores_naive(fl_challenge, mock_participants,1)
+        expected_val = float((Decimal(1) / Decimal(len(mock_participants))))
         assert scores == [expected_val] * len(mock_participants)
 
     @patch('time.sleep', return_value=None)
@@ -1164,7 +1256,7 @@ class TestNonForkInteractions:
         mock_w3.eth.account.sign_transaction.return_value = mock_signed_tx
         mock_w3.eth.send_raw_transaction.return_value = b'\x09' * 32
 
-        with patch('openfl.contracts.fl_challenge.FLManager.build_non_fork_tx') as mock_build_nf:
+        with patch('api.connection_helper.ConnectionHelper.build_non_fork_tx') as mock_build_nf:
             mock_build_nf.return_value = {'gas': 100000, 'nonce': 1}
 
             challenge = FLChallenge(manager, configs, pytorch_model, experiment_config)
@@ -1226,15 +1318,56 @@ class TestReporting:
                 "args": {
                     "round": 1,
                     "validVotes": 10,
-                    # Change 'sumOfWeights' to 'sumOfWeightedContribScore'
                     "sumOfWeightedContribScore": 500,
                     "totalPunishment": 0
                 }
             }],
             "Reward": [{"args": {"user": "0xUser", "roundScore": 100, "win": 50, "newReputation": 1050}}],
             "Punishment": [],
-            "Disqualification": []
+            "ContributionPunishment": [],
+            "PassivePunishment": [],
+            "Disqualification": [],
+            # "EvaluationVotingReward": [],
         }
 
         with patch.object(fl_challenge, 'get_events', return_value=expected_events):
-            fl_challenge.print_round_summary(mock_receipt)
+            fl_challenge.print_round_summary(mock_receipt, _current_round_no=1, contributors=5)
+
+
+
+
+class TestEvaluatePeers:
+    def test_matrix_sized_by_max_id_not_participant_count(self): # pragma: no cover
+        """
+        Regression test: after a middle user is disqualified (e.g. ID=1 from a 4-user group),
+        the remaining active users still have IDs 0, 2, 3. The matrix must be 4x4 (max_id+1),
+        not 3x3 (len(participants)). The old bug used n=len(participants), making
+        accuracy_matrix[3] an IndexError for the user with ID=3.
+        """
+        # Simulate: originally 4 users (IDs 0-3), user ID=1 disqualified mid-round
+        active_ids = [0, 2, 3]
+        participants = []
+        for i in active_ids:
+            user = MagicMock()
+            user.id = i
+            user.attitude = "honest"
+            user.userToEvaluate = []
+            participants.append(user)
+
+        disqualified = MagicMock()
+        disqualified.id = 1
+
+        pm = MagicMock()
+        pm.participants = participants
+        pm.disqualified = [disqualified]
+
+        _, accuracy_matrix, loss_matrix, _, _ = evaluation.evaluate_peers(pm)
+
+        # Must be 4×4 (max_id=3 → n=4), not 3×3 (len(participants)=3)
+        assert len(accuracy_matrix) == 4
+        assert len(accuracy_matrix[0]) == 4
+        assert len(loss_matrix) == 4
+
+        # Active user with ID=3 must be accessible — old bug caused IndexError here
+        assert accuracy_matrix[3] == [0, 0, 0, 0]
+        assert loss_matrix[3] == [0, 0, 0, 0]

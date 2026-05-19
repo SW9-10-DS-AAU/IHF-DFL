@@ -4,23 +4,26 @@ pragma solidity ^0.8.9;
 import "forge-std/Test.sol";
 import "../../contracts/OpenFLModel.sol";
 
-/// @notice A mock version of OpenFLModel for gas testing the fallback only
-contract OpenFLModelMock is OpenFLModel {
-    constructor(
-        bytes32 modelHash,
-        uint minCollateral,
-        uint maxCollateral,
-        uint reward,
-        uint8 minRounds,
-        uint8 punishFactor,
-        uint8 freeriderPenalty
-    ) OpenFLModel(modelHash, minCollateral, maxCollateral, reward, minRounds, punishFactor, freeriderPenalty) {}
+// Unused ModelMock - Not sure if this is intentional
 
-    /// @notice Override feedback to skip all logic/modifiers
-    function feedback(address, int) public override {
-        // do nothing
-    }
-}
+///// @notice A mock version of OpenFLModel for gas testing the fallback only
+//contract OpenFLModelMock is OpenFLModel {
+//    constructor(
+//        bytes32 modelHash,
+//        uint minCollateral,
+//        uint maxCollateral,
+//        uint reward,
+//        uint8 minRounds,
+//        uint8 punishFactor,
+//        uint8 punishFactorContrib,
+//        uint8 freeriderPenalty
+//    ) OpenFLModel(modelHash, minCollateral, maxCollateral, reward, minRounds, punishFactor, punishFactorContrib, freeriderPenalty) {}
+//
+//    /// @notice Override feedback to skip all logic/modifiers
+//    function feedback(address, int) public override {
+//        // do nothing
+//    }
+//}
 
 contract FallbackGasTest is Test {
     OpenFLModel model;
@@ -38,6 +41,7 @@ contract FallbackGasTest is Test {
             uint(1e18),
             uint(1.8e18),
             uint(1e18),
+            3,
             3,
             3,
             50
