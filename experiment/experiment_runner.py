@@ -9,6 +9,7 @@ from utils.require_env import require_env_var
 from types import SimpleNamespace
 from web3 import Web3, Account
 from utils.async_writer import AsyncWriter
+from ml.visualization import visualize_simulation
 
 
 def run_experiment(dataset_name: str, experiment_config, _run_id: int,  writer: AsyncWriter = None, logger=None):
@@ -161,7 +162,7 @@ def run_experiment(dataset_name: str, experiment_config, _run_id: int,  writer: 
 
 
 def visualizeModel(model):
-    model.visualize_simulation("figures")
+    visualize_simulation(model, "figures")
 
 
 def print_transactions(experiment):

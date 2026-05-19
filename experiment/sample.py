@@ -1,7 +1,8 @@
 from datetime import datetime
+from pathlib import Path
+from ml.visualization import visualize_simulation
 import sys
 import multiprocessing as mp
-from pathlib import Path
 
 # Running this file directly puts experiment/ on sys.path.
 # Insert src/ and repo root before any project imports so they resolve
@@ -83,7 +84,7 @@ def main():
     writer.finish()
     logger.save(path.with_suffix(".pkl"))
 
-    # experiment.model.visualize_simulation(DATA_ROOT / "figures")
+    # visualize_simulation(experiment.model, DATA_ROOT / "figures")
     ExperimentRunner.print_transactions(experiment)
     # except Exception as e:
     #     print(f"An error occurred during the experiment: {e}")

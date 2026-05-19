@@ -1,7 +1,8 @@
 from datetime import datetime
+from pathlib import Path
+from ml.visualization import visualize_simulation
 import json
 import multiprocessing as mp
-from pathlib import Path
 import re
 import sys
 import traceback
@@ -244,8 +245,7 @@ def main(author): # single preset
 
             print(f"Error logged to: {err_file}")
 
-
-        # experiment.model.visualize_simulation(DATA_ROOT / "figures")
+        # visualize_simulation(experiment.model, DATA_ROOT / "figures")
 
     #ExperimentRunner.print_transactions(experiment)
 
