@@ -414,14 +414,16 @@ contract OpenFLModel {
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
             if (user.isRegistered && !user.isDisqualified) {
-                if (user.roundReputation < 0) { // punishment
+                if (user.roundReputation < 0) { // punishment - we know you should be punished bc. of negative roundRep
                     user.whitelistedForRewards = false;
                     punishedAddresses.push(user.addr);
                     votesPerRound -= user.nrOfVotesFromUser;
                     user.nrOfVotesFromUser = 0;
                     uint punishment = uint(user.globalReputationScore / punishfactor);
 
-                    if (punishment < user.globalReputationScore) { //punish
+                    // In org. openfl, we look at your grs before punishment.
+                    // This means that we don't calculate your grs after punishment. Hence you can get kicked by your current grs, before punishments.
+                    if (user.globalReputationScore > min_collateral / punishfactor) { // punish - we know you shall be punished. But only punished if over the "threshold"
                         user.isPunished = true;
                         user.globalReputationScore = user.globalReputationScore - punishment;
                         user.roundReputation = user.roundReputation - int(punishment);
@@ -432,7 +434,7 @@ contract OpenFLModel {
                             punishment,
                             user.globalReputationScore
                         );
-                    } else { //disqualify
+                    } else { //disqualify - you are below the "treshold" you shall be kicked.
                         totalPunishment += user.globalReputationScore;
                         _disqualifyUser(user);
                     }
@@ -526,11 +528,11 @@ contract OpenFLModel {
         // check if a user should be disqualified or punished
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
-            if (_isEligibleForRewards(user) && contributionScore[round][user.addr] < 0) {
+            if (_isEligibleForRewards(user) && contributionScore[round][user.addr] < 0) { // You shall be punished
                 uint punishment = (user.globalReputationScore / punishfactorContrib) * absUint(contributionScore[round][user.addr]);
                 require(punishment > 0, "punishment is <= 0 in settle!");
                 punishment /= 1e18;
-                if (punishment >= user.globalReputationScore) { // this is a disqualification
+                if (user.globalReputationScore <= min_collateral / punishfactorContrib) { // this is a disqualification
                     reward += user.globalReputationScore;
                     _disqualifyUser(user);
                 }

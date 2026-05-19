@@ -844,6 +844,12 @@ class FLChallenge(ConnectionHelper):
                 receipt = self.close_round() # Increments round number by 1
                 _current_round = self.pytorch_model.round - 1 # Minus 1 since close_round increments. Reassign _current_round
 
+                print(b(f"Round {_current_round} actually completed:"))
+                for user in self.pytorch_model.participants + self.pytorch_model.disqualified:
+                    user._globalrep.append(self.get_global_reputation_of_user(user.address))
+                    i, j = user._globalrep[-2:]
+                    print(b("{}  {:>25,.0f} -> {:>25,.0f}".format(user.address[0:16] + "...", i, j)))
+
                 if receipt is not None:
                     self.print_round_summary(receipt, _current_round, contributors)
 
