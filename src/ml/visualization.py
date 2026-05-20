@@ -20,7 +20,7 @@ def get_color(i, a):
         return None
 
 
-def visualize_simulation(challenge, output_folder_path): # pragma: no cover
+def visualize_simulation(challenge, output_folder_path): # pragma: openfl
     os.makedirs(output_folder_path, exist_ok=True)
     accuracy = [0] + challenge.pytorch_model.accuracy
     loss = [challenge.pytorch_model.loss[0]] + challenge.pytorch_model.loss

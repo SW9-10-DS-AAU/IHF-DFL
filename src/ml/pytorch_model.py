@@ -151,7 +151,7 @@ class PytorchModel:
         print("Participant added: {:<9} {}".format(color_fn(_attitude.upper()[0]+_attitude[1:]), color_fn("User")))
 
 
-    def create_pool(self, plan: TrainingPlan | None = None):
+    def create_pool(self, plan: TrainingPlan | None = None): # pragma: p10
         if self._pool is not None or self._gpu_pools:
             return
 
@@ -179,7 +179,7 @@ class PytorchModel:
             self._pool_cleanup_registered = True
 
 
-    def print_training_plan(self, plan: TrainingPlan):
+    def print_training_plan(self, plan: TrainingPlan): # pragma: p10
         if self._capabilities_printed:
             return
 
@@ -197,7 +197,7 @@ class PytorchModel:
 
 
 
-    def federated_training(self):
+    def federated_training(self): # pragma: p10
         plan, self._cpu_pool_decision = resolve_training_plan(len(self.participants), debugging)
         self.print_training_plan(plan)
         self.create_pool(plan)
@@ -267,7 +267,7 @@ class PytorchModel:
         return results
 
 
-    def run_multi_gpu(self, num_gpus: int):
+    def run_multi_gpu(self, num_gpus: int): # pragma: p10
         if len(self.participants) == 0:
             raise RuntimeError("All participants have been disqualified - simulation cannot continue.")
         if not self._gpu_pools:
@@ -355,12 +355,12 @@ class PytorchModel:
         return results
 
 
-    def close_pool(self):
+    def close_pool(self): # pragma: p10
         close_pools(self._pool, self._gpu_pools)
         self._pool = None
         self._gpu_pools = []
 
-    def _unregister_pool_cleanup(self):
+    def _unregister_pool_cleanup(self): # pragma: p10
         if not self._pool_cleanup_registered:
             return
 
@@ -373,7 +373,7 @@ class PytorchModel:
         self._pool_cleanup_registered = False
 
     @staticmethod
-    def _shutdown_loader(loader):
+    def _shutdown_loader(loader): # pragma: p10
         if loader is None:
             return
         it = getattr(loader, "_iterator", None)
@@ -383,7 +383,8 @@ class PytorchModel:
                 shutdown()
             loader._iterator = None
 
-    def shutdown(self):
+
+    def shutdown(self): # pragma: p10
         if self._shutdown_complete:
             return
 
