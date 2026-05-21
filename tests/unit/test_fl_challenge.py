@@ -941,7 +941,7 @@ class TestFLChallengeFeatures:
 
     # Test accuracy matrix and loss matrix for sizing and indexing when removing participant live
 
-    def test_feedback_filtering_skips_self_inactive_disqualified(self, fl_challenge): # pragma: no cover
+    def test_feedback_filtering_skips_self_inactive_disqualified(self, fl_challenge): # pragma: p10
         # Test the indexing with idx by removing or adding users.
         # Assert equal before, then remove /add, then assert again.
 
@@ -1337,7 +1337,7 @@ class TestReporting:
 
 
 class TestEvaluatePeers:
-    def test_matrix_sized_by_max_id_not_participant_count(self): # pragma: no cover
+    def test_matrix_sized_by_max_id_not_participant_count(self): # pragma: p10
         """
         Regression test: after a middle user is disqualified (e.g. ID=1 from a 4-user group),
         the remaining active users still have IDs 0, 2, 3. The matrix must be 4x4 (max_id+1),

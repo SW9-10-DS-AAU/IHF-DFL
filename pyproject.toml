@@ -42,21 +42,33 @@ ci = [
 ]
 
 [tool.coverage.run]
-source_pkgs = ["ml", "api", "contracts", "utils", "analysis"]
+source_pkgs = ["ml", "api", "contracts", "utils", "experiment", "scripts"]
 omit = [
     "*/ml/cnn_models.py",
     "*/ml/participant.py",
-    "*/ml/pytorch_model.py",
     "*/ml/runtime.py",
     "*/ml/training.py",
     "*/ml/visualization.py",
-    "*/contracts/fl_manager.py",
+    "*/ml/attacks.py",
+    "*/ml/execution.py",
     "*/contracts/logging.py",
-    "*/utils/async_writer.py"
+    "contracts/harnesses/*",
+    "experiment/experiment_presets.py",
+    "experiment/helper.py",
+    "*/utils/shapley.py"
 ]
+
+
 
 [tool.coverage.report]
 show_missing = true
+exclude_lines = [
+  "pragma: no cover",
+  "pragma: openfl",   # legacy openfl code
+  "pragma: p9",       # P9-era code
+  "pragma: p10",      # P10-era code (probably keep covered, but available)
+  "pragma: unknown"   # Unknown origin
+]
 
 [tool.pytest.ini_options]
 python_files = ["test_*.py"]

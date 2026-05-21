@@ -10,7 +10,7 @@ from contracts import logging
 _runtime_warnings = []
 
 
-def contribution_score(challenge, _users, _current_round_no): # pragma: no cover
+def contribution_score(challenge, _users, _current_round_no):
     """
     Compute contribution scores for all merging users, submit them to the
     contract, and log them. Strategy is chosen by _get_contribution_score_calculator:
@@ -78,7 +78,7 @@ def contribution_score(challenge, _users, _current_round_no): # pragma: no cover
     print_divider(blank_line_after=True)
 
 
-def print_shapley_warnings():
+def print_shapley_warnings(): # pragma: p10
     print(f"Number of Shapley Axioms violated: {len(_runtime_warnings)}\n")
     if _runtime_warnings:
         print("\n" + red("!" * 30 + " SHAPLEY WARNINGS " + "!" * 30))
@@ -121,7 +121,7 @@ def _calculate_scores_dotproduct(challenge, users, _current_round_no):
     return scores
 
 
-def _calculate_scores_naive(challenge, users, _current_round_no): # pragma: no cover
+def _calculate_scores_naive(challenge, users, _current_round_no): # pragma: openfl
     """
     Equal-share scoring: everyone contributing gets 1 / num_mergers.
     """  # unused; included for signature consistency
@@ -133,7 +133,7 @@ def _calculate_scores_naive(challenge, users, _current_round_no): # pragma: no c
     return scores
 
 
-def _calculate_scores_accuracy_loss(challenge, users, _current_round_no=None, mad_threshold=1.1): # pragma: no cover
+def _calculate_scores_accuracy_loss(challenge, users, _current_round_no=None, mad_threshold=1.1):
     """
     Accuracy-Loss-based scoring: use accuracy and loss directly as contribution score.
     """
@@ -213,7 +213,7 @@ def _calculate_scores_accuracy_loss(challenge, users, _current_round_no=None, ma
 # Find out who was merged
 
 
-def _calculate_scores_accuracy_only(challenge, users, _current_round_no, mad_threshold=1.1): #pragma: no cover
+def _calculate_scores_accuracy_only(challenge, users, _current_round_no, mad_threshold=1.1): #pragma: p10
     """
     Accuracy-based scoring: use accuracy directly as contribution score.
     """
@@ -273,7 +273,7 @@ def _calculate_scores_accuracy_only(challenge, users, _current_round_no, mad_thr
     return scores
 
 
-def _calculate_scores_loss_only(challenge, users, _current_round_no, mad_threshold=1.1): #pragma: no cover
+def _calculate_scores_loss_only(challenge, users, _current_round_no, mad_threshold=1.1): #pragma: p10
     """
     Loss-based scoring: use loss directly as contribution score.
     """
@@ -339,7 +339,7 @@ def _calculate_scores_loss_only(challenge, users, _current_round_no, mad_thresho
 
 # ===== Helper functions =====
 
-def calc_contribution_score_naive(num_mergers) -> float: # pragma: no cover
+def calc_contribution_score_naive(num_mergers) -> float: # pragma: openfl
     return float(Decimal(1) / Decimal(num_mergers))
 
 
@@ -406,7 +406,7 @@ def normalize_contribution_scores_old(arr, prev_val):
     return norm_arr
 
 
-def normalize_contribution_scores_new(vals: list, prev_val: float, evaluation_metric: str) -> list: #pragma: no cover
+def normalize_contribution_scores_new(vals: list, prev_val: float, evaluation_metric: str) -> list: #pragma: p10
     """
     4-step normalization for contribution scores.
 

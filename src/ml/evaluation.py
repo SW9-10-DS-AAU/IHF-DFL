@@ -7,7 +7,7 @@ from web3 import Web3
 from ml.runtime import DEVICE
 
 
-def exchange_models(pm): # pragma: no cover
+def exchange_models(pm): # pragma: openfl
     print("Users exchanging models...")
     for user in pm.participants:
         user.userToEvaluate = []
@@ -20,7 +20,7 @@ def exchange_models(pm): # pragma: no cover
     print_divider()
 
 
-def verify_models(pm, on_chain_hashes): # pragma: no cover
+def verify_models(pm, on_chain_hashes): # pragma: openfl
     print("Users verifying models...")
     for _user in pm.participants:
         _user.cheater = []
@@ -33,7 +33,7 @@ def verify_models(pm, on_chain_hashes): # pragma: no cover
     print_divider()
 
 
-def get_hash(_state_dict): # pragma: no cover
+def get_hash(_state_dict): # pragma: openfl
     if not isinstance(_state_dict, dict):
         _state_dict = dict(_state_dict)
 
@@ -54,7 +54,7 @@ def get_hash(_state_dict): # pragma: no cover
     return Web3.keccak(blob)  # remove hex to match old, with improved algo.
 
 
-def evaluate_peers(pm): # pragma: no cover
+def evaluate_peers(pm): # pragma: openfl
     print("Users evaluating models...")
 
     scalar = 100  # Adds more decimals for precision (Adding 0 gives another decimal, vice versa)
@@ -160,7 +160,7 @@ def evaluate_peers(pm): # pragma: no cover
     return feedback_matrix, accuracy_matrix, loss_matrix, prev_accs, prev_losses
 
 # Same as lines 294-296,306 in original code.
-def finalize_user_evaluation(pm, user):  # pragma: no cover
+def finalize_user_evaluation(pm, user):  # pragma: openfl
     loss, acc = training.test(user.model, pm.test, DEVICE)
     user._accuracy.append(acc) # Line 295 in original code
     user._loss.append(loss) # Line 296 in original code
