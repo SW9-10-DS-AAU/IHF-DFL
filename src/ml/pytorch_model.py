@@ -280,29 +280,28 @@ class PytorchModel:
             sd_cpu = {k: v.cpu() for k, v in user.model.state_dict().items()}
 
             if user.attitude == "good":  # train
-                async_results.append(self._gpu_pools[device_id].apply_async(
+                async_results.append(self._gpu_pools[device_id].submit(
                     training.train_user_proc,
-                    (user.id,
-                     sd_cpu,
-                     user.train.dataset,
-                     user.val.dataset,
-                     self.EPOCHS,
-                     device_id,
-                     self.DATASET,
-                     self.BATCHSIZE,
-                     PIN_MEMORY,
-                     False)
+                    user.id,
+                    sd_cpu,
+                    user.train.dataset,
+                    user.val.dataset,
+                    self.EPOCHS,
+                    device_id,
+                    self.DATASET,
+                    self.BATCHSIZE,
+                    PIN_MEMORY,
+                    False,
                 ))
             else:  # If user's behaviour !good, skip Training.
                 # Skips apply_training_results() - goes directly to evaluation. Corresponds to lines 261-277 in original code.
                 evaluation.finalize_user_evaluation(self, user)
 
         try:
-            results = [r.get() for r in async_results]  # Collect results, waiting for all to finish.
+            results = [r.result() for r in async_results]  # Collect results, waiting for all to finish.
         except KeyboardInterrupt:
             for pool in self._gpu_pools:
-                pool.terminate()
-                pool.join()
+                pool.shutdown(wait=True, cancel_futures=True)
             self._gpu_pools = []
             raise
 

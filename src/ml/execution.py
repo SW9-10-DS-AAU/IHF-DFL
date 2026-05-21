@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from concurrent.futures import ProcessPoolExecutor
 import os
 
 import psutil
@@ -80,7 +81,12 @@ def create_cpu_pool(ctx, workers: int):
 
 def create_gpu_pools(ctx, num_gpus: int):
     return [
-        ctx.Pool(processes=1, initializer=pin_cuda_worker, initargs=(device_id,))
+        ProcessPoolExecutor(
+            max_workers=1,
+            mp_context=ctx,
+            initializer=pin_cuda_worker,
+            initargs=(device_id,),
+        )
         for device_id in range(num_gpus)
     ]
 
@@ -90,8 +96,7 @@ def close_pools(cpu_pool, gpu_pools):
         cpu_pool.close()
         cpu_pool.join()
     for pool in gpu_pools:
-        pool.close()
-        pool.join()
+        pool.shutdown(wait=True)
 
 
 def print_system_capabilities(num_gpus: int):
