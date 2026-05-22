@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from concurrent.futures import ProcessPoolExecutor
 import os
 
 import psutil
@@ -20,22 +21,6 @@ def pin_cuda_worker(device_id: int):
 
 
 def resolve_cpu_pool_size(participants: int):
-    override = os.getenv("IHPDFL_CPU_WORKERS")
-    if override is not None:
-        try:
-            workers = int(override)
-        except ValueError as exc:
-            raise ValueError("IHPDFL_CPU_WORKERS must be an integer") from exc
-        if workers < 1:
-            raise ValueError("IHPDFL_CPU_WORKERS must be at least 1")
-        resolved = max(1, min(workers, participants))
-        decision = {
-            "override": workers,
-            "participants": participants,
-            "resolved": resolved,
-        }
-        return resolved, decision
-
     logical_cores = os.cpu_count() or 1
     physical_cores = psutil.cpu_count(logical=False) or logical_cores
     available_gb = psutil.virtual_memory().available / (1024 ** 3)
@@ -44,7 +29,6 @@ def resolve_cpu_pool_size(participants: int):
     ram_cap = max(1, int((available_gb - 2) // 2))
     resolved = max(1, min(participants, core_cap, ram_cap))
     decision = {
-        "override": None,
         "participants": participants,
         "physical_cores": physical_cores,
         "logical_cores": logical_cores,
@@ -80,7 +64,12 @@ def create_cpu_pool(ctx, workers: int):
 
 def create_gpu_pools(ctx, num_gpus: int):
     return [
-        ctx.Pool(processes=1, initializer=pin_cuda_worker, initargs=(device_id,))
+        ProcessPoolExecutor(
+            max_workers=1,
+            mp_context=ctx,
+            initializer=pin_cuda_worker,
+            initargs=(device_id,),
+        )
         for device_id in range(num_gpus)
     ]
 
@@ -90,8 +79,7 @@ def close_pools(cpu_pool, gpu_pools):
         cpu_pool.close()
         cpu_pool.join()
     for pool in gpu_pools:
-        pool.close()
-        pool.join()
+        pool.shutdown(wait=True)
 
 
 def print_system_capabilities(num_gpus: int):
@@ -113,17 +101,6 @@ def print_system_capabilities(num_gpus: int):
 
 def print_cpu_pool_decision(decision):
     if not decision:
-        return
-
-    if decision["override"] is not None:
-        print(
-            yellow(
-                "CPU worker sizing: "
-                f"IHPDFL_CPU_WORKERS={decision['override']}, "
-                f"participants={decision['participants']} -> "
-                f"workers={decision['resolved']}"
-            )
-        )
         return
 
     print(
