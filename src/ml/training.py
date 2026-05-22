@@ -22,7 +22,7 @@ def train(
         trainloader: torch.utils.data.DataLoader,
         epochs: int,
         device: torch.device,
-) -> tuple[float, float, float, int]:
+) -> None: # tuple[float, float, float, int]
     # Compile ONCE per process (not per batch).
     # NOTE: mode="reduce-overhead" enables CUDA Graphs (cudagraph_trees), which
     # preallocate static memory pools per graph. With multiple worker processes
@@ -34,7 +34,7 @@ def train(
             net = torch.compile(net)
         except Exception:
             pass
-    compile_seconds = time.perf_counter() - compile_start
+    # compile_seconds = time.perf_counter() - compile_start
 
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
@@ -44,23 +44,23 @@ def train(
 
     net.train()
 
-    data_wait_seconds = 0.0
-    compute_seconds = 0.0
-    batches = 0
+    # data_wait_seconds = 0.0
+    # compute_seconds = 0.0
+    # batches = 0
 
     for _ in range(epochs):
-        batch_wait_start = time.perf_counter()
+        # batch_wait_start = time.perf_counter()
         for images, labels in trainloader:
-            if device.type == "cuda":
-                torch.cuda.synchronize(device)
-            data_wait_seconds += time.perf_counter() - batch_wait_start
+            # if device.type == "cuda":
+            #     torch.cuda.synchronize(device)
+            # data_wait_seconds += time.perf_counter() - batch_wait_start
 
             images = images.to(device, non_blocking=NON_BLOCKING)
             labels = labels.to(device, non_blocking=NON_BLOCKING)
 
             optimizer.zero_grad(set_to_none=True)
 
-            compute_start = time.perf_counter()
+            # compute_start = time.perf_counter()
             with torch.amp.autocast("cuda", enabled=use_amp):
                 outputs = net(images)
                 loss = criterion(outputs, labels)
@@ -69,13 +69,13 @@ def train(
             scaler.step(optimizer)
             scaler.update()
 
-            if device.type == "cuda":
-                torch.cuda.synchronize(device)
-            compute_seconds += time.perf_counter() - compute_start
-            batches += 1
-            batch_wait_start = time.perf_counter()
+            # if device.type == "cuda":
+            #     torch.cuda.synchronize(device)
+            # compute_seconds += time.perf_counter() - compute_start
+            # batches += 1
+            # batch_wait_start = time.perf_counter()
 
-    return compile_seconds, data_wait_seconds, compute_seconds, batches
+    # return compile_seconds, data_wait_seconds, compute_seconds, batches
 
 
 def test(net, testloader: torch.utils.data.DataLoader, device: torch.device) -> Tuple[float, float]:
@@ -121,8 +121,7 @@ def _loader_worker_options(use_cuda: bool) -> tuple[int, bool]:
     return num_workers, num_workers > 0
 
 
-def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, dataset, batchsize, pin_memory,
-                    shuffle):
+def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, dataset, batchsize, pin_memory):
     # Multi-GPU Support
     # Select device
     use_cuda = torch.cuda.is_available()
@@ -140,33 +139,36 @@ def train_user_proc(user_id, model_state, train_ds, val_ds, epochs, device_id, d
     model.to(device)
 
     # Rebuild dataloaders inside the process
-    train_loader = DataLoader(train_ds, batch_size=batchsize, shuffle=shuffle,
-                              pin_memory=pin_memory, num_workers=num_workers,
-                              persistent_workers=persistent_workers, prefetch_factor=4 if num_workers > 0 else None)
-    val_loader = DataLoader(val_ds, batch_size=batchsize, shuffle=shuffle,
+    train_loader = DataLoader(train_ds, batch_size=batchsize, shuffle=True,
+                            pin_memory=pin_memory, num_workers=num_workers,
+                            persistent_workers=persistent_workers, prefetch_factor=4 if num_workers > 0 else None)
+    val_loader = DataLoader(val_ds, batch_size=batchsize, shuffle=False,
                             pin_memory=pin_memory, num_workers=0,
                             persistent_workers=False)
 
-    train_start = time.perf_counter()
-    train_compile, train_data_wait, train_compute, train_batches = train(model, train_loader, epochs, device)  # Line 285 in original code
-    train_seconds = time.perf_counter() - train_start
-    val_start = time.perf_counter()
+    # train_start = time.perf_counter()
+    # train_compile, train_data_wait, train_compute, train_batches = train(model, train_loader, epochs, device)  # Line 285 in original code
+    train(model, train_loader, epochs, device)  # Line 285 in original code
+    # train_seconds = time.perf_counter() - train_start
+    # val_start = time.perf_counter()
     val_loss, val_acc = test(model, val_loader, device)  # Line 286 in original code
-    val_seconds = time.perf_counter() - val_start
+    # val_seconds = time.perf_counter() - val_start
 
     # del: Mark for GC
     del train_loader
     del val_loader
 
-    device_name = torch.cuda.get_device_name(device) if device.type == "cuda" else "CPU"
-    print(
-        f"[{device_label(device, device_id)}] User {user_id} done | "
-        f"device={device_name} daemon={mp.current_process().daemon} "
-        f"loaders={num_workers} batches={train_batches} | "
-        f"train={train_seconds:.2f}s compile={train_compile:.2f}s data_wait={train_data_wait:.2f}s "
-        f"compute={train_compute:.2f}s val={val_seconds:.2f}s | "
-        f"Acc: {val_acc:.3f}, Loss: {val_loss:.3f}"
-    )
+    # device_name = torch.cuda.get_device_name(device) if device.type == "cuda" else "CPU"
+    # print(
+    #     f"[{device_label(device, device_id)}] User {user_id} done | "
+    #     f"device={device_name} daemon={mp.current_process().daemon} "
+    #     f"loaders={num_workers} batches={train_batches} | "
+    #     f"train={train_seconds:.2f}s compile={train_compile:.2f}s data_wait={train_data_wait:.2f}s "
+    #     f"compute={train_compute:.2f}s val={val_seconds:.2f}s | "
+    #     f"Acc: {val_acc:.3f}, Loss: {val_loss:.3f}"
+    # )
+    print(f"[{device_label(device, device_id)}] User {user_id} done | Acc: {val_acc:.3f}, Loss: {val_loss:.3f}")
+
 
     # Move state dict to CPU before returning so the parent receives plain CPU
     # tensors instead of CUDA IPC handles, avoiding the "shared CUDA tensors
