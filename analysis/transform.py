@@ -49,6 +49,7 @@ _PUNISHMENT_WEI_COLS = ["loss", "new_reputation", "round_score"]
 # Metadata keys stored in the "metadata" lookup table returned by merge_runs.
 # Data tables only carry experiment_id; join on it when you need config values.
 MERGE_META_KEYS = [
+    "timestamp",
     "dataset",
     "contribution_score_strategy",
     "use_outlier_detection",
