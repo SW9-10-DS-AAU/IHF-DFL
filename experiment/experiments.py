@@ -19,7 +19,7 @@ REPO_ROOT = repo_root(Path(__file__))
 
 import experiment.experiment_runner as ExperimentRunner
 from dataclasses import dataclass
-from experiment.helper import getPath, resolve_attack_params
+from experiment.helper import getPath, recorded_run_counts_as_done, resolve_attack_params
 from experiment.run_grid import PlannedRun, build_arg_parser, plan_runs, read_git_state
 from experiment.experiment_presets import PRESETS
 from utils.async_writer import AsyncWriter
@@ -193,7 +193,12 @@ def parseSkips():
 
         mal_round = m.group("maliciousRound")
         mal_noise = m.group("maliciousNoise")
+        mal_round = int(mal_round) if mal_round != "None" else None
+        mal_noise = float(mal_noise) if mal_noise != "None" else None
 
+        if not recorded_run_counts_as_done(m.group("preset"), mal_round, mal_noise):
+            print("Not skipping, malicious participant never activated:", file)
+            continue
 
         skips.append(
             Skip(
@@ -203,8 +208,8 @@ def parseSkips():
                 outlier_detection=m.group("outlierDetection") == "True",
                 freerider_activation_round=int(m.group("freeriderRound")),
                 freerider_noise=float(m.group("freeriderNoise")),
-                malicious_activation_round=int(mal_round) if mal_round != "None" else None,
-                malicious_noise=float(mal_noise) if mal_noise != "None" else None,
+                malicious_activation_round=mal_round,
+                malicious_noise=mal_noise,
                 run_id=int(m.group("runId")) if m.group("runId") is not None else 0
             )
         )
