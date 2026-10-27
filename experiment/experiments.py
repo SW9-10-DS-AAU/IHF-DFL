@@ -19,9 +19,9 @@ from utils.paths import repo_root
 REPO_ROOT = repo_root(Path(__file__))
 
 import experiment.experiment_runner as ExperimentRunner
-from itertools import product
 from dataclasses import dataclass
-from experiment.helper import getPath, create_run_ids, resolve_attack_params
+from experiment.helper import getPath, resolve_attack_params
+from experiment.run_grid import expand_preset
 from experiment.experiment_configuration import ExperimentConfiguration
 from experiment.experiment_presets import PRESETS
 from utils.async_writer import AsyncWriter
@@ -83,114 +83,35 @@ skips: list[Skip] = []
 # ---------------- MAIN ----------------
 
 def main(author): # single preset
-    preset_config = PRESETS[preset]
     startTime = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
 
     if args.skipFolder is not None:
         parseSkips()
 
-    productVar = []
+    run_specs = [spec for dataset in datasets for spec in expand_preset(preset, dataset)]
 
-    malicious_rounds = (
-        preset_config.malicious_start_round
-        if preset_config.malicious_start_round is not None
-        else [None]
-    )
-
-    malicious_noises = (
-        preset_config.malicious_noise_scale
-        if preset_config.malicious_noise_scale is not None
-        else [None]
-    )
-
-
-    freerider_rounds = (
-        preset_config.freerider_start_round
-        if preset_config.freerider_start_round is not None
-        else [None]
-    )
-
-    freerider_noises = (
-        preset_config.freerider_noise_scale
-        if preset_config.freerider_noise_scale is not None
-        else [None]
-    )
-
-
-    number_of_runs = preset_config.number_of_runs if preset_config.number_of_runs is not None else 1
-    runs = create_run_ids(number_of_runs)
-    if not runs:
-        runs = [1]
-
-    for (
-            strategy,
-            outlier_detection,
-            freerider_round,
-            freerider_noise,
-            malicious_activation_round,
-            malicious_noise,
-            dataset,
-            run_id
-    ) in product(
-        preset_config.contribution_score_strategy,
-        preset_config.use_outlier_detection,
-        freerider_rounds,
-        freerider_noises,
-        malicious_rounds,
-        malicious_noises,
-        datasets,
-        runs
-    ):
-
-        productVar.append((
-            strategy,
-            outlier_detection,
-            freerider_round,
-            freerider_noise,
-            # freerider_attack_type,
-            malicious_activation_round,
-            malicious_noise,
-            # malicious_attack_type,
-            dataset,
-            # aggregation_rule,
-            # data_distribution,
-            run_id
-        ))
-
-    total = len(productVar)
+    total = len(run_specs)
 
     skipConfigs = [
         Skip(
             preset=preset,
-            dataset=dataset,
-            strategy=strategy,
-            outlier_detection=outlier_detection,
-            freerider_activation_round=freerider_round,
-            freerider_noise=freerider_noise,
-            malicious_activation_round=malicious_activation_round,
-            malicious_noise=malicious_noise,
-            run_id=run_id,
+            dataset=spec.dataset,
+            strategy=spec.strategy,
+            outlier_detection=spec.outlier_detection,
+            freerider_activation_round=spec.freerider_round,
+            freerider_noise=spec.freerider_noise,
+            malicious_activation_round=spec.malicious_round,
+            malicious_noise=spec.malicious_noise,
+            run_id=spec.run_id,
         )
-        for (
-            strategy, outlier_detection, freerider_round, freerider_noise,
-            malicious_activation_round, malicious_noise, dataset, run_id
-        ) in productVar
+        for spec in run_specs
     ]
     skipsCount = sum(1 for sc in skipConfigs if shouldSkip(sc))
 
     time = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
 
     done = 0
-    for i, ((
-        strategy,
-        outlier_detection,
-        freerider_round,
-        freerider_noise,
-        malicious_activation_round,
-        malicious_noise,
-        dataset,
-        run_id
-    ), skipConfig) in enumerate(zip(productVar, skipConfigs), start=1):
+    for i, (spec, skipConfig) in enumerate(zip(run_specs, skipConfigs), start=1):
         if shouldSkip(skipConfig):
             print(f"Skipping: {skipConfig}")
             continue
@@ -206,25 +127,25 @@ def main(author): # single preset
 
         config = ExperimentConfiguration(preset=preset, use_defaults=_use_defaults)
         config.preset_name = preset
-        config.dataset = dataset
+        config.dataset = spec.dataset
 
 
         # override parameters for this run
-        config.contribution_score_strategy = strategy
-        config.use_outlier_detection = outlier_detection
-        config.freerider_start_round = freerider_round
-        config.freerider_noise_scale = freerider_noise
-        config.malicious_start_round = malicious_activation_round
-        config.malicious_noise_scale = malicious_noise
+        config.contribution_score_strategy = spec.strategy
+        config.use_outlier_detection = spec.outlier_detection
+        config.freerider_start_round = spec.freerider_round
+        config.freerider_noise_scale = spec.freerider_noise
+        config.malicious_start_round = spec.malicious_round
+        config.malicious_noise_scale = spec.malicious_noise
 
-        path = getPath(config, time, dataset, preset, RESULTDATAFOLDER, run_id=run_id)
+        path = getPath(config, time, spec.dataset, preset, RESULTDATAFOLDER, run_id=spec.run_id)
 
         try:
 
             writer = AsyncWriter(path, OUTPUTHEADERS, WRITERBUFFERSIZE, config, author)
-            metadata = {**vars(config), "dataset": dataset, "timestamp": startTime}
+            metadata = {**vars(config), "dataset": spec.dataset, "timestamp": startTime}
             logger = ExperimentLogger(experiment_id=path.stem, metadata=metadata)
-            ExperimentRunner.run_experiment(dataset, config, run_id, writer, logger)
+            ExperimentRunner.run_experiment(spec.dataset, config, spec.run_id, writer, logger)
             writer.finish()
 
             logger.save(path.with_suffix(".pkl"))
