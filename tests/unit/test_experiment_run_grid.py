@@ -157,3 +157,9 @@ def test_planned_config_carries_the_cell_values():
             run.config.freerider_noise_scale, run.config.malicious_start_round,
             run.config.malicious_noise_scale) == ("loss_only", 3, 0.1, 1, 0.1)
     assert run.metadata["timestamp"] == "t"
+
+
+def test_read_git_state_when_git_diff_fails_is_unknown_and_dirty(monkeypatch):
+    monkeypatch.setattr(run_grid.subprocess, "run", _fake_git(diff_returncode=128))
+
+    assert read_git_state(Path(".")) == GitState(commit="unknown", dirty=True)

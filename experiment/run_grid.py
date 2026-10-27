@@ -90,7 +90,10 @@ def read_git_state(repo: Path) -> GitState:
         diff = subprocess.run(["git", "diff", "--quiet", "HEAD"], cwd=repo, capture_output=True)
     except (OSError, subprocess.CalledProcessError):
         return GitState(commit="unknown", dirty=True)
-    return GitState(commit=commit, dirty=diff.returncode != 0)
+    # git diff --quiet exits 1 for changes; any other non-zero code is an error, not a dirty tree.
+    if diff.returncode not in (0, 1):
+        return GitState(commit="unknown", dirty=True)
+    return GitState(commit=commit, dirty=diff.returncode == 1)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:

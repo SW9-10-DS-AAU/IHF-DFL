@@ -72,7 +72,7 @@ skips: list[Skip] = []
 
 # ---------------- MAIN ----------------
 
-def main(runs: list[PlannedRun], author): # single preset
+def main(runs: list[PlannedRun], author, start_time: str): # single preset
     preset = args.preset
 
     if args.skipFolder is not None:
@@ -96,8 +96,6 @@ def main(runs: list[PlannedRun], author): # single preset
     ]
     skipsCount = sum(1 for sc in skipConfigs if shouldSkip(sc))
 
-    time = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
-
     done = 0
     for i, (run, skipConfig) in enumerate(zip(runs, skipConfigs), start=1):
         spec, config = run.spec, run.config
@@ -114,7 +112,7 @@ def main(runs: list[PlannedRun], author): # single preset
         progress_bar(done, skipsCount, total)
         done += 1
 
-        path = getPath(config, time, spec.dataset, preset, RESULTDATAFOLDER, run_id=spec.run_id)
+        path = getPath(config, start_time, spec.dataset, preset, RESULTDATAFOLDER, run_id=spec.run_id)
 
         try:
 
@@ -283,9 +281,11 @@ def normalize_skip(skip: Skip):
 if __name__ == "__main__":
     mp.freeze_support()
     # Plan first, so a dirty tree is refused before the author prompt.
-    runs = plan_runs(args, read_git_state(REPO_ROOT), datetime.now().strftime("%d-%m-%y--%H_%M_%S"))
+    # One start time names the output folder and stamps the metadata, so both can be joined.
+    start_time = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
+    runs = plan_runs(args, read_git_state(REPO_ROOT), start_time)
     author = args.author if args.author is not None else input("Author?\n")
-    main(runs, author)
+    main(runs, author, start_time)
     print("Done :)")
 
 
