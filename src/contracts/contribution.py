@@ -251,7 +251,7 @@ def _calculate_scores_accuracy_only(challenge, users, _current_round_no, mad_thr
             raise type(e)(f"Failed while processing user data: {e}") from e
 
 
-    norm_accuracies = normalize_contribution_scores_new(avg_accuracies, avg_prev_acc, 'accuracy')
+    norm_accuracies = normalize_contribution_scores_old(avg_accuracies, avg_prev_acc)
     print(f"normalized accuracies: {norm_accuracies}")
 
     # Validating Shapley Axioms (Runtime Guard)
@@ -310,7 +310,7 @@ def _calculate_scores_loss_only(challenge, users, _current_round_no, mad_thresho
             per_user_outlier_info.append({})
             raise type(e)(f"Failed while processing user data: {e}") from e
 
-    norm_losses = normalize_contribution_scores_new(avg_losses, avg_prev_loss, 'loss')
+    norm_losses = normalize_contribution_scores_old(avg_losses, avg_prev_loss)
     # print(f"normalized losses: {norm_losses}")
 
     # sum_nl = sum(norm_losses)

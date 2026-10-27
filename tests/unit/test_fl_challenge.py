@@ -389,22 +389,22 @@ class TestCalcContributionScore:
         (
                 [[87], [85], [88]],
                 [87, 85, 88],
-                [-0.2, -1.0, 2.2],
+                [0.2, 1.0, -0.2],
         ),
         (
                 [[90], [85], [88]],
                 [87, 85, 88],
-                [1.6666666666666665, -1.0, 0.33333333333333337],
+                [5.0, -5.0, 1.0],
         ),
         (
                 [[4], [2], [-12]],
                 [0, 0, 0],
-                [1.3333333333333335, 0.6666666666666667, -1.0],
+                [-0.6666666666666666, -0.3333333333333333, 2.0],
         ),
         (
                 [[12], [-2], [-4]],
                 [0, 0, 0],
-                [2.5, -0.5, -1.0]
+                [2.0, -0.3333333333333333, -0.6666666666666666]
         ),
         (
                 [[90], [85], [88]],
@@ -414,7 +414,7 @@ class TestCalcContributionScore:
         (
                 [[1.5], [1.5], [-2]],
                 [0, 0, 0],
-                [1.0, 1.0, -1.0],
+                [1.5, 1.5, -2.0],
         ),
         (
                 [[0], [0], [0.1]],
@@ -439,17 +439,17 @@ class TestCalcContributionScore:
         (
                 [[-6], [-4], [-2]],
                 [0, 0, 0],
-                [0.18181818181818182, 0.2727272727272727, 0.5454545454545454],
+                [0.5, 0.3333333333333333, 0.16666666666666666],
         ),
         (
                 [[0], [0], [-0.1]],
                 [0, 0, 0],
-                [0.55, 0.55, -0.1],
+                [0.0, 0.0, 1.0],
         ),
         (
                 [[1], [1], [-1], [-1], [0.1]],
                 [0, 0, 0],
-                [1.4285714285714286, 1.4285714285714286, -1, -1, 0.14285714285714285],
+                [10.0, 10.0, -10.0, -10.0, 1.0],
         ),
         (
                 [[0], [2], [-1]],
@@ -498,37 +498,37 @@ class TestCalcContributionScore:
         (
                 [[87], [85], [88]],
                 [87, 85, 88],
-                [0.25, 1.25, -0.5],
+                [0.2, 1.0, -0.2],
         ),
         (
                 [[90], [85], [88]],
                 [87, 85, 88],
-                [-1.0, 2.2, -0.2],
+                [5.0, -5.0, 1.0],
         ),
         (
                 [[4], [2], [-12]],
                 [0, 0, 0],
-                [-1.0, -0.5, 2.5],
+                [-0.6666666666666666, -0.3333333333333333, 2.0],
         ),
         (
                 [[12], [-2], [-4]],
                 [0, 0, 0],
-                [-1.0, 0.6666666666666667, 1.3333333333333335]
+                [2.0, -0.3333333333333333, -0.6666666666666666]
         ),
         (
                 [[90], [85], [88]],
                 [0, 0, 0],
-                [0.3245119305856833, 0.3436008676789588, 0.33188720173535796],
+                [0.34220532319391633, 0.3231939163498099, 0.33460076045627374],
         ),
         (
                 [[1.5], [1.5], [-2]],
                 [0, 0, 0],
-                [-1.0, -1.0, 3.0],
+                [1.5, 1.5, -2.0],
         ),
         (
                 [[0], [0], [0], [0.1]],
                 [0, 0, 0],
-                [0.3666666666666667, 0.3666666666666667, 0.3666666666666667, -0.1],
+                [0.0, 0.0, 0.0, 1.0],
         ),
         (
                 [[6], [6], [6]],
@@ -543,7 +543,7 @@ class TestCalcContributionScore:
         (
                 [[6], [5], [4]],
                 [0, 0, 0],
-                [0.2702702702702703, 0.32432432432432434, 0.40540540540540543],
+                [0.4, 0.3333333333333333, 0.26666666666666666],
         ),
         (
                 [[-6], [-4], [-2]],
@@ -563,7 +563,7 @@ class TestCalcContributionScore:
         (
                 [[0], [2], [-1]],
                 [0, 0, 0],
-                [0.0, -1.0, 2.0],
+                [0.0, 2.0, -1.0],
         ),
         (
                 [[0], [0], [0]],
@@ -1371,3 +1371,44 @@ class TestEvaluatePeers:
         # Active user with ID=3 must be accessible — old bug caused IndexError here
         assert accuracy_matrix[3] == [0, 0, 0, 0]
         assert loss_matrix[3] == [0, 0, 0, 0]
+
+
+class TestSignedSumNormalizationThroughContributionScore:
+    """Accuracy and Loss strategies normalize by the signed sum (Eq. 7), via the public entry."""
+
+    @staticmethod
+    def _score(strategy, prev_accuracies, prev_losses, user_accuracies, user_losses):
+        users = []
+        for i in range(max(len(user_accuracies), len(user_losses))):
+            user = MagicMock()
+            user.address = f"0xAddressUser{i}"
+            users.append(user)
+        by_address = {u.address: i for i, u in enumerate(users)}
+
+        challenge = MagicMock()
+        challenge.experiment_config = SimpleNamespace(contribution_score_strategy=strategy)
+        challenge.fork = True
+        challenge.get_all_previous_accuracies_and_losses.return_value = (prev_accuracies, prev_losses)
+        challenge.get_all_accuracies_about.side_effect = \
+            lambda address: ([], [user_accuracies[by_address[address]]])
+        challenge.get_all_losses_about.side_effect = \
+            lambda address: ([], [user_losses[by_address[address]]])
+
+        contribution_score(challenge, users, 1)
+        return challenge.scores
+
+    def test_accuracy_strategy_keeps_negative_scores_unclamped(self):
+        scores = self._score("accuracy_only", [10] * 4, [], [11, 12, 0, 5], [])
+
+        assert scores == pytest.approx([-1 / 12, -2 / 12, 10 / 12, 5 / 12], abs=1e-9)
+
+    def test_loss_strategy_keeps_negative_scores_unclamped(self):
+        scores = self._score("loss_only", [], [10] * 4, [], [9, 8, 20, 15])
+
+        assert scores == pytest.approx([-1 / 12, -2 / 12, 10 / 12, 5 / 12], abs=1e-9)
+
+    @pytest.mark.parametrize("strategy", ["accuracy_only", "loss_only"])
+    def test_scores_sum_to_one(self, strategy):
+        scores = self._score(strategy, [10] * 4, [10] * 4, [11, 12, 0, 5], [9, 8, 20, 15])
+
+        assert sum(scores) == pytest.approx(1.0, abs=1e-9)
