@@ -72,9 +72,7 @@ skips: list[Skip] = []
 
 # ---------------- MAIN ----------------
 
-def main(runs: list[PlannedRun], author, start_time: str): # single preset
-    preset = args.preset
-
+def main(runs: list[PlannedRun], preset: str, author, start_time: str):
     if args.skipFolder is not None:
         parseSkips()
 
@@ -285,7 +283,7 @@ if __name__ == "__main__":
     start_time = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
     runs = plan_runs(args, read_git_state(REPO_ROOT), start_time)
     author = args.author if args.author is not None else input("Author?\n")
-    main(runs, author, start_time)
+    main(runs, args.preset, author, start_time)
     print("Done :)")
 
 
