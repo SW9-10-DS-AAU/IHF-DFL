@@ -191,5 +191,24 @@ contract ContributionScoringTest is Test {
         assertEq(afterB, beforeB + model._rewardPerRound() + lowGrs);
     }
 
+    // Regression (check run 2026-10-27, round 10): a user ABOVE the disqualification threshold whose
+    // penalty exceeds its GRS (unbounded Accuracy+Loss score of -6.23) must be disqualified, not
+    // underflow. Stale bytecode without the `punishment > grs` guard reverted with panic 0x11 here.
+    function testPenaltyLargerThanGrsAboveThresholdDisqualifiesWithoutRevert() public {
+        uint grs = 1.649 ether; // > min_collateral / punishfactorContrib
+        model._initEligibleUser(a, grs, 4);
+        model._initEligibleUser(b, COLLATERAL, 4);
+        model._setVotesPerRound(8);
+        model._setContribution(a, -6231930466606217855); // penalty = grs/3 * 6.23 ~ 3.43 ether > grs
+        model._setContribution(b, 1e18);
+
+        uint beforeB = model._getGRS(b);
+        model._settleContributionScores(0);
+
+        assertTrue(model._isDisqualified(a));
+        assertEq(model._getGRS(a), 0);
+        assertEq(model._getGRS(b), beforeB + model._rewardPerRound() + grs);
+    }
+
 }
 

@@ -199,6 +199,23 @@ contract SettleInternalsTest is Test {
         assertFalse(model._isPassivePunished(alice));
     }
 
+    // KNOWN BUG (not fixed, by decision): a user disqualified in its first round keeps
+    // nrOfRoundsParticipated == 1 (roundReset skips disqualified users), so the next settle()
+    // charges it the first-round fee again. Its GRS is 0, the subtraction underflows, and every
+    // later settle() reverts - the run aborts.
+    // Fix: `&& !user.isDisqualified` in collectFreeriderFees. When fixed, replace the expectRevert
+    // with: assertEq(model._collectFreeriderFees(), 0); assertEq(model._getGRS(alice), 0);
+    function testCollectFreeriderFees_UserDisqualifiedInFirstRound_KnownUnderflow() public {
+        model._addUser(alice, COLLATERAL, -1, 1, 1, false);
+        model._setVotesPerRound(1);
+        model._setGRS(alice, 0);
+        model._punishMaliciousUsers(); // disqualifies alice in round 1
+        assertTrue(model._isDisqualified(alice));
+
+        vm.expectRevert(stdError.arithmeticError);
+        model._collectFreeriderFees();
+    }
+
     function testPunishMaliciousUsers_PunishesNegativeRoundRep() public {
         model._addUser(alice, 3 ether, -1, 2, 2, false);
         model._setVotesPerRound(5);
