@@ -1,3 +1,4 @@
+import subprocess
 import uuid
 from pathlib import Path
 
@@ -5,7 +6,8 @@ import pytest
 
 from experiment.experiment_configuration import ExperimentConfiguration
 from experiment.helper import getPath
-from experiment.run_grid import RunSpec, expand_preset
+import experiment.run_grid as run_grid
+from experiment.run_grid import GitState, RunSpec, build_arg_parser, expand_preset, plan_runs, read_git_state
 
 STRATEGIES = ["loss_only", "accuracy_only", "accuracy_loss", "naive"]
 
@@ -83,3 +85,75 @@ def test_run_name_of_a_paper_run_carries_the_malicious_values(monkeypatch):
     path = getPath(config, "t", spec.dataset, "mnist_openfl_low_noise", Path("out"), run_id=spec.run_id)
 
     assert path.name == "mnist_openfl_low_noise-mnist-loss_only-True-3-0.01-1-0.01-2-{FIXED}.csv"
+
+
+CLEAN = GitState(commit="abc123", dirty=False)
+
+
+def _flags(*argv):
+    return build_arg_parser().parse_args(list(argv))
+
+
+def test_planned_run_metadata_records_the_commit():
+    runs = plan_runs(_flags(), CLEAN, start_time="t")
+
+    assert [(r.metadata["git_commit"], r.metadata["git_dirty"]) for r in runs] == [("abc123", False)] * 3
+
+
+def test_dirty_tree_without_allow_dirty_refuses_to_plan_any_run():
+    with pytest.raises(SystemExit, match="--allow-dirty"):
+        plan_runs(_flags(), GitState(commit="abc123", dirty=True), start_time="t")
+
+
+def test_allow_dirty_plans_the_runs_and_records_the_dirty_tree():
+    runs = plan_runs(_flags("--allow-dirty"), GitState(commit="abc123", dirty=True), start_time="t")
+
+    assert [r.metadata["git_dirty"] for r in runs] == [True] * 3
+
+
+def _fake_git(diff_returncode):
+    def run(args, **kwargs):
+        if args[:2] == ["git", "rev-parse"]:
+            return subprocess.CompletedProcess(args, 0, stdout="abc123\n")
+        return subprocess.CompletedProcess(args, diff_returncode)
+    return run
+
+
+@pytest.mark.parametrize("diff_returncode,dirty", [(0, False), (1, True)])
+def test_read_git_state_reports_commit_and_tracked_changes(monkeypatch, diff_returncode, dirty):
+    monkeypatch.setattr(run_grid.subprocess, "run", _fake_git(diff_returncode))
+
+    assert read_git_state(Path(".")) == GitState(commit="abc123", dirty=dirty)
+
+
+def test_read_git_state_without_git_is_unknown_and_dirty(monkeypatch):
+    def no_git(*args, **kwargs):
+        raise FileNotFoundError("git")
+    monkeypatch.setattr(run_grid.subprocess, "run", no_git)
+
+    assert read_git_state(Path(".")) == GitState(commit="unknown", dirty=True)
+
+
+def test_flags_select_the_preset_and_dataset():
+    runs = plan_runs(_flags("--preset", "cifar_openfl_low_noise", "--dataset", "cifar.10"), CLEAN, start_time="t")
+
+    assert len(runs) == 120
+    assert {r.config.preset_name for r in runs} == {"cifar_openfl_low_noise"}
+    assert {r.metadata["dataset"] for r in runs} == {"cifar.10"}
+    assert {r.config.minimum_rounds for r in runs} == {25}
+
+
+def test_without_flags_the_test_preset_runs_on_mnist():
+    runs = plan_runs(_flags(), CLEAN, start_time="t")
+
+    assert [r.spec for r in runs] == expand_preset("test", "mnist")
+    assert {r.config.preset_name for r in runs} == {"test"}
+
+
+def test_planned_config_carries_the_cell_values():
+    run = plan_runs(_flags("--preset", "mnist_openfl_high_noise"), CLEAN, start_time="t")[11]
+
+    assert (run.config.contribution_score_strategy, run.config.freerider_start_round,
+            run.config.freerider_noise_scale, run.config.malicious_start_round,
+            run.config.malicious_noise_scale) == ("loss_only", 3, 0.1, 1, 0.1)
+    assert run.metadata["timestamp"] == "t"

@@ -60,12 +60,19 @@ Just want to see a quick demo of the code? Run the sample.py file with:
 Want to run a systematic experiment with different parameters?
 
 The Experiment folder contains files for running experiments on different datasets.
-To change the experiment setup, modify the experiment_configuration.py file.
-To change the dataset, modify the experiments.py file.
+The presets in experiment_presets.py define the parameter grid of each experiment.
 
-The file experiments.py runs one such experiment and can be run with:
+The file experiments.py runs every configuration of one preset on one dataset. Without flags it runs the `test` preset on MNIST:
 
 `python ./experiment/experiments.py`
+
+Choose the preset and dataset with `--preset` and `--dataset` (`mnist` or `cifar.10`):
+
+`python ./experiment/experiments.py --preset cifar_openfl_low_noise --dataset cifar.10`
+
+Each run records the commit it ran on (`git_commit`) and whether tracked files had uncommitted changes (`git_dirty`) in its `.pkl` metadata.
+The script refuses to start when tracked files have uncommitted changes, or when git is unavailable, so every run can be tied to a commit.
+Untracked files do not count. Pass `--allow-dirty` to run anyway; the runs are then recorded with `git_dirty=True`, or with `git_commit="unknown"` when git is unavailable.
 
 Or if you want to specify a different .env file, run with the ENV prefix as described in the Environment Variables section:
 ``ENV=ganache python ./experiment/experiments.py``

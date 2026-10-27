@@ -1,8 +1,14 @@
+import argparse
+import subprocess
 from dataclasses import dataclass
 from itertools import product
+from pathlib import Path
 
-from experiment.experiment_presets import PRESETS
+from experiment.experiment_configuration import ExperimentConfiguration
+from experiment.experiment_presets import PRESETS, ExperimentPreset
 from experiment.helper import create_run_ids
+
+DATASETS = ["mnist", "cifar.10"]
 
 
 @dataclass(frozen=True)
@@ -15,6 +21,19 @@ class RunSpec:
     malicious_noise: float | None
     dataset: str
     run_id: int
+
+
+@dataclass(frozen=True)
+class GitState:
+    commit: str
+    dirty: bool
+
+
+@dataclass(frozen=True)
+class PlannedRun:
+    spec: RunSpec
+    config: ExperimentConfiguration
+    metadata: dict
 
 
 def _values_or_none(values: list | None) -> list:
@@ -58,3 +77,63 @@ def expand_preset(preset_name: str, dataset: str) -> list[RunSpec]:
             runs,
         )
     ]
+
+
+def read_git_state(repo: Path) -> GitState:
+    """Read the checked-out commit and whether tracked files differ from it.
+
+    Untracked files do not count as dirty. Without git, the commit is unknown and the state counts as dirty.
+    """
+    try:
+        commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True,
+                                check=True).stdout.strip()
+        diff = subprocess.run(["git", "diff", "--quiet", "HEAD"], cwd=repo, capture_output=True)
+    except (OSError, subprocess.CalledProcessError):
+        return GitState(commit="unknown", dirty=True)
+    return GitState(commit=commit, dirty=diff.returncode != 0)
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Run every configuration of one preset on one dataset.")
+    parser.add_argument("--skipFolder", type=str)
+    parser.add_argument("--author", type=str)
+    parser.add_argument("--preset", default="test",
+                        choices=[name for name, p in PRESETS.items() if isinstance(p, ExperimentPreset)])
+    parser.add_argument("--dataset", default="mnist", choices=DATASETS)
+    parser.add_argument("--allow-dirty", action="store_true",
+                        help="Run even when tracked files have uncommitted changes or git is unavailable.")
+    return parser
+
+
+def plan_runs(flags: argparse.Namespace, git: GitState, start_time: str) -> list[PlannedRun]:
+    """Build the configuration and metadata of every run the flags select.
+
+    Refuses a dirty tree unless --allow-dirty is set, because the runs could not be tied to a commit.
+    """
+    if git.dirty and not flags.allow_dirty:
+        raise SystemExit(
+            f"Refusing to start: tracked files have uncommitted changes or git is unavailable (commit: {git.commit}). "
+            "Commit your changes, or pass --allow-dirty to record the runs as dirty."
+        )
+    return [_plan_run(flags.preset, spec, git, start_time) for spec in expand_preset(flags.preset, flags.dataset)]
+
+
+def _plan_run(preset: str, spec: RunSpec, git: GitState, start_time: str) -> PlannedRun:
+    config = ExperimentConfiguration(preset=preset)
+    config.preset_name = preset
+    config.dataset = spec.dataset
+    config.contribution_score_strategy = spec.strategy
+    config.use_outlier_detection = spec.outlier_detection
+    config.freerider_start_round = spec.freerider_round
+    config.freerider_noise_scale = spec.freerider_noise
+    config.malicious_start_round = spec.malicious_round
+    config.malicious_noise_scale = spec.malicious_noise
+
+    metadata = {
+        **vars(config),
+        "dataset": spec.dataset,
+        "timestamp": start_time,
+        "git_commit": git.commit,
+        "git_dirty": git.dirty,
+    }
+    return PlannedRun(spec, config, metadata)

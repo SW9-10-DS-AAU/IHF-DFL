@@ -6,7 +6,6 @@ import multiprocessing as mp
 import re
 import sys
 import traceback
-import argparse
 
 # Running this file directly puts experiment/ on sys.path.
 # Insert src/ and repo root before any project imports so they resolve
@@ -21,23 +20,14 @@ REPO_ROOT = repo_root(Path(__file__))
 import experiment.experiment_runner as ExperimentRunner
 from dataclasses import dataclass
 from experiment.helper import getPath, resolve_attack_params
-from experiment.run_grid import expand_preset
-from experiment.experiment_configuration import ExperimentConfiguration
+from experiment.run_grid import PlannedRun, build_arg_parser, plan_runs, read_git_state
 from experiment.experiment_presets import PRESETS
 from utils.async_writer import AsyncWriter
 from selector import choose_from_list
 from analysis import ExperimentLogger
 
 DATA_ROOT = REPO_ROOT / "data"
-DATASETSLOW = "cifar.10"
-DATASETFAST = "mnist"
 RESULTDATAFOLDER = REPO_ROOT / "data" / "runs" / "experiments"
-
-# ---------------- PRESET SEARCH SPACE ----------------
-
-preset = "test"
-_use_defaults = True
-datasets = [ DATASETFAST ]
 
 
 # ---------------- OUTPUT ----------------
@@ -82,15 +72,13 @@ skips: list[Skip] = []
 
 # ---------------- MAIN ----------------
 
-def main(author): # single preset
-    startTime = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
+def main(runs: list[PlannedRun], author): # single preset
+    preset = args.preset
 
     if args.skipFolder is not None:
         parseSkips()
 
-    run_specs = [spec for dataset in datasets for spec in expand_preset(preset, dataset)]
-
-    total = len(run_specs)
+    total = len(runs)
 
     skipConfigs = [
         Skip(
@@ -104,14 +92,15 @@ def main(author): # single preset
             malicious_noise=spec.malicious_noise,
             run_id=spec.run_id,
         )
-        for spec in run_specs
+        for spec in (run.spec for run in runs)
     ]
     skipsCount = sum(1 for sc in skipConfigs if shouldSkip(sc))
 
     time = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
 
     done = 0
-    for i, (spec, skipConfig) in enumerate(zip(run_specs, skipConfigs), start=1):
+    for i, (run, skipConfig) in enumerate(zip(runs, skipConfigs), start=1):
+        spec, config = run.spec, run.config
         if shouldSkip(skipConfig):
             print(f"Skipping: {skipConfig}")
             continue
@@ -125,26 +114,12 @@ def main(author): # single preset
         progress_bar(done, skipsCount, total)
         done += 1
 
-        config = ExperimentConfiguration(preset=preset, use_defaults=_use_defaults)
-        config.preset_name = preset
-        config.dataset = spec.dataset
-
-
-        # override parameters for this run
-        config.contribution_score_strategy = spec.strategy
-        config.use_outlier_detection = spec.outlier_detection
-        config.freerider_start_round = spec.freerider_round
-        config.freerider_noise_scale = spec.freerider_noise
-        config.malicious_start_round = spec.malicious_round
-        config.malicious_noise_scale = spec.malicious_noise
-
         path = getPath(config, time, spec.dataset, preset, RESULTDATAFOLDER, run_id=spec.run_id)
 
         try:
 
             writer = AsyncWriter(path, OUTPUTHEADERS, WRITERBUFFERSIZE, config, author)
-            metadata = {**vars(config), "dataset": spec.dataset, "timestamp": startTime}
-            logger = ExperimentLogger(experiment_id=path.stem, metadata=metadata)
+            logger = ExperimentLogger(experiment_id=path.stem, metadata=run.metadata)
             ExperimentRunner.run_experiment(spec.dataset, config, spec.run_id, writer, logger)
             writer.finish()
 
@@ -173,10 +148,7 @@ def main(author): # single preset
 
 # ---------------- ARGUMENTS ----------------
 
-parser = argparse.ArgumentParser()
-parser.add_argument("--skipFolder", type=str)
-parser.add_argument("--author", type=str)
-args = parser.parse_args()
+args = build_arg_parser().parse_args()
 
 
 # ---------------- SKIP PARSING ----------------
@@ -304,9 +276,11 @@ def normalize_skip(skip: Skip):
 # ---------------- ENTRY ----------------
 
 if __name__ == "__main__":
-    author = args.author if args.author is not None else input("Author?\n")
     mp.freeze_support()
-    main(author)
+    # Plan first, so a dirty tree is refused before the author prompt.
+    runs = plan_runs(args, read_git_state(REPO_ROOT), datetime.now().strftime("%d-%m-%y--%H_%M_%S"))
+    author = args.author if args.author is not None else input("Author?\n")
+    main(runs, author)
     print("Done :)")
 
 
