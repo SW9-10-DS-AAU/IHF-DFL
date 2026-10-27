@@ -12,7 +12,17 @@ from utils.async_writer import AsyncWriter
 from ml.visualization import visualize_simulation
 
 
+def check_attack_params(experiment_config):
+    """Refuse a run whose malicious participant could never switch to its attack (#83)."""
+    if experiment_config.number_of_bad_contributors > 0 and (
+            experiment_config.malicious_start_round is None
+            or experiment_config.malicious_noise_scale is None):
+        raise ValueError("Malicious contributors configured but malicious_start_round/noise_scale is None: "
+                         "the malicious actor would never activate.")
+
+
 def run_experiment(dataset_name: str, experiment_config, _run_id: int,  writer: AsyncWriter = None, logger=None):
+    check_attack_params(experiment_config)
     dataset_name = dataset_name.replace(".", "-")
     experiment_config.dataset = dataset_name
     experiment_start = time.perf_counter()

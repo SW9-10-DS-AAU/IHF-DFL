@@ -147,7 +147,7 @@ PRESETS = {
         freerider_noise_scale=[0.01],
         freerider_start_round=[1, 3, 5],
         malicious_noise_scale=None,
-        malicious_start_round=None,
+        malicious_start_round=[1],  # #83: malicious participant attacks from round 1
         number_of_runs=10
     ),
 
@@ -163,7 +163,7 @@ PRESETS = {
         freerider_noise_scale=[0.1],
         freerider_start_round=[1, 3, 5],
         malicious_noise_scale=None,
-        malicious_start_round=None,
+        malicious_start_round=[1],  # #83: malicious participant attacks from round 1
         number_of_runs=10
     ),
 
@@ -179,7 +179,7 @@ PRESETS = {
         freerider_noise_scale=[0.01],
         freerider_start_round=[1, 3, 5],
         malicious_noise_scale=None,
-        malicious_start_round=None,
+        malicious_start_round=[1],  # #83: malicious participant attacks from round 1
         number_of_runs=10
     ),
 
@@ -195,7 +195,7 @@ PRESETS = {
         freerider_noise_scale=[0.1],
         freerider_start_round=[1, 3, 5],
         malicious_noise_scale=None,
-        malicious_start_round=None,
+        malicious_start_round=[1],  # #83: malicious participant attacks from round 1
         number_of_runs=10
     ),
 }

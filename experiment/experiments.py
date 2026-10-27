@@ -167,6 +167,23 @@ def build_run_configs(preset_name, datasets) -> list[tuple[ExperimentConfigurati
         dataset,
         run_id
     ) in productVar:
+        # None in a preset falls back to this run's free-rider values (#83), so no run is ever
+        # built with an unresolved malicious participant.
+        (
+            freerider_round,
+            freerider_noise,
+            malicious_activation_round,
+            malicious_noise,
+        ) = resolve_attack_params(
+            has_bad=preset_config.number_of_bad_contributors > 0,
+            has_freerider=preset_config.number_of_freerider_contributors > 0,
+            freerider_round=freerider_round,
+            freerider_noise=freerider_noise,
+            malicious_activation_round=malicious_activation_round,
+            malicious_noise=malicious_noise,
+            warn=False,
+        )
+
         config = ExperimentConfiguration(preset=preset_name, use_defaults=_use_defaults)
         config.preset_name = preset_name
         config.dataset = dataset
@@ -220,10 +237,10 @@ def main(author): # single preset
             continue
         else:
             # debug
-            print(f"NOT skipped: {normalize_skip(skipConfig)}")
+            print(f"NOT skipped: {skipConfig}")
             for s in skips:
                 if s.run_id == skipConfig.run_id and s.strategy == skipConfig.strategy:
-                    print(f"  candidate: {normalize_skip(s)}")
+                    print(f"  candidate: {s}")
 
         progress_bar(done, skipsCount, total)
         done += 1
@@ -290,53 +307,55 @@ def parseSkips():
         files.extend([p.name for p in dir.iterdir() if p.is_file() and p.suffix == ".pkl"])
 
     for file in files:
-        m = re.fullmatch(
-            r"(?P<preset>[^-]+)-"
-            r"(?P<dataset>[^-]+)-"
-            r"(?P<strategy>[^-]+)-"
-            r"(?P<outlierDetection>[^-]+)-"
-            r"(?P<freeriderRound>[^-]+)-"
-            r"(?P<freeriderNoise>[^-]+)-"
-            r"(?P<maliciousRound>[^-]+)-"
-            r"(?P<maliciousNoise>[^-]+)-"
-            r"-?(?P<runId>[0-9]+)?"  # <-- optional run ID part
-            r"(?:-\{[0-9a-fA-F-]+\})?"  # <-- optional UUID part
-            r"\.pkl",
-            file,
-        )
-
-
-        if not m:
+        skip = skip_from_filename(file)
+        if skip is None:
             print("Did not match:", file)
             continue
-
-        mal_round = m.group("maliciousRound")
-        mal_noise = m.group("maliciousNoise")
+        skips.append(skip)
 
 
-        skips.append(
-            Skip(
-                preset=m.group("preset"),
-                dataset=m.group("dataset"),
-                strategy=m.group("strategy"),
-                outlier_detection=m.group("outlierDetection") == "True",
-                freerider_activation_round=int(m.group("freeriderRound")),
-                freerider_noise=float(m.group("freeriderNoise")),
-                malicious_activation_round=int(mal_round) if mal_round != "None" else None,
-                malicious_noise=float(mal_noise) if mal_noise != "None" else None,
-                run_id=int(m.group("runId")) if m.group("runId") is not None else 0
-            )
-        )
+def skip_from_filename(file: str) -> "Skip | None":
+    """Parse a result file name into the Skip entry of the run that produced it."""
+    m = re.fullmatch(
+        r"(?P<preset>[^-]+)-"
+        r"(?P<dataset>[^-]+)-"
+        r"(?P<strategy>[^-]+)-"
+        r"(?P<outlierDetection>[^-]+)-"
+        r"(?P<freeriderRound>[^-]+)-"
+        r"(?P<freeriderNoise>[^-]+)-"
+        r"(?P<maliciousRound>[^-]+)-"
+        r"(?P<maliciousNoise>[^-]+)-"
+        r"-?(?P<runId>[0-9]+)?"  # <-- optional run ID part
+        r"(?:-\{[0-9a-fA-F-]+\})?"  # <-- optional UUID part
+        r"\.pkl",
+        file,
+    )
+    if not m:
+        return None
+
+    mal_round = m.group("maliciousRound")
+    mal_noise = m.group("maliciousNoise")
+
+    return Skip(
+        preset=m.group("preset"),
+        dataset=m.group("dataset"),
+        strategy=m.group("strategy"),
+        outlier_detection=m.group("outlierDetection") == "True",
+        freerider_activation_round=int(m.group("freeriderRound")),
+        freerider_noise=float(m.group("freeriderNoise")),
+        malicious_activation_round=int(mal_round) if mal_round != "None" else None,
+        malicious_noise=float(mal_noise) if mal_noise != "None" else None,
+        run_id=int(m.group("runId")) if m.group("runId") is not None else 0
+    )
 
 
 # ---------------- SKIP CHECK ----------------
 
 def shouldSkip(config: Skip):
-    config = normalize_skip(config)
-    for skip in skips:
-        if normalize_skip(skip) == config:
-            return True
-    return False
+    # Exact match only. Run configs are always resolved (build_run_configs), so result files
+    # with "None" malicious values come from the pre-#83 runs where the attack never happened
+    # and must never count as a finished run.
+    return config in skips
 
 
 # ---------------- PROGRESS ----------------
@@ -352,44 +371,6 @@ def progress_bar(i, skipsCount, total):
         flush=True,
     )
 
-
-
-def normalize_skip(skip: Skip):
-    preset_cfg = PRESETS.get(skip.preset)
-    has_bad = (
-        preset_cfg.number_of_bad_contributors > 0
-        if preset_cfg is not None else True
-    )
-    has_freerider = (
-        preset_cfg.number_of_freerider_contributors > 0
-        if preset_cfg is not None else True
-    )
-    (
-        freerider_round,
-        freerider_noise,
-        malicious_activation_round,
-        malicious_noise,
-    ) = resolve_attack_params(
-        has_bad=has_bad,
-        has_freerider=has_freerider,
-        freerider_round=skip.freerider_activation_round,
-        freerider_noise=skip.freerider_noise,
-        malicious_activation_round=skip.malicious_activation_round,
-        malicious_noise=skip.malicious_noise,
-        warn=False,
-    )
-
-    return Skip(
-        preset=skip.preset,
-        dataset=skip.dataset,
-        strategy=skip.strategy,
-        outlier_detection=skip.outlier_detection,
-        freerider_activation_round=freerider_round,
-        freerider_noise=freerider_noise,
-        malicious_activation_round=malicious_activation_round,
-        malicious_noise=malicious_noise,
-        run_id=skip.run_id
-    )
 
 
 # ---------------- ENTRY ----------------
