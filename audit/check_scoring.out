@@ -1,0 +1,16 @@
+Rounds checked: 4194
+               match_new  match_eq7  rounds_with_negative_sum
+strategy                                                     
+accuracy_only        1.0   0.381905                       758
+loss_only            1.0   0.388252                       785
+accuracy_loss rounds matching Eq.10 with Eq.7: 1.0 of 2049
+
+punishment types: {'contribution': 7029, 'punishment': 857, 'passive': 34}
+Empty DataFrame
+Columns: []
+Index: []
+
+GRS (ETH) before an instant |c|>3 disqualification:
+Empty DataFrame
+Columns: [count, min, 50%, max]
+Index: []

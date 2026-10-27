@@ -1,0 +1,154 @@
+
+========== Config sanity per folder ==========
+                                                                 gpu                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             timestamp epochs  batch rounds good  bad   fr punish   fee outlier
+folder                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+cifar_openfl_high_noise                     [AMD Radeon RX 7900 XTX]  [01-06-26--00_30_55, 01-06-26--00_30_56, 30-05-26--15_00_27, 30-05-26--15_00_31, 30-05-26--15_00_35, 30-05-26--15_00_39, 30-05-26--16_51_44, 30-05-26--17_05_31, 30-05-26--18_36_23, 30-05-26--18_36_31, 30-05-26--21_16_33, 30-05-26--21_51_50, 30-05-26--21_52_19, 30-05-26--21_52_22, 30-05-26--23_21_21, 30-05-26--23_21_28, 31-05-26--00_02_17, 31-05-26--13_47_39, 31-05-26--13_48_07, 31-05-26--17_15_42, 31-05-26--17_15_47, 31-05-26--19_48_26, 31-05-26--19_48_37, 31-05-26--22_28_42, 31-05-26--22_28_46]   [25]  [128]   [25]  [6]  [1]  [1]    [3]  [50]  [True]
+cifar_openfl_low_noise-22-05-26--12_05_04                 [Tesla T4]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  [22-05-26--12_05_04]   [25]  [128]   [25]  [6]  [1]  [1]    [3]  [50]  [True]
+mnist_openfl_high_noise-28-05-26--15_47_56                [Tesla T4]                                                                                                                                                                                                                                                                                                                                                                                                                                                                              [28-05-26--15_47_56, 29-05-26--09_43_31]    [1]   [32]   [10]  [4]  [1]  [1]    [3]  [50]  [True]
+mnist_openfl_low_noise-27-05-26--09_23_19                 [Tesla T4]                                                                                                                                                                                                                                                                                                                                                                                                                                                                              [27-05-26--09_23_19, 29-05-26--09_38_01]    [1]   [32]   [10]  [4]  [1]  [1]    [3]  [50]  [True]
+metadata vs filename mismatches: 0
+malicious config values: [{'md_mal_round': None, 'md_mal_noise': None}]
+any commit hash in metadata keys: []
+
+========== Did the malicious participant ever behave maliciously? ==========
+behavior   freerider   good
+role                       
+bad                0   8880
+freerider       7440   1440
+good               0  48000
+attack_type by role:
+ attack_type    NaN
+role              
+bad           8880
+freerider     8880
+good         48000
+
+========== Free-rider behavior switch round (first round with behavior=freerider) minus act ==========
+0    480
+Name: count, dtype: int64
+
+========== Permanent removals ==========
+                         removed                                           n                              
+strategy           accuracy_loss accuracy_only loss_only naive accuracy_loss accuracy_only loss_only naive
+dataset  role                                                                                             
+cifar.10 bad                  10            11         7     0            60            60        60    60
+         freerider            42            60        60    30            60            60        60    60
+         good                 55            43        50     0           360           360       360   360
+mnist    bad                   4             0         0     0            60            60        60    60
+         freerider            45            51        59    38            60            60        60    60
+         good                 19             1         1     0           240           240       240   240
+
+========== Free-rider removal by dataset/noise/strategy/act (count and median delay) ==========
+                                  removed  med_r_minus_act  med_r_minus_act_p1  med_removed_round
+dataset  noise strategy      act                                                                 
+cifar.10 0.01  accuracy_loss 1         10              3.5                 4.5                4.5
+                             3          1              7.0                 8.0               10.0
+                             5          1             14.0                15.0               19.0
+               accuracy_only 1         10              2.0                 3.0                3.0
+                             3         10              5.0                 6.0                8.0
+                             5         10              5.0                 6.0               10.0
+               loss_only     1         10              2.5                 3.5                3.5
+                             3         10              6.5                 7.5                9.5
+                             5         10              4.0                 5.0                9.0
+               naive         1          0              NaN                 NaN                NaN
+                             3          0              NaN                 NaN                NaN
+                             5          0              NaN                 NaN                NaN
+         0.10  accuracy_loss 1         10              2.0                 3.0                3.0
+                             3         10              3.0                 4.0                6.0
+                             5         10              3.0                 4.0                8.0
+               accuracy_only 1         10              3.0                 4.0                4.0
+                             3         10              3.0                 4.0                6.0
+                             5         10              3.0                 4.0                8.0
+               loss_only     1         10              2.0                 3.0                3.0
+                             3         10              3.0                 4.0                6.0
+                             5         10              3.0                 4.0                8.0
+               naive         1         10              3.0                 4.0                4.0
+                             3         10              3.0                 4.0                6.0
+                             5         10              3.0                 4.0                8.0
+mnist    0.01  accuracy_loss 1         10              2.0                 3.0                3.0
+                             3          4              7.0                 8.0               10.0
+                             5          1              5.0                 6.0               10.0
+               accuracy_only 1         10              2.0                 3.0                3.0
+                             3          7              5.0                 6.0                8.0
+                             5          4              3.5                 4.5                8.5
+               loss_only     1         10              2.0                 3.0                3.0
+                             3         10              3.0                 4.0                6.0
+                             5          9              3.0                 4.0                8.0
+               naive         1          8              2.0                 3.0                3.0
+                             3          0              NaN                 NaN                NaN
+                             5          0              NaN                 NaN                NaN
+         0.10  accuracy_loss 1         10              2.0                 3.0                3.0
+                             3         10              3.0                 4.0                6.0
+                             5         10              3.0                 4.0                8.0
+               accuracy_only 1         10              2.0                 3.0                3.0
+                             3         10              3.0                 4.0                6.0
+                             5         10              3.0                 4.0                8.0
+               loss_only     1         10              2.0                 3.0                3.0
+                             3         10              3.0                 4.0                6.0
+                             5         10              3.0                 4.0                8.0
+               naive         1         10              2.0                 3.0                3.0
+                             3         10              3.0                 4.0                6.0
+                             5         10              3.0                 4.0                8.0
+
+Low-noise totals: {'accuracy_loss': 27, 'accuracy_only': 51, 'loss_only': 59, 'naive': 8}
+High-noise totals: {'accuracy_loss': 60, 'accuracy_only': 60, 'loss_only': 60, 'naive': 60}
+
+========== Contribution-score sums and ranges ==========
+max |sum-1|: 2.2737367544323206e-13
+                              min        max
+dataset  strategy                           
+cifar.10 accuracy_loss -40.542128  48.600000
+         accuracy_only  -1.000000   5.748344
+         loss_only      -1.000000   5.938776
+         naive           0.125000   0.142857
+mnist    accuracy_loss -19.058719  24.147930
+         accuracy_only  -1.000000   4.346154
+         loss_only      -1.000000   4.182314
+         naive           0.166667   0.250000
+                             min       50%        max
+dataset  strategy                                    
+cifar.10 accuracy_loss  0.009687  0.146834  54.263478
+         accuracy_only  0.255839  0.590049   0.971360
+         loss_only      0.167112  0.571811   1.024021
+         naive          0.000000  0.000000   0.000000
+mnist    accuracy_loss  0.009355  0.124112  13.195576
+         accuracy_only  0.059769  0.264421   0.836549
+         loss_only      0.066428  0.276392   0.702892
+         naive          0.000000  0.000000   0.000000
+rounds with all-equal scores, by strategy:
+                 sum  size
+strategy                 
+accuracy_loss    51  2100
+accuracy_only     0  2100
+loss_only         6  2100
+naive          2100  2100
+
+========== Final accuracy ==========
+                            mean       std  count
+dataset  strategy                                
+cifar.10 accuracy_loss  0.645573  0.014786     60
+         accuracy_only  0.653198  0.010605     60
+         loss_only      0.649615  0.011360     60
+         naive          0.646360  0.011791     60
+mnist    accuracy_loss  0.943880  0.004739     60
+         accuracy_only  0.944450  0.004008     60
+         loss_only      0.944530  0.003669     60
+         naive          0.943852  0.004109     60
+
+========== Round-one gas ==========
+strategy  accuracy_loss  accuracy_only  loss_only         naive
+dataset                                                        
+cifar.10   8.509948e+06   7.911284e+06  7966311.2  5.706325e+06
+mnist      5.310841e+06   4.856852e+06  4866083.8  3.474319e+06
+mnist {'naive': np.float64(0.0), 'accuracy_only': np.float64(39.8), 'loss_only': np.float64(40.1), 'accuracy_loss': np.float64(52.9)}
+cifar.10 {'naive': np.float64(0.0), 'accuracy_only': np.float64(38.6), 'loss_only': np.float64(39.6), 'accuracy_loss': np.float64(49.1)}
+tx_type                    close   contrib   feedback      slot   weights
+dataset  strategy                                                        
+cifar.10 accuracy_loss  750576.0  613901.0  6268588.0  406683.0  470199.0
+         accuracy_only  750576.0  613902.0  5669926.0  406685.0  470195.0
+         loss_only      759495.0  611567.0  5729785.0  399618.0  465846.0
+         naive          750576.0  613840.0  3465030.0  406684.0  470195.0
+mnist    accuracy_loss  520533.0  443943.0  3684425.0  305014.0  356926.0
+         accuracy_only  521819.0  442645.0  3230450.0  305012.0  356926.0
+         loss_only      520980.0  443941.0  3239224.0  305014.0  356925.0
+         naive          520120.0  442617.0  1849650.0  305012.0  356921.0

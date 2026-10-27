@@ -1,0 +1,75 @@
+Validation: current-rule replay matches observed removal status for 100.0% of participants
+outcome           removed  survived
+observed_removed                   
+False                   0      2774
+True                  586         0
+
+=== Free-rider outcomes, noise 0.01 (removed / censored-survived / survived, of 30 per dataset) ===
+outcome                         censored  removed  survived
+dataset  strategy      rule                                
+cifar.10 accuracy_loss current         0       12        18
+                       paper           2       10        18
+         accuracy_only current         0       30         0
+                       paper          22        8         0
+         loss_only     current         0       30         0
+                       paper          20       10         0
+         naive         current         0        0        30
+                       paper           0        3        27
+mnist    accuracy_loss current         0       15        15
+                       paper           1       10        19
+         accuracy_only current         0       21         9
+                       paper           8       11        11
+         loss_only     current         0       29         1
+                       paper          17       11         2
+         naive         current         0        8        22
+                       paper           0       11        19
+
+=== Free-rider outcomes, noise 0.1 (removed / censored-survived / survived, of 30 per dataset) ===
+outcome                         censored  removed
+dataset  strategy      rule                      
+cifar.10 accuracy_loss current         0       30
+                       paper           1       29
+         accuracy_only current         0       30
+                       paper           7       23
+         loss_only     current         0       30
+                       paper           7       23
+         naive         current         0       30
+                       paper           0       30
+mnist    accuracy_loss current         0       30
+                       paper           0       30
+         accuracy_only current         0       30
+                       paper           0       30
+         loss_only     current         0       30
+                       paper           0       30
+         naive         current         0       30
+                       paper           0       30
+
+=== Honest participants (incl. inactive 'malicious') removed ===
+outcome                         censored  removed  survived
+dataset  strategy      rule                                
+cifar.10 accuracy_loss current         0       65       355
+                       paper          65        0       355
+         accuracy_only current         0       54       366
+                       paper          50        0       370
+         loss_only     current         0       57       363
+                       paper          52        0       368
+         naive         current         0        0       420
+                       paper           0        0       420
+mnist    accuracy_loss current         0       23       277
+                       paper          14        1       285
+         accuracy_only current         0        1       299
+                       paper           0        1       299
+         loss_only     current         0        1       299
+                       paper           1        0       299
+         naive         current         0        0       300
+                       paper           0        0       300
+
+=== GRS (ETH) at censoring round, paper rule ===
+                                    count    min    50%    max
+dataset  role                                                 
+cifar.10 freerider                   59.0  0.290  1.003  1.057
+         good                       140.0  1.008  1.157  1.361
+         good (labelled malicious)   27.0  1.033  1.184  1.304
+mnist    freerider                   26.0  0.362  0.711  1.224
+         good                        14.0  0.464  1.174  1.688
+         good (labelled malicious)    1.0  1.027  1.027  1.027

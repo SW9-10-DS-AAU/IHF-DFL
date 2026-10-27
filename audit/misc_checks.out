@@ -1,0 +1,21 @@
+MAD tau=1.1: mean fraction of peer reports discarded per (user, round):
+dataset   strategy       metric  
+cifar.10  accuracy_loss  accuracy    0.267
+                         loss        0.270
+          accuracy_only  accuracy    0.266
+          loss_only      loss        0.270
+mnist     accuracy_loss  accuracy    0.283
+                         loss        0.283
+          accuracy_only  accuracy    0.285
+          loss_only      loss        0.279
+
+vote_loss at uint16 cap 65535: 18 of 328714
+
+round-1 mean honest local val acc: {'cifar.10': 0.286, 'mnist': 0.689}
+round-0 global acc: {'cifar.10': 0.1, 'mnist': 0.102}
+round-1 global acc: {'cifar.10': 0.1, 'mnist': 0.257}
+round-2 global acc: {'cifar.10': 0.2, 'mnist': 0.639}
+distinct round-0 global accuracies per (dataset, run_id) across its 24 configs: min 18 max 24
+mnist: loss 29/30 vs accuracy 21/30  Fisher two-sided p=0.0122
+cifar.10: loss 30/30 vs accuracy 30/30  Fisher two-sided p=1.0000
+both: loss 59/60 vs accuracy 51/60  Fisher two-sided p=0.0166

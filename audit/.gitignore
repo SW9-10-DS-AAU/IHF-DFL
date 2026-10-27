@@ -1,0 +1,3 @@
+# Generated from data/runs by load_all.py and counterfactual.py; rebuild instead of committing.
+cache.pkl
+counterfactual_outcomes.csv
