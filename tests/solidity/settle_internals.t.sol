@@ -185,6 +185,10 @@ contract SettleInternalsHarness is OpenFLModel {
 contract SettleInternalsTest is Test {
     SettleInternalsHarness model;
 
+    // Redeclared so expectEmit can match them; same signatures as in OpenFLModel.
+    event ContributionPunishment(address user, int256 roundScore, uint loss, uint newReputation);
+    event Disqualification(address victim, int256 roundScore, uint loss, uint newReputation);
+
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
     address carol = makeAddr("carol");
@@ -378,6 +382,17 @@ contract SettleInternalsTest is Test {
         model._settleContributionScores(0);
 
         assertEq(model._getCarriedReward(), 0.3 ether);
+    }
+
+    function testSettle_ThresholdRemovalReportsLossAndRemainingStake() public {
+        // loss 0.025 ether is reported as a contribution punishment, the remaining 0.275 ether as the disqualification
+        _setUpSettlement(0.3 ether, 1, -0.1e18);
+
+        vm.expectEmit(address(model));
+        emit ContributionPunishment(carol, 0, 0.025 ether, 0.275 ether);
+        vm.expectEmit(address(model));
+        emit Disqualification(carol, 0, 0.275 ether, 0);
+        model._settleContributionScores(0);
     }
 
     function testSettle_CarriedRewardIsPaidInNextRoundAndReset() public {

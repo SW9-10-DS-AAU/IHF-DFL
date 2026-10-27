@@ -579,19 +579,20 @@ contract OpenFLModel {
 
         user.globalReputationScore -= loss;
         forfeited = loss;
-        if (user.globalReputationScore <= min_collateral / punishfactorContrib) {
-            forfeited += user.globalReputationScore;
-            _disqualifyUser(user);
-            return forfeited;
-        }
-
-        user.isPunished = true;
         emit ContributionPunishment(
             user.addr,
             user.roundReputation,
             loss,
             user.globalReputationScore
         );
+        if (user.globalReputationScore <= min_collateral / punishfactorContrib) {
+            // The loss is reported above, the Disqualification event reports the remaining stake
+            forfeited += user.globalReputationScore;
+            _disqualifyUser(user);
+            return forfeited;
+        }
+
+        user.isPunished = true;
         delete user.whitelistedForRewards;
         delete user.weightedContribScore;
     }
