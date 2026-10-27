@@ -84,6 +84,10 @@ contract ContributionScoringHarness is OpenFLModel {
     function _rewardPerRound() external view returns (uint) {
         return rewardPerRound;
     }
+
+    function _carriedReward() external view returns (uint) {
+        return carriedReward;
+    }
 }
 
 contract ContributionScoringTest is Test {
@@ -135,10 +139,10 @@ contract ContributionScoringTest is Test {
         assertEq(afterB - beforeB, 0.75 ether);
     }
 
-    // Verifies negative contribution triggers punishment and that slashed value
-    // is redistributed through the reward pool to eligible positive contributors.
-    function testNegativeContributionIsPunishedAndRedistributed() public {
-        model._initEligibleUser(a, COLLATERAL, 1);
+    // Verifies a negative contribution costs R * |w| / sum of positive weights (Eq. 11) and that
+    // the loss goes to the next round's reward, not to this round's positive contributors.
+    function testNegativeContributionIsPunishedAndCarriedToNextRound() public {
+        model._initEligibleUser(a, 3 ether, 1);
         model._initEligibleUser(b, COLLATERAL, 1);
         model._setVotesPerRound(2);
         model._setContribution(a, -1e18);
@@ -149,14 +153,11 @@ contract ContributionScoringTest is Test {
 
         model._settleContributionScores(0);
 
-        uint expectedPunishment = COLLATERAL / PUNISH_CONTRIB;
-        uint expectedReward = model._rewardPerRound() + expectedPunishment;
+        uint expectedPunishment = model._rewardPerRound(); // |w| equals the positive sum
 
-        uint afterA = model._getGRS(a);
-        uint afterB = model._getGRS(b);
-
-        assertEq(afterA, beforeA - expectedPunishment);
-        assertEq(afterB, beforeB + expectedReward);
+        assertEq(model._getGRS(a), beforeA - expectedPunishment);
+        assertEq(model._getGRS(b), beforeB + model._rewardPerRound());
+        assertEq(model._carriedReward(), expectedPunishment);
         assertTrue(model._isPunished(a));
     }
 
@@ -172,8 +173,8 @@ contract ContributionScoringTest is Test {
         model._settleContributionScores(0);
     }
 
-    // Verifies a sufficiently low-GRS user with negative contribution is
-    // disqualified (not just punished), and their full GRS is moved to the pool.
+    // Verifies a user whose Eq. 11 loss reaches its GRS is disqualified (not just punished),
+    // and its full GRS is carried to the next round's reward.
     function testNegativeContributionCanDisqualifyUser() public {
         uint lowGrs = 0.4 ether;
         model._initEligibleUser(a, lowGrs, 1);
@@ -188,7 +189,8 @@ contract ContributionScoringTest is Test {
 
         assertTrue(model._isDisqualified(a));
         assertEq(model._getGRS(a), 0);
-        assertEq(afterB, beforeB + model._rewardPerRound() + lowGrs);
+        assertEq(afterB, beforeB + model._rewardPerRound());
+        assertEq(model._carriedReward(), lowGrs);
     }
 
 }
