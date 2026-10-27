@@ -3,7 +3,6 @@ import torch
 from types import SimpleNamespace
 from torch.utils.data import Subset
 
-import experiment.run_grid as run_grid
 import ml.data as data
 
 # CIFAR-10 is downloaded on first use and is not in data/datasets/ on every machine.
@@ -89,10 +88,10 @@ def test_cifar10_training_sample_is_augmented(cifar10_run_0):
     assert any(not torch.equal(images[0], image) for image in images[1:])
 
 
-def test_cifar_dataset_name_from_command_line_loads_cifar10_images():
-    cifar_name = next(name for name in run_grid.DATASETS if name != "mnist")
+@pytest.mark.parametrize("name", ["cifar-10", "cifar10", "cifar.10"])
+def test_every_cifar10_name_loads_cifar10_images(name):
     pm = SimpleNamespace(
-        DATASET=cifar_name,
+        DATASET=name,
         NUMBER_OF_CONTRIBUTORS=NUMBER_OF_CONTRIBUTORS,
         BATCHSIZE=32,
         run_id=0,

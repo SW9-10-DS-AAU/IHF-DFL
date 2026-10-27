@@ -6,6 +6,19 @@ from ml.runtime import PIN_MEMORY, NUM_WORKERS, PERSISTENT_WORKERS, DATASET_ROOT
 import data.seeds as seeds
 
 
+# The command line uses "cifar.10" because result file names separate their fields with "-".
+CIFAR10_NAMES = {"cifar-10", "cifar10", "cifar.10"}
+
+
+def is_cifar10(dataset: str) -> bool:
+    # The loader and PytorchModel both decide by this, so the images always fit the network.
+    if dataset == "mnist":
+        return False
+    if dataset in CIFAR10_NAMES:
+        return True
+    raise ValueError(f"Unknown dataset {dataset!r}. Use 'mnist' or one of {sorted(CIFAR10_NAMES)}.")
+
+
 def _same_samples_from(subset: Subset, dataset: Dataset) -> Subset:
     # The split nests Subsets, so map the indices through every level to the root dataset.
     # `dataset` must hold the same images in the same order as that root.
@@ -20,9 +33,7 @@ def load_data(pm, _print=False):
     if pm.DATA:
         return pm.DATA
 
-    # Same rule as PytorchModel's choice of network, so the images always fit it.
-    # The CIFAR-10 name is "cifar.10" because result file names separate their fields with "-".
-    if pm.DATASET != "mnist":
+    if is_cifar10(pm.DATASET):
         transform = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
