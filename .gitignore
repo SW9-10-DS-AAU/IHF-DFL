@@ -163,6 +163,7 @@ artifacts/bytecode/**
 #Data
 data/datasets/**
 data/runs/**
+data/runs_paper_v1/**
 data/figures/**
 
 

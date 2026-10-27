@@ -15,6 +15,10 @@ import "../../contracts/OpenFLModel.sol";
 //  - whitelisted first-round users get payback, non-whitelisted add to additionalPunishment
 // - _disqualifyUser
 //  - flags + GRS zeroing + active participant decrement
+// - settleContributionScores (Eq. 11)
+//  - negative weight costs reward * |w| / sum of positive weights
+//  - loss >= GRS clamps GRS to 0 and removes the user, threshold removal stays
+//  - penalties and forfeited stakes are carried into the next round's reward
 
 contract SettleInternalsHarness is OpenFLModel {
     constructor(
@@ -88,6 +92,27 @@ contract SettleInternalsHarness is OpenFLModel {
         votedPositiveFor[voter][target] = value;
     }
 
+    function _setRound(uint8 value) external {
+        round = value;
+    }
+
+    function _setContributionScore(uint8 forRound, address user, int256 score) external {
+        contributionScore[forRound][user] = score;
+        hasSubmittedContributionScore[forRound][user] = true;
+    }
+
+    function _setVotesFromUser(address user, uint8 votes) external {
+        users[user].nrOfVotesFromUser = votes;
+    }
+
+    function _settleContributionScores(uint256 totalPunishment) external returns (uint256) {
+        return settleContributionScores(totalPunishment);
+    }
+
+    function _getCarriedReward() external view returns (uint256) {
+        return carriedReward;
+    }
+
     function _collectFreeriderFees() external returns (uint256) {
         return collectFreeriderFees();
     }
@@ -159,6 +184,10 @@ contract SettleInternalsHarness is OpenFLModel {
 
 contract SettleInternalsTest is Test {
     SettleInternalsHarness model;
+
+    // Redeclared so expectEmit can match them; same signatures as in OpenFLModel.
+    event ContributionPunishment(address user, int256 roundScore, uint loss, uint newReputation);
+    event Disqualification(address victim, int256 roundScore, uint loss, uint newReputation);
 
     address alice = makeAddr("alice");
     address bob = makeAddr("bob");
@@ -264,6 +293,123 @@ contract SettleInternalsTest is Test {
         assertEq(model._getGRS(bob), beforeBob);
         assertEq(model._getGRS(carol), beforeCarol);
         assertEq(additionalPunishment, penalty);
+    }
+
+    // alice and bob share the positive weights: 1e18 * 2 votes each, so the sum is 4e18.
+    // carol is the user under test. Reward per round is 1 ether.
+    function _setUpSettlement(uint256 carolGRS, uint8 carolVotes, int256 carolScore) internal {
+        model._addUser(alice, 2 ether, 0, 2, 2, true);
+        model._addUser(bob, 2 ether, 0, 2, 2, true);
+        model._addUser(carol, carolGRS, 0, 2, carolVotes, true);
+        model._setVotesPerRound(6);
+        model._setContributionScore(0, alice, 1e18);
+        model._setContributionScore(0, bob, 1e18);
+        model._setContributionScore(0, carol, carolScore);
+    }
+
+    function testSettle_NegativeScoreCostsProportionalToRewardAndIsNotRemoved() public {
+        // w = 1 * -5e18; loss = 1e18 * 5e18 / 4e18 = 1.25 ether. The old rule (GRS * |c| / 3) would have removed carol.
+        _setUpSettlement(10 ether, 1, -5e18);
+
+        model._settleContributionScores(0);
+
+        assertEq(model._getGRS(carol), 10 ether - 1.25 ether);
+        assertFalse(model._isDisqualified(carol));
+        assertTrue(model._isRegistered(carol));
+    }
+
+    function testSettle_LossAtLeastGRSClampsToZeroAndRemoves() public {
+        // loss 1.25 ether exceeds GRS 1 ether: no underflow revert
+        _setUpSettlement(1 ether, 1, -5e18);
+
+        model._settleContributionScores(0);
+
+        assertEq(model._getGRS(carol), 0);
+        assertTrue(model._isDisqualified(carol));
+        assertFalse(model._isRegistered(carol));
+    }
+
+    function testSettle_GRSAtOrBelowThresholdIsRemoved() public {
+        // threshold = min_collateral / 3 = 0.333.. ether; loss = 1e18 * 0.1e18 / 4e18 = 0.025 ether
+        _setUpSettlement(0.3 ether, 1, -0.1e18);
+
+        model._settleContributionScores(0);
+
+        assertTrue(model._isDisqualified(carol));
+        assertEq(model._getGRS(carol), 0);
+    }
+
+    function testSettle_GRSAboveThresholdAfterLossIsKept() public {
+        // loss 0.025 ether, GRS 0.5 -> 0.475 ether, above the 0.333 threshold
+        _setUpSettlement(0.5 ether, 1, -0.1e18);
+
+        model._settleContributionScores(0);
+
+        assertEq(model._getGRS(carol), 0.475 ether);
+        assertFalse(model._isDisqualified(carol));
+    }
+
+    function testSettle_PositivePayoutsAreUnchangedByPenalties() public {
+        _setUpSettlement(10 ether, 1, -5e18);
+
+        model._settleContributionScores(0);
+
+        // R = 1 ether, weights 2e18 of 4e18 each: 0.5 ether, penalty is not part of R
+        assertEq(model._getGRS(alice), 2 ether + 0.5 ether);
+        assertEq(model._getGRS(bob), 2 ether + 0.5 ether);
+    }
+
+    function testSettle_PenaltyIsCarriedToNextRound() public {
+        _setUpSettlement(10 ether, 1, -5e18);
+
+        model._settleContributionScores(0);
+
+        assertEq(model._getCarriedReward(), 1.25 ether);
+    }
+
+    function testSettle_ForfeitedStakeIsCarriedWhenLossExceedsGRS() public {
+        _setUpSettlement(1 ether, 1, -5e18);
+
+        model._settleContributionScores(0);
+
+        // the whole 1 ether stake is forfeited, not the 1.25 ether loss
+        assertEq(model._getCarriedReward(), 1 ether);
+    }
+
+    function testSettle_ThresholdRemovalCarriesLossAndRemainingStake() public {
+        _setUpSettlement(0.3 ether, 1, -0.1e18);
+
+        model._settleContributionScores(0);
+
+        assertEq(model._getCarriedReward(), 0.3 ether);
+    }
+
+    function testSettle_ThresholdRemovalReportsLossAndRemainingStake() public {
+        // loss 0.025 ether is reported as a contribution punishment, the remaining 0.275 ether as the disqualification
+        _setUpSettlement(0.3 ether, 1, -0.1e18);
+
+        vm.expectEmit(address(model));
+        emit ContributionPunishment(carol, 0, 0.025 ether, 0.275 ether);
+        vm.expectEmit(address(model));
+        emit Disqualification(carol, 0, 0.275 ether, 0);
+        model._settleContributionScores(0);
+    }
+
+    function testSettle_CarriedRewardIsPaidInNextRoundAndReset() public {
+        _setUpSettlement(10 ether, 1, -5e18);
+        model._settleContributionScores(0);
+        model._setRound(1);
+        model._setUserWhitelisted(alice, true);
+        model._setUserWhitelisted(bob, true);
+        model._setContributionScore(1, alice, 1e18);
+        model._setContributionScore(1, bob, 1e18);
+        uint256 aliceBefore = model._getGRS(alice);
+
+        model._settleContributionScores(0);
+
+        // R = 1 ether + 1.25 ether carried; alice weight 2e18 of 4e18
+        assertEq(model._getGRS(alice) - aliceBefore, uint256(2.25 ether) / 2);
+        assertEq(model._getCarriedReward(), 0);
     }
 
     function testDisqualifyUser_SetsFlagsAndDecrementsActiveCount() public {

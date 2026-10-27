@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from ml import pytorch_model as PM
 from contracts import fl_manager as Manager, fl_challenge as Challenge
+from experiment.experiment_configuration import require_malicious_values
 from utils.require_env import require_env_var
 from types import SimpleNamespace
 from web3 import Web3, Account
@@ -46,6 +47,8 @@ def run_experiment(dataset_name: str, experiment_config, _run_id: int,  writer: 
             run_id = 0
         else:
             run_id = _run_id
+
+        require_malicious_values(experiment_config)
 
         pytorch_model = PM.PytorchModel(dataset_name,
                                         experiment_config.number_of_good_contributors,

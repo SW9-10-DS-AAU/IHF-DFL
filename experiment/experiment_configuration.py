@@ -65,6 +65,21 @@ class ExperimentConfiguration:
             + self.number_of_inactive_contributors
         )
 
+def require_malicious_values(config: ExperimentConfiguration) -> None:
+    """Refuse a configuration whose malicious contributors would never activate.
+
+    Shared by the planner and the runner, so a batch fails before its first run.
+    """
+    if config.number_of_bad_contributors <= 0:
+        return
+    missing = [name for name in ("malicious_start_round", "malicious_noise_scale")
+               if getattr(config, name) is None]
+    if missing:
+        raise ValueError(f"Malicious contributors configured in preset "
+                         f"'{getattr(config, 'preset_name', None)}' but {', '.join(missing)} is None: "
+                         "the malicious actor would never activate.")
+
+
 def _unwrap_first(value):
     if isinstance(value, list):
         return value[0]

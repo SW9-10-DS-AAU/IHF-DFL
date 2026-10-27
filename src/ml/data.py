@@ -1,16 +1,39 @@
 import torch
-from torch.utils.data import DataLoader, random_split, Subset
+from torch.utils.data import DataLoader, Dataset, random_split, Subset
 from torchvision import transforms
 from torchvision.datasets import CIFAR10, MNIST
 from ml.runtime import PIN_MEMORY, NUM_WORKERS, PERSISTENT_WORKERS, DATASET_ROOT
 import data.seeds as seeds
 
 
+# The command line uses "cifar.10" because result file names separate their fields with "-".
+CIFAR10_NAMES = {"cifar-10", "cifar10", "cifar.10"}
+
+
+def is_cifar10(dataset: str) -> bool:
+    # The loader and PytorchModel both decide by this, so the images always fit the network.
+    if dataset == "mnist":
+        return False
+    if dataset in CIFAR10_NAMES:
+        return True
+    raise ValueError(f"Unknown dataset {dataset!r}. Use 'mnist' or one of {sorted(CIFAR10_NAMES)}.")
+
+
+def _same_samples_from(subset: Subset, dataset: Dataset) -> Subset:
+    # The split nests Subsets, so map the indices through every level to the root dataset.
+    # `dataset` must hold the same images in the same order as that root.
+    indices = list(range(len(subset)))
+    while isinstance(subset, Subset):
+        indices = [subset.indices[i] for i in indices]
+        subset = subset.dataset
+    return Subset(dataset, indices)
+
+
 def load_data(pm, _print=False):
     if pm.DATA:
         return pm.DATA
 
-    if pm.DATASET == "cifar-10":
+    if is_cifar10(pm.DATASET):
         transform = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
@@ -23,9 +46,13 @@ def load_data(pm, _print=False):
         ])
         trainset = CIFAR10(DATASET_ROOT / "CIFAR", train=True, download=True,
                            transform=transform)  # Since CIFAR does not makes its own subfolder, we make it.
+        # Peers evaluate each other on the validation split, so it must not be augmented:
+        # augmented images give the same model a different accuracy on every evaluation.
+        valset = CIFAR10(DATASET_ROOT / "CIFAR", train=True, download=True, transform=transform_test)
         testset = CIFAR10(DATASET_ROOT / "CIFAR", train=False, download=True, transform=transform_test)
     else:
         trainset = MNIST(DATASET_ROOT, train=True, download=True, transform=transforms.ToTensor())
+        valset = trainset
         testset = MNIST(DATASET_ROOT, train=False, download=True, transform=transforms.ToTensor())
 
     if _print:
@@ -60,6 +87,7 @@ def load_data(pm, _print=False):
         tv_lengths = [len_train, len_val]
 
         ds_train, ds_val = random_split(ds, tv_lengths, generator=gen)
+        ds_val = _same_samples_from(ds_val, valset)
 
         trainloaders.append(DataLoader(
             ds_train,

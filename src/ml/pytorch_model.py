@@ -31,10 +31,10 @@ debugging = sys.gettrace() is not None
 class PytorchModel:
     def __init__(self, DATASET, _good_participants, _bad_participants, _freerider_participants, epochs, batchsize, default_collateral, max_collateral, freerider_noise_scale: float = 1.0, freerider_start_round: int = 3, malicious_start_round: int = 3, malicious_noise_scale: float = 1.0,force_merge_all: bool = False, use_nobody_is_kicked: bool = False, run_id: int = None):
         self.DATASET = DATASET
-        if self.DATASET == "mnist":
-            self.global_model = Net_MNIST().to(DEVICE)
-        else:
+        if data.is_cifar10(self.DATASET):
             self.global_model = Net_CIFAR().to(DEVICE)
+        else:
+            self.global_model = Net_MNIST().to(DEVICE)
 
         self.NUMBER_OF_GOOD_CONTRIBUTORS = _good_participants
         self.NUMBER_OF_BAD_CONTRIBUTORS = _bad_participants
@@ -108,10 +108,10 @@ class PytorchModel:
     def add_participant(self, _attitude):
         _train, _val, _test = data.load_data(self)
 
-        if self.DATASET == "mnist":
-            _model = Net_MNIST().to(DEVICE)
-        else:
+        if data.is_cifar10(self.DATASET):
             _model = Net_CIFAR().to(DEVICE)
+        else:
+            _model = Net_MNIST().to(DEVICE)
 
         optimizer = optim.SGD(_model.parameters(), lr=0.001, momentum=0.9)
         criterion = nn.CrossEntropyLoss()

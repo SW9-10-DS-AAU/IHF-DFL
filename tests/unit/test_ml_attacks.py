@@ -3,6 +3,7 @@ import torch
 from collections import OrderedDict
 from unittest.mock import MagicMock, patch
 from src.ml.attacks import manipulate, add_noise, _freerider_submit_with_noise, update_users_attitude
+from experiment.run_grid import expand_preset
 
 
 def mock_pytorch_model(prev_state_dict, current_state_dict, noise_scale=0.01):
@@ -177,3 +178,18 @@ class TestUpdateUsersAttitude:
         update_users_attitude(pm)
         assert user1.attitude == "bad"
         assert user2.attitude == "good"
+    @pytest.mark.parametrize("preset,dataset", [
+        ("mnist_openfl_low_noise", "mnist"),
+        ("mnist_openfl_high_noise", "mnist"),
+        ("cifar_openfl_low_noise", "cifar.10"),
+        ("cifar_openfl_high_noise", "cifar.10"),
+    ])
+    @patch("src.ml.attacks.get_color")
+    def test_paper_preset_bad_participant_turns_bad_in_round_one(self, _, preset, dataset):
+        spec = expand_preset(preset, dataset)[0]
+        user = make_attitude_user("good", "bad", switch_round=spec.malicious_round)
+        pm = MagicMock()
+        pm.round = 1
+        pm.participants = [user]
+        update_users_attitude(pm)
+        assert user.attitude == "bad"

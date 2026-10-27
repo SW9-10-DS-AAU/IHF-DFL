@@ -1,6 +1,7 @@
 import uuid
 from pathlib import Path
 from experiment.experiment_configuration import ExperimentConfiguration
+from experiment.experiment_presets import PRESETS
 from utils.colors import red
 
 
@@ -36,6 +37,18 @@ def create_run_ids (number_of_runs: int) -> list[int]:
         run_ids.append(run_id)
         run_id += 1
     return run_ids
+
+
+def recorded_run_counts_as_done(preset_name: str, malicious_round: int | None, malicious_noise: float | None) -> bool:
+    """Whether a run recorded under these values may be skipped as already done.
+
+    Before #83 the driver recorded None for both malicious values, and the malicious participant never
+    activated. Such a run must be redone, even though resolve_attack_params would fill the None values
+    with the free-rider values and make it look like a current run.
+    """
+    preset = PRESETS.get(preset_name)
+    has_bad = preset.number_of_bad_contributors > 0 if preset is not None else True
+    return not (has_bad and (malicious_round is None or malicious_noise is None))
 
 
 def _warn(message: str, enable: bool) -> None:

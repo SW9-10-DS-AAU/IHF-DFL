@@ -196,6 +196,15 @@ def test_merge_runs_metadata_keys_preserved(minimal_run):
     assert "contribution_score_strategy" in meta.columns
 
 
+def test_merge_runs_metadata_ignores_git_provenance_keys(minimal_run):
+    plain = merge_runs([minimal_run])["metadata"]
+    minimal_run.metadata.update(git_commit="abc123", git_dirty=False)
+
+    with_git = merge_runs([minimal_run])["metadata"]
+
+    pd.testing.assert_frame_equal(with_git, plain)
+
+
 def test_merge_runs_missing_metadata_key_is_none(minimal_run):
     # minimal_run.metadata doesn't have freerider_noise_scale
     result = merge_runs([minimal_run])

@@ -1,6 +1,8 @@
 import types
 from types import SimpleNamespace
 
+import pytest
+
 import experiment.experiment_runner as runner
 from experiment.experiment_configuration import ExperimentConfiguration
 
@@ -92,3 +94,16 @@ def _patch_basics(monkeypatch, fork=True, private_keys=""):
 
         monkeypatch.setattr(runner, "Web3", FakeWeb3)
         monkeypatch.setattr(runner, "Account", types.SimpleNamespace(from_key=lambda key: FakeAccount(key)))
+
+@pytest.mark.parametrize("missing", ["malicious_start_round", "malicious_noise_scale"])
+def test_run_experiment_refuses_bad_contributors_without_malicious_values(monkeypatch, missing):
+    _patch_basics(monkeypatch)
+    built = []
+    monkeypatch.setattr(runner.PM, "PytorchModel", lambda *args: built.append(args))
+    config = ExperimentConfiguration(preset="test")
+    setattr(config, missing, None)
+
+    with pytest.raises(ValueError, match="malicious actor would never activate"):
+        runner.run_experiment("mnist", config, 1, writer=None)
+
+    assert built == []

@@ -60,15 +60,30 @@ Just want to see a quick demo of the code? Run the sample.py file with:
 Want to run a systematic experiment with different parameters?
 
 The Experiment folder contains files for running experiments on different datasets.
-To change the experiment setup, modify the experiment_configuration.py file.
-To change the dataset, modify the experiments.py file.
+The presets in experiment_presets.py define the parameter grid of each experiment.
 
-The file experiments.py runs one such experiment and can be run with:
+The file experiments.py runs every configuration of one preset on one dataset. Without flags it runs the `test` preset on MNIST:
 
 `python ./experiment/experiments.py`
 
+Choose the preset and dataset with `--preset` and `--dataset` (`mnist` or `cifar.10`):
+
+`python ./experiment/experiments.py --preset cifar_openfl_low_noise --dataset cifar.10`
+
+Each run records the commit it ran on (`git_commit`) and whether tracked files had uncommitted changes (`git_dirty`) in its `.pkl` metadata.
+The script refuses to start when tracked files have uncommitted changes, or when git is unavailable, so every run can be tied to a commit.
+Untracked files do not count. Pass `--allow-dirty` to run anyway; the runs are then recorded with `git_dirty=True`, or with `git_commit="unknown"` when git is unavailable.
+
 Or if you want to specify a different .env file, run with the ENV prefix as described in the Environment Variables section:
 ``ENV=ganache python ./experiment/experiments.py``
+
+### Paper figures
+Rebuild the paper's Fig. 3-8 from stored runs, from the repo root:
+
+`python -m analysis.paper_figures [RUNS_DIR] [OUT_DIR]`
+
+`RUNS_DIR` defaults to `data/runs` and `OUT_DIR` to `data/output_graphs/paper`, both relative to the repo root. The script writes `fig3.png` to `fig8.png` into `OUT_DIR`.
+It expects the four paper presets (480 runs).
 
 
 ## 5. Solidity testing
@@ -99,6 +114,13 @@ pytest -m slow
 To run only the slow tests:
 ```
 pytest -m slow --no-header -q
+```
+
+The slow acceptance test for the paper figures (`tests/integration/test_paper_figures_acceptance.py`) checks the paper's numbers against its 480 original runs, kept in `data/runs_paper_v1` (gitignored).
+They are kept apart from `data/runs`, where new runs land, because `analysis.paper_figures` loads every run under the folder it is given.
+Point it at another folder with the `IHF_RUNS_DIR` environment variable; the test is skipped when the folder does not exist:
+```
+IHF_RUNS_DIR=/path/to/runs pytest -m slow tests/integration/test_paper_figures_acceptance.py
 ```
 
 Solidity tests (forge) run automatically as part of the pytest suite on Linux/WSL.

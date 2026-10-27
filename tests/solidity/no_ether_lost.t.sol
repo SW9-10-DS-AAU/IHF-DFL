@@ -38,6 +38,11 @@ contract NoEtherLostHarness is OpenFLModel {
         }
     }
 
+    // Penalties and forfeited stakes wait here for the next round's reward.
+    function carried() external view returns (uint256) {
+        return carriedReward;
+    }
+
     function participantCount() external view returns (uint) {
         return participants.length;
     }
@@ -106,7 +111,7 @@ contract NoEtherLost is Test {
     function assertExactInvariant(string memory label) internal view {
         assertEq(
             address(model).balance,
-            model.totalGRS() + model.rewardLeft(),
+            model.totalGRS() + model.rewardLeft() + model.carried(),
             label
         );
     }
@@ -115,7 +120,7 @@ contract NoEtherLost is Test {
     function assertPostSettleInvariant(string memory label) internal view {
         uint balance            = address(model).balance;
         uint sumGRS             = model.totalGRS();
-        uint rewardL            = model.rewardLeft();
+        uint rewardL            = model.rewardLeft() + model.carried();
         uint numberParticipants = model.participantCount(); // THRESHOLD: 1 wei per participant
         assertGe(balance, sumGRS + rewardL, string(abi.encodePacked(label, ": ether destroyed")));
         assertLe(balance - sumGRS - rewardL, numberParticipants, string(abi.encodePacked(label, ": dust exceeds 1 wei per participant")));
@@ -185,6 +190,55 @@ contract NoEtherLost is Test {
         playRound();
         model.settle();
         assertPostSettleInvariant("runde 3");
+    }
+
+    // All-positive feedback, but user3 reports a negative contribution score
+    function playRoundWithPenalizedUser3() internal {
+        vm.warp(block.timestamp + 86401);
+        vm.roll(block.number + 1);
+
+        vm.prank(user1); model.feedback(user2, 1);
+        vm.prank(user1); model.feedback(user3, 1);
+        vm.prank(user2); model.feedback(user1, 1);
+        vm.prank(user2); model.feedback(user3, 1);
+        vm.prank(user3); model.feedback(user1, 1);
+        vm.prank(user3); model.feedback(user2, 1);
+
+        vm.prank(user1); model.submitContributionScore(1e18);
+        vm.prank(user2); model.submitContributionScore(1e18);
+        vm.prank(user3); model.submitContributionScore(-1e18);
+    }
+
+    // The penalty is carried, so ether is neither created nor destroyed when it moves
+    function testPenaltyCarriedToNextRoundPreservesInvariant() public {
+        playRoundWithPenalizedUser3();
+        model.settle();
+        assertGt(model.carried(), 0, "user3 should have been penalized");
+        assertPostSettleInvariant("round with penalty");
+
+        playRound();
+        model.settle();
+        assertEq(model.carried(), 0, "carry should be paid out");
+        assertPostSettleInvariant("round after penalty");
+    }
+
+    function testTotalEtherConservedAfterPenaltyRoundAndExit() public {
+        uint totalEtherInPlay = address(model).balance;
+
+        playRoundWithPenalizedUser3();
+        model.settle();
+        playRound();
+        model.settle();
+
+        vm.prank(user1); model.exitModel();
+        vm.prank(user2); model.exitModel();
+        vm.prank(user3); model.exitModel();
+
+        assertEq(
+            user1.balance + user2.balance + user3.balance + address(model).balance,
+            totalEtherInPlay,
+            "Total ether not conserved across a round with penalties"
+        );
     }
 
     // Total ether is conserved through deploy → settle → all exit
