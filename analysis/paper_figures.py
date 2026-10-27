@@ -25,9 +25,12 @@ import pandas as pd
 
 from analysis.loader import load_runs
 from analysis.transform import merge_runs, normalize_runs
+from utils.paths import repo_root
 
-DEFAULT_RUNS_DIR = Path("data/runs")
-DEFAULT_OUT_DIR = Path("data/output_graphs/paper")
+REPO_ROOT = repo_root(Path(__file__))
+
+DEFAULT_RUNS_DIR = REPO_ROOT / "data" / "runs"
+DEFAULT_OUT_DIR = REPO_ROOT / "data" / "output_graphs" / "paper"
 
 BOOTSTRAP_SEED = 0
 BOOTSTRAP_RESAMPLES = 2000
@@ -141,7 +144,8 @@ def mean_grs_by_role_table(users: pd.DataFrame, metadata: pd.DataFrame,
     u = u[(u["noise"] == noise) & (u["activation_round"] == activation_round)]
     per_run = (u.groupby(["dataset", "strategy", "role", "round", "experiment_id"])["grs"]
                .mean().reset_index())
-    return _bootstrap_by_group(per_run, ["dataset", "strategy", "role", "round"], "grs")
+    # The noise is constant here; the plot reads it for its title.
+    return _bootstrap_by_group(per_run, ["dataset", "strategy", "role", "round"], "grs").assign(noise=noise)
 
 
 def global_accuracy_table(global_df: pd.DataFrame, metadata: pd.DataFrame,
@@ -270,8 +274,9 @@ def _strategy_grid(title: str, ylabel: str) -> tuple[plt.Figure, np.ndarray]:
 
 
 def plot_fig5(table: pd.DataFrame, activation_round: int = 3) -> plt.Figure:
+    noise = table["noise"].iloc[0]
     fig, axes = _strategy_grid(
-        f"Reputation trajectories (noise=0.01, activation round {activation_round})",
+        f"Reputation trajectories (noise={noise:g}, activation round {activation_round})",
         "Mean GRS (ETH)")
     for i, ds in enumerate(DATASETS):
         for j, s in enumerate(STRATEGIES):

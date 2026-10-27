@@ -103,3 +103,22 @@ def test_round_one_gas_sums_round_one_receipts_per_run_only():
     })
     out = pf.round_one_gas_per_run(r).set_index("experiment_id")["gas_used"]
     assert out.to_dict() == {"e": 30, "f": 5}
+
+
+def test_fig5_title_states_the_noise_of_the_plotted_table():
+    users = pd.DataFrame({"experiment_id": ["e", "e"], "round": [1, 2], "user_id": [0, 0],
+                          "role": ["good", "good"], "grs": [1.0, 1.1]})
+    meta = pd.DataFrame({"experiment_id": ["e"], "dataset": ["mnist"],
+                         "contribution_score_strategy": ["naive"],
+                         "freerider_start_round": [3], "freerider_noise_scale": [0.1]})
+
+    fig = pf.plot_fig5(pf.mean_grs_by_role_table(users, meta, noise=0.1))
+
+    assert "noise=0.1," in fig.get_suptitle()
+
+
+def test_default_dirs_do_not_depend_on_the_working_directory(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+
+    assert pf.DEFAULT_RUNS_DIR.is_absolute() and pf.DEFAULT_OUT_DIR.is_absolute()
+    assert pf.DEFAULT_RUNS_DIR.name == "runs" and pf.DEFAULT_RUNS_DIR.parent.name == "data"
