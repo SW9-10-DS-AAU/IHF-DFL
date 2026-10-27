@@ -2,7 +2,7 @@
 Characterization tests for the batch driver's per-run configurations (experiment/experiments.py).
 
 They pin what the driver produced before build_run_configs() was extracted (#97): the product
-order of the grid, the per-run values (including the paper presets' None malicious values),
+order of the grid, the per-run values (malicious values resolved per #83 since that fix),
 the run names used for the result files, and the Skip entries used by --skipFolder.
 """
 import sys
@@ -32,7 +32,7 @@ def _expected_runs(name, dataset):
     p = PRESETS[name]
     as_list = lambda v: v if v is not None else [None]
     runs = list(range(1, (p.number_of_runs or 1) + 1)) or [1]
-    return list(product(
+    grid = product(
         p.contribution_score_strategy,
         p.use_outlier_detection,
         as_list(p.freerider_start_round),
@@ -41,7 +41,10 @@ def _expected_runs(name, dataset):
         as_list(p.malicious_noise_scale),
         datasets,
         runs,
-    ))
+    )
+    # #83: a None malicious value takes this run's free-rider value
+    return [(s, od, fr, fn, fr if mr is None else mr, fn if mn is None else mn, ds, r)
+            for s, od, fr, fn, mr, mn, ds, r in grid]
 
 
 def _values(config, run_id):
@@ -87,7 +90,7 @@ def test_run_names_are_unchanged(name, dataset):
 def test_paper_preset_run_name_example():
     config, run_id = experiments.build_run_configs("mnist_openfl_low_noise", ["mnist"])[0]
     assert _run_name("mnist_openfl_low_noise", config, run_id) == \
-        "mnist_openfl_low_noise-mnist-loss_only-True-1-0.01-None-None-1"
+        "mnist_openfl_low_noise-mnist-loss_only-True-1-0.01-1-0.01-1"
 
 
 @pytest.mark.parametrize("name,dataset", PAPER_PRESETS.items())
@@ -137,4 +140,4 @@ def test_main_runs_every_config_in_order(monkeypatch, tmp_path):
     expected = _expected_runs("mnist_openfl_low_noise", "mnist")
     assert [c["values"] for c in calls] == expected
     assert all(c["dataset"] == "mnist" and c["saved"].endswith(".pkl") for c in calls)
-    assert calls[0]["name"] == "mnist_openfl_low_noise-mnist-loss_only-True-1-0.01-None-None-1"
+    assert calls[0]["name"] == "mnist_openfl_low_noise-mnist-loss_only-True-1-0.01-1-0.01-1"
