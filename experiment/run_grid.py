@@ -1,6 +1,6 @@
 import argparse
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import product
 from pathlib import Path
 
@@ -27,6 +27,8 @@ class RunSpec:
 class GitState:
     commit: str
     dirty: bool
+    # Why the tree counts as dirty, for the refusal message. Not part of the recorded state.
+    reason: str = field(default="", compare=False)
 
 
 @dataclass(frozen=True)
@@ -82,18 +84,24 @@ def expand_preset(preset_name: str, dataset: str) -> list[RunSpec]:
 def read_git_state(repo: Path) -> GitState:
     """Read the checked-out commit and whether tracked files differ from it.
 
-    Untracked files do not count as dirty. Without git, the commit is unknown and the state counts as dirty.
+    Untracked files do not count as dirty. Without git, or when git fails, the commit is unknown and the
+    state counts as dirty; the reason says which case it was.
     """
     try:
         commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True,
                                 check=True).stdout.strip()
-        diff = subprocess.run(["git", "diff", "--quiet", "HEAD"], cwd=repo, capture_output=True)
-    except (OSError, subprocess.CalledProcessError):
-        return GitState(commit="unknown", dirty=True)
+        diff = subprocess.run(["git", "diff", "--quiet", "HEAD"], cwd=repo, capture_output=True, text=True)
+    except OSError as e:
+        return GitState(commit="unknown", dirty=True, reason=f"git is not installed or not runnable ({e})")
+    except subprocess.CalledProcessError as e:
+        return GitState(commit="unknown", dirty=True, reason=f"git failed: {(e.stderr or '').strip()}")
     # git diff --quiet exits 1 for changes; any other non-zero code is an error, not a dirty tree.
     if diff.returncode not in (0, 1):
-        return GitState(commit="unknown", dirty=True)
-    return GitState(commit=commit, dirty=diff.returncode == 1)
+        return GitState(commit="unknown", dirty=True,
+                        reason=f"git diff failed with exit code {diff.returncode}: {(diff.stderr or '').strip()}")
+    if diff.returncode == 1:
+        return GitState(commit=commit, dirty=True, reason="tracked files have uncommitted changes")
+    return GitState(commit=commit, dirty=False)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -115,7 +123,7 @@ def plan_runs(flags: argparse.Namespace, git: GitState, start_time: str) -> list
     """
     if git.dirty and not flags.allow_dirty:
         raise SystemExit(
-            f"Refusing to start: tracked files have uncommitted changes or git is unavailable (commit: {git.commit}). "
+            f"Refusing to start: {git.reason or 'the working tree is dirty'} (commit: {git.commit}). "
             "Commit your changes, or pass --allow-dirty to record the runs as dirty."
         )
     runs = [_plan_run(flags.preset, spec, git, start_time) for spec in expand_preset(flags.preset, flags.dataset)]

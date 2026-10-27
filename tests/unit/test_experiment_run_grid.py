@@ -108,6 +108,37 @@ def test_dirty_tree_without_allow_dirty_refuses_to_plan_any_run():
         plan_runs(_flags(), GitState(commit="abc123", dirty=True), start_time="t")
 
 
+def test_refusal_names_the_uncommitted_changes_of_a_dirty_tree(monkeypatch):
+    monkeypatch.setattr(run_grid.subprocess, "run", _fake_git(diff_returncode=1))
+    git = read_git_state(Path("."))
+
+    with pytest.raises(SystemExit, match="tracked files have uncommitted changes") as refusal:
+        plan_runs(_flags(), git, start_time="t")
+    assert "unavailable" not in str(refusal.value)
+
+
+def test_refusal_names_missing_git(monkeypatch):
+    def no_git(*args, **kwargs):
+        raise FileNotFoundError("git")
+    monkeypatch.setattr(run_grid.subprocess, "run", no_git)
+    git = read_git_state(Path("."))
+
+    with pytest.raises(SystemExit, match="git is not installed") as refusal:
+        plan_runs(_flags(), git, start_time="t")
+    assert "uncommitted" not in str(refusal.value)
+
+
+def test_refusal_quotes_the_stderr_of_a_failing_git(monkeypatch):
+    def failing_git(args, **kwargs):
+        raise subprocess.CalledProcessError(128, args, stderr="fatal: not a git repository\n")
+    monkeypatch.setattr(run_grid.subprocess, "run", failing_git)
+    git = read_git_state(Path("."))
+
+    with pytest.raises(SystemExit, match="fatal: not a git repository") as refusal:
+        plan_runs(_flags(), git, start_time="t")
+    assert "uncommitted" not in str(refusal.value)
+
+
 def test_allow_dirty_plans_the_runs_and_records_the_dirty_tree():
     runs = plan_runs(_flags("--allow-dirty"), GitState(commit="abc123", dirty=True), start_time="t")
 
