@@ -37,6 +37,35 @@ def test_fig3_has_48_cells_of_ten_freeriders(tables):
     assert set(f3["total"]) == {10}
 
 
+# (removed of 10, median delay) per activation round 1/3/5, transcribed from the paper's Fig. 3.
+# None = the paper prints "no removals".
+PAPER_FIG3 = {
+    ("mnist", 0.01): {
+        "naive": [(8, 2), (0, None), (0, None)], "accuracy_only": [(10, 2), (7, 5), (4, 3.5)],
+        "loss_only": [(10, 2), (10, 3), (9, 3)], "accuracy_loss": [(10, 2), (4, 7), (1, 5)]},
+    ("mnist", 0.1): {
+        "naive": [(10, 2), (10, 3), (10, 3)], "accuracy_only": [(10, 2), (10, 3), (10, 3)],
+        "loss_only": [(10, 2), (10, 3), (10, 3)], "accuracy_loss": [(10, 2), (10, 3), (10, 3)]},
+    ("cifar.10", 0.01): {
+        "naive": [(0, None), (0, None), (0, None)], "accuracy_only": [(10, 2), (10, 5), (10, 5)],
+        "loss_only": [(10, 2.5), (10, 6.5), (10, 4)], "accuracy_loss": [(10, 3.5), (1, 7), (1, 14)]},
+    ("cifar.10", 0.1): {
+        "naive": [(10, 3), (10, 3), (10, 3)], "accuracy_only": [(10, 3), (10, 3), (10, 3)],
+        "loss_only": [(10, 2), (10, 3), (10, 3)], "accuracy_loss": [(10, 2), (10, 3), (10, 3)]},
+}
+
+
+def test_fig3_every_cell_matches_the_paper(tables):
+    f3 = tables["fig3"].set_index(["dataset", "noise", "strategy", "activation_round"])
+    for (dataset, noise), strategies in PAPER_FIG3.items():
+        for strategy, cells in strategies.items():
+            for activation_round, (removed, delay) in zip([1, 3, 5], cells):
+                row = f3.loc[(dataset, noise, strategy, activation_round)]
+                assert int(row["removed"]) == removed, (dataset, noise, strategy, activation_round)
+                if delay is not None:
+                    assert row["median_delay"] == delay, (dataset, noise, strategy, activation_round)
+
+
 def test_fig3_low_noise_removal_totals(tables):
     f3 = tables["fig3"][lambda d: d["noise"] == 0.01]
     assert f3.groupby("strategy")["removed"].sum().to_dict() == {
