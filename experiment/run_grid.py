@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from itertools import product
 from pathlib import Path
 
-from experiment.experiment_configuration import ExperimentConfiguration
+from experiment.experiment_configuration import ExperimentConfiguration, require_malicious_values
 from experiment.experiment_presets import PRESETS, ExperimentPreset
 from experiment.helper import create_run_ids
 
@@ -118,7 +118,12 @@ def plan_runs(flags: argparse.Namespace, git: GitState, start_time: str) -> list
             f"Refusing to start: tracked files have uncommitted changes or git is unavailable (commit: {git.commit}). "
             "Commit your changes, or pass --allow-dirty to record the runs as dirty."
         )
-    return [_plan_run(flags.preset, spec, git, start_time) for spec in expand_preset(flags.preset, flags.dataset)]
+    runs = [_plan_run(flags.preset, spec, git, start_time) for spec in expand_preset(flags.preset, flags.dataset)]
+    # Validated here, not only in the runner: the driver catches per-run errors, so a misconfigured
+    # preset would otherwise fail run by run instead of stopping the batch.
+    for run in runs:
+        require_malicious_values(run.config)
+    return runs
 
 
 def _plan_run(preset: str, spec: RunSpec, git: GitState, start_time: str) -> PlannedRun:

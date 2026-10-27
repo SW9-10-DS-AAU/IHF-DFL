@@ -1,3 +1,5 @@
+import argparse
+import dataclasses
 import subprocess
 import uuid
 from pathlib import Path
@@ -5,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from experiment.experiment_configuration import ExperimentConfiguration
+from experiment.experiment_presets import PRESETS
 from experiment.helper import getPath
 import experiment.run_grid as run_grid
 from experiment.run_grid import GitState, RunSpec, build_arg_parser, expand_preset, plan_runs, read_git_state
@@ -163,3 +166,13 @@ def test_read_git_state_when_git_diff_fails_is_unknown_and_dirty(monkeypatch):
     monkeypatch.setattr(run_grid.subprocess, "run", _fake_git(diff_returncode=128))
 
     assert read_git_state(Path(".")) == GitState(commit="unknown", dirty=True)
+
+
+def test_plan_refuses_a_preset_whose_malicious_participant_would_never_activate(monkeypatch):
+    # Checked while planning, so a batch stops up front instead of failing run by run.
+    broken = dataclasses.replace(PRESETS["test"], freerider_start_round=None, freerider_noise_scale=None,
+                                 malicious_start_round=None, malicious_noise_scale=None)
+    monkeypatch.setitem(PRESETS, "broken", broken)
+
+    with pytest.raises(ValueError, match="malicious_start_round, malicious_noise_scale"):
+        plan_runs(argparse.Namespace(preset="broken", dataset="mnist", allow_dirty=False), CLEAN, start_time="t")

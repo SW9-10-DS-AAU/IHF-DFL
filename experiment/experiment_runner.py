@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 from ml import pytorch_model as PM
 from contracts import fl_manager as Manager, fl_challenge as Challenge
+from experiment.experiment_configuration import require_malicious_values
 from utils.require_env import require_env_var
 from types import SimpleNamespace
 from web3 import Web3, Account
@@ -47,11 +48,7 @@ def run_experiment(dataset_name: str, experiment_config, _run_id: int,  writer: 
         else:
             run_id = _run_id
 
-        if experiment_config.number_of_bad_contributors > 0 and (
-                experiment_config.malicious_start_round is None
-                or experiment_config.malicious_noise_scale is None):
-            raise ValueError("Malicious contributors configured but malicious_start_round/noise_scale is None: "
-                             "the malicious actor would never activate.")
+        require_malicious_values(experiment_config)
 
         pytorch_model = PM.PytorchModel(dataset_name,
                                         experiment_config.number_of_good_contributors,
