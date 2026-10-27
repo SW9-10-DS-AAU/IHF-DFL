@@ -82,13 +82,12 @@ skips: list[Skip] = []
 
 # ---------------- MAIN ----------------
 
-def main(author): # single preset
-    preset_config = PRESETS[preset]
-    startTime = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
-
-    if args.skipFolder is not None:
-        parseSkips()
-
+def build_run_configs(preset_name, datasets) -> list[tuple[ExperimentConfiguration, int]]:
+    """
+    Expand a preset into its per-run configurations, in driver order.
+    Returns (config, run_id) pairs; config holds every value used for the run name and metadata.
+    """
+    preset_config = PRESETS[preset_name]
     productVar = []
 
     malicious_rounds = (
@@ -157,31 +156,8 @@ def main(author): # single preset
             run_id
         ))
 
-    total = len(productVar)
-
-    skipConfigs = [
-        Skip(
-            preset=preset,
-            dataset=dataset,
-            strategy=strategy,
-            outlier_detection=outlier_detection,
-            freerider_activation_round=freerider_round,
-            freerider_noise=freerider_noise,
-            malicious_activation_round=malicious_activation_round,
-            malicious_noise=malicious_noise,
-            run_id=run_id,
-        )
-        for (
-            strategy, outlier_detection, freerider_round, freerider_noise,
-            malicious_activation_round, malicious_noise, dataset, run_id
-        ) in productVar
-    ]
-    skipsCount = sum(1 for sc in skipConfigs if shouldSkip(sc))
-
-    time = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
-
-    done = 0
-    for i, ((
+    run_configs = []
+    for (
         strategy,
         outlier_detection,
         freerider_round,
@@ -190,7 +166,55 @@ def main(author): # single preset
         malicious_noise,
         dataset,
         run_id
-    ), skipConfig) in enumerate(zip(productVar, skipConfigs), start=1):
+    ) in productVar:
+        config = ExperimentConfiguration(preset=preset_name, use_defaults=_use_defaults)
+        config.preset_name = preset_name
+        config.dataset = dataset
+
+        # override parameters for this run
+        config.contribution_score_strategy = strategy
+        config.use_outlier_detection = outlier_detection
+        config.freerider_start_round = freerider_round
+        config.freerider_noise_scale = freerider_noise
+        config.malicious_start_round = malicious_activation_round
+        config.malicious_noise_scale = malicious_noise
+        run_configs.append((config, run_id))
+
+    return run_configs
+
+
+def skip_for(preset_name, config, run_id) -> "Skip":
+    """The Skip entry --skipFolder matching uses for one run."""
+    return Skip(
+        preset=preset_name,
+        dataset=config.dataset,
+        strategy=config.contribution_score_strategy,
+        outlier_detection=config.use_outlier_detection,
+        freerider_activation_round=config.freerider_start_round,
+        freerider_noise=config.freerider_noise_scale,
+        malicious_activation_round=config.malicious_start_round,
+        malicious_noise=config.malicious_noise_scale,
+        run_id=run_id,
+    )
+
+
+def main(author): # single preset
+    startTime = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
+
+    if args.skipFolder is not None:
+        parseSkips()
+
+    run_configs = build_run_configs(preset, datasets)
+    total = len(run_configs)
+
+    skipConfigs = [skip_for(preset, config, run_id) for config, run_id in run_configs]
+    skipsCount = sum(1 for sc in skipConfigs if shouldSkip(sc))
+
+    time = datetime.now().strftime("%d-%m-%y--%H_%M_%S")
+
+    done = 0
+    for i, ((config, run_id), skipConfig) in enumerate(zip(run_configs, skipConfigs), start=1):
+        dataset = config.dataset
         if shouldSkip(skipConfig):
             print(f"Skipping: {skipConfig}")
             continue
@@ -203,19 +227,6 @@ def main(author): # single preset
 
         progress_bar(done, skipsCount, total)
         done += 1
-
-        config = ExperimentConfiguration(preset=preset, use_defaults=_use_defaults)
-        config.preset_name = preset
-        config.dataset = dataset
-
-
-        # override parameters for this run
-        config.contribution_score_strategy = strategy
-        config.use_outlier_detection = outlier_detection
-        config.freerider_start_round = freerider_round
-        config.freerider_noise_scale = freerider_noise
-        config.malicious_start_round = malicious_activation_round
-        config.malicious_noise_scale = malicious_noise
 
         path = getPath(config, time, dataset, preset, RESULTDATAFOLDER, run_id=run_id)
 
@@ -255,7 +266,8 @@ def main(author): # single preset
 parser = argparse.ArgumentParser()
 parser.add_argument("--skipFolder", type=str)
 parser.add_argument("--author", type=str)
-args = parser.parse_args()
+# Lenient on import (e.g. pytest's argv); the script entry point below re-parses strictly.
+args, _ = parser.parse_known_args()
 
 
 # ---------------- SKIP PARSING ----------------
@@ -383,6 +395,7 @@ def normalize_skip(skip: Skip):
 # ---------------- ENTRY ----------------
 
 if __name__ == "__main__":
+    args = parser.parse_args()  # strict: fail on typos / unknown flags
     author = args.author if args.author is not None else input("Author?\n")
     mp.freeze_support()
     main(author)
