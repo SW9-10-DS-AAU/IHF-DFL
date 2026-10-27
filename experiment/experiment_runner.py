@@ -47,6 +47,12 @@ def run_experiment(dataset_name: str, experiment_config, _run_id: int,  writer: 
         else:
             run_id = _run_id
 
+        if experiment_config.number_of_bad_contributors > 0 and (
+                experiment_config.malicious_start_round is None
+                or experiment_config.malicious_noise_scale is None):
+            raise ValueError("Malicious contributors configured but malicious_start_round/noise_scale is None: "
+                             "the malicious actor would never activate.")
+
         pytorch_model = PM.PytorchModel(dataset_name,
                                         experiment_config.number_of_good_contributors,
                                         experiment_config.number_of_bad_contributors,

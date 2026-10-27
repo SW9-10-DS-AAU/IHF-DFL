@@ -35,15 +35,26 @@ def expand_preset(preset_name: str, dataset: str) -> list[RunSpec]:
         runs = [1]
 
     return [
-        RunSpec(*values)
-        for values in product(
+        RunSpec(
+            strategy,
+            outlier_detection,
+            freerider_round,
+            freerider_noise,
+            # A preset that leaves the malicious values out reuses this cell's free-rider values;
+            # a None here would mean the malicious participant never activates.
+            malicious_round if malicious_round is not None else freerider_round,
+            malicious_noise if malicious_noise is not None else freerider_noise,
+            dataset,
+            run_id,
+        )
+        for strategy, outlier_detection, freerider_round, freerider_noise, malicious_round, malicious_noise, run_id
+        in product(
             preset_config.contribution_score_strategy,
             preset_config.use_outlier_detection,
             _values_or_none(preset_config.freerider_start_round),
             _values_or_none(preset_config.freerider_noise_scale),
             _values_or_none(preset_config.malicious_start_round),
             _values_or_none(preset_config.malicious_noise_scale),
-            [dataset],
             runs,
         )
     ]

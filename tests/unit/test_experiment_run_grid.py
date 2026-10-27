@@ -33,11 +33,11 @@ def test_paper_preset_expands_to_its_full_grid(preset, dataset, noise):
 
 
 @pytest.mark.parametrize("preset,dataset,noise", PAPER_PRESETS)
-def test_paper_preset_keeps_malicious_values_none(preset, dataset, noise):
+def test_paper_preset_malicious_participant_starts_in_round_one_with_freerider_noise(preset, dataset, noise):
     specs = expand_preset(preset, dataset)
 
-    assert {s.malicious_round for s in specs} == {None}
-    assert {s.malicious_noise for s in specs} == {None}
+    assert {s.malicious_round for s in specs} == {1}
+    assert {s.malicious_noise for s in specs} == {noise}
 
 
 def test_four_paper_presets_give_480_runs():
@@ -49,10 +49,10 @@ def test_four_paper_presets_give_480_runs():
 def test_expansion_order_is_strategy_then_round_then_run_id():
     specs = expand_preset("mnist_openfl_low_noise", "mnist")
 
-    assert specs[0] == RunSpec("loss_only", True, 1, 0.01, None, None, "mnist", 1)
-    assert specs[1] == RunSpec("loss_only", True, 1, 0.01, None, None, "mnist", 2)
-    assert specs[10] == RunSpec("loss_only", True, 3, 0.01, None, None, "mnist", 1)
-    assert specs[-1] == RunSpec("naive", True, 5, 0.01, None, None, "mnist", 10)
+    assert specs[0] == RunSpec("loss_only", True, 1, 0.01, 1, 0.01, "mnist", 1)
+    assert specs[1] == RunSpec("loss_only", True, 1, 0.01, 1, 0.01, "mnist", 2)
+    assert specs[10] == RunSpec("loss_only", True, 3, 0.01, 1, 0.01, "mnist", 1)
+    assert specs[-1] == RunSpec("naive", True, 5, 0.01, 1, 0.01, "mnist", 10)
 
 
 def test_test_preset_expands_to_three_runs_with_malicious_values():
@@ -69,7 +69,7 @@ def test_unknown_preset_raises():
         expand_preset("no_such_preset", "mnist")
 
 
-def test_run_name_is_unchanged_for_a_paper_run(monkeypatch):
+def test_run_name_of_a_paper_run_carries_the_malicious_values(monkeypatch):
     monkeypatch.setattr(uuid, "uuid4", lambda: "FIXED")
     spec = expand_preset("mnist_openfl_low_noise", "mnist")[11]
     config = ExperimentConfiguration(preset="mnist_openfl_low_noise")
@@ -82,4 +82,4 @@ def test_run_name_is_unchanged_for_a_paper_run(monkeypatch):
 
     path = getPath(config, "t", spec.dataset, "mnist_openfl_low_noise", Path("out"), run_id=spec.run_id)
 
-    assert path.name == "mnist_openfl_low_noise-mnist-loss_only-True-3-0.01-None-None-2-{FIXED}.csv"
+    assert path.name == "mnist_openfl_low_noise-mnist-loss_only-True-3-0.01-1-0.01-2-{FIXED}.csv"
