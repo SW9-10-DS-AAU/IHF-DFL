@@ -116,7 +116,8 @@ To run only the slow tests:
 pytest -m slow --no-header -q
 ```
 
-The slow acceptance test for the paper figures (`tests/integration/test_paper_figures_acceptance.py`) reads the stored runs from `data/runs`.
+The slow acceptance test for the paper figures (`tests/integration/test_paper_figures_acceptance.py`) checks the paper's numbers against its 480 original runs, kept in `data/runs_paper_v1` (gitignored).
+They are kept apart from `data/runs`, where new runs land, because `analysis.paper_figures` loads every run under the folder it is given.
 Point it at another folder with the `IHF_RUNS_DIR` environment variable; the test is skipped when the folder does not exist:
 ```
 IHF_RUNS_DIR=/path/to/runs pytest -m slow tests/integration/test_paper_figures_acceptance.py

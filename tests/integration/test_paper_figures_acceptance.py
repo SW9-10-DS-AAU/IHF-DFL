@@ -1,7 +1,8 @@
 """Acceptance numbers of the paper's Fig. 3-8, recomputed from the 480 stored runs.
 
 Checks the computed values, not the images. Reads the runs from $IHF_RUNS_DIR,
-falling back to data/runs in the repo root; skipped when neither exists (data/runs is gitignored).
+falling back to data/runs_paper_v1 in the repo root; skipped when neither exists (it is gitignored).
+The paper's runs live apart from data/runs, where new runs land, so a rerun never mixes into them.
 """
 import os
 from pathlib import Path
@@ -10,7 +11,8 @@ import pytest
 
 from analysis import paper_figures as pf
 
-RUNS_DIR = Path(os.environ.get("IHF_RUNS_DIR", pf.DEFAULT_RUNS_DIR))
+PAPER_RUNS_DIR = pf.DEFAULT_RUNS_DIR.parent / "runs_paper_v1"
+RUNS_DIR = Path(os.environ.get("IHF_RUNS_DIR", PAPER_RUNS_DIR))
 
 pytestmark = [
     pytest.mark.slow,
