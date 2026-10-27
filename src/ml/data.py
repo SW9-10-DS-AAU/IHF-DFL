@@ -20,7 +20,9 @@ def load_data(pm, _print=False):
     if pm.DATA:
         return pm.DATA
 
-    if pm.DATASET == "cifar-10":
+    # Same rule as PytorchModel's choice of network, so the images always fit it.
+    # The CIFAR-10 name is "cifar.10" because result file names separate their fields with "-".
+    if pm.DATASET != "mnist":
         transform = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
