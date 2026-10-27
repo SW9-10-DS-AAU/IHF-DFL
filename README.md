@@ -77,6 +77,14 @@ Untracked files do not count. Pass `--allow-dirty` to run anyway; the runs are t
 Or if you want to specify a different .env file, run with the ENV prefix as described in the Environment Variables section:
 ``ENV=ganache python ./experiment/experiments.py``
 
+### Paper figures
+Rebuild the paper's Fig. 3-8 from stored runs, from the repo root:
+
+`python -m analysis.paper_figures [RUNS_DIR] [OUT_DIR]`
+
+`RUNS_DIR` defaults to `data/runs` and `OUT_DIR` to `data/output_graphs/paper`, both relative to the repo root. The script writes `fig3.png` to `fig8.png` into `OUT_DIR`.
+It expects the four paper presets (480 runs).
+
 
 ## 5. Solidity testing
 - All forge commands must be run in the foundry directory.
@@ -106,6 +114,12 @@ pytest -m slow
 To run only the slow tests:
 ```
 pytest -m slow --no-header -q
+```
+
+The slow acceptance test for the paper figures (`tests/integration/test_paper_figures_acceptance.py`) reads the stored runs from `data/runs`.
+Point it at another folder with the `IHF_RUNS_DIR` environment variable; the test is skipped when the folder does not exist:
+```
+IHF_RUNS_DIR=/path/to/runs pytest -m slow tests/integration/test_paper_figures_acceptance.py
 ```
 
 Solidity tests (forge) run automatically as part of the pytest suite on Linux/WSL.
