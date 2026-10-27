@@ -28,6 +28,9 @@ contract OpenFLModel {
     uint public totalReward;
     uint public rewardPerRound;
     uint public rewardLeft;
+    // Contribution penalties and forfeited stakes. They depend on the round reward R, so they cannot
+    // be part of it; they are added to the next round's reward instead.
+    uint public carriedReward;
     uint public roundStart;
     uint public contributionStart;
     uint public freeriderPenalty;
@@ -509,48 +512,32 @@ contract OpenFLModel {
         }
 
         rewardLeft -= rewardPerRound;
-        uint reward = rewardPerRound + totalPunishment;
+        // R of Eq. 11: round reward, punishments of this round and what the previous round carried over
+        uint reward = rewardPerRound + totalPunishment + carriedReward;
+        carriedReward = 0;
 
         int256 sumOfWeightedContribScore = 0;
 
-        // Compute weights
+        // Compute weights (negative weights are kept for Eq. 11 penalties, only positive ones enter the sum)
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
-            if (_isEligibleForRewards(user) && contributionScore[round][user.addr] > 0) {
+            if (_isEligibleForRewards(user) && contributionScore[round][user.addr] != 0) {
                 int256 weight = int256(uint(user.nrOfVotesFromUser)) * contributionScore[round][user.addr]; // implicitly handles users with passive punishments, as their nrOfVotesFromUser is set to 0 already.
                 user.weightedContribScore = weight;
-                sumOfWeightedContribScore += weight;
+                if (weight > 0) {
+                    sumOfWeightedContribScore += weight;
+                }
             }
         }
         require(sumOfWeightedContribScore > 0, "sumOfWeightedContribScore is <= 0 in settle!");
         positiveSumOfWeightedContribScore = uint256(sumOfWeightedContribScore);
 
-        // check if a user should be disqualified or punished
+        // Penalize negative weights by Eq. 11. All penalties are computed from the same R, which is
+        // not changed here, so positive payouts do not depend on them.
         for (uint i = 0; i < participants.length; i++) {
             User storage user = users[participants[i]];
-            if (_isEligibleForRewards(user) && contributionScore[round][user.addr] < 0) { // You shall be punished
-                uint punishment = (user.globalReputationScore / punishfactorContrib) * absUint(contributionScore[round][user.addr]);
-                require(punishment > 0, "punishment is <= 0 in settle!");
-                punishment /= 1e18;
-                if (user.globalReputationScore <= min_collateral / punishfactorContrib || punishment > user.globalReputationScore) { // this is a disqualification
-                    reward += user.globalReputationScore;
-                    _disqualifyUser(user);
-                }
-                else { // this is a punishment
-                    user.globalReputationScore -= punishment;
-                    reward += punishment;
-                    user.isPunished = true;
-
-                    emit ContributionPunishment(
-                        user.addr,
-                        user.roundReputation,
-                        punishment,
-                        user.globalReputationScore
-                    );
-
-                    delete user.whitelistedForRewards;
-                    delete user.weightedContribScore;
-                }
+            if (_isEligibleForRewards(user) && contributionScore[round][user.addr] < 0) {
+                carriedReward += _penalizeNegativeWeight(user, reward, positiveSumOfWeightedContribScore);
             }
         }
 
@@ -573,6 +560,40 @@ contract OpenFLModel {
             delete user.whitelistedForRewards;
             delete user.weightedContribScore;
         }
+    }
+
+    // Eq. 11 for a negative weight w: the user loses reward * |w| / sum of positive weights.
+    // A loss of at least the whole reputation clamps it to 0 and removes the user, as does a reputation
+    // at or below the threshold. Returns the amount forfeited, which goes to the next round's reward.
+    function _penalizeNegativeWeight(
+        User storage user,
+        uint reward,
+        uint positiveSum
+    ) internal returns (uint forfeited) {
+        uint loss = (reward * absUint(user.weightedContribScore)) / positiveSum;
+        if (loss >= user.globalReputationScore) {
+            forfeited = user.globalReputationScore;
+            _disqualifyUser(user);
+            return forfeited;
+        }
+
+        user.globalReputationScore -= loss;
+        forfeited = loss;
+        if (user.globalReputationScore <= min_collateral / punishfactorContrib) {
+            forfeited += user.globalReputationScore;
+            _disqualifyUser(user);
+            return forfeited;
+        }
+
+        user.isPunished = true;
+        emit ContributionPunishment(
+            user.addr,
+            user.roundReputation,
+            loss,
+            user.globalReputationScore
+        );
+        delete user.whitelistedForRewards;
+        delete user.weightedContribScore;
     }
 
     // Reset variables
